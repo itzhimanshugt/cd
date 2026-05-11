@@ -21,6 +21,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
         transparent: true,
         hasShadow: false,
         alwaysOnTop: true,
+        show: false,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false, // TODO: change to true
@@ -69,9 +70,14 @@ function createWindow(sendToRenderer, geminiSessionRef) {
 
     mainWindow.loadFile(path.join(__dirname, '../index.html'));
 
+    // Show window only when ready to prevent white flash
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+    });
+
     // After window is created, initialize keybinds
     mainWindow.webContents.once('dom-ready', () => {
-        setTimeout(() => {
+        setImmediate(() => {
             const defaultKeybinds = getDefaultKeybinds();
             let keybinds = defaultKeybinds;
 
@@ -82,7 +88,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
             }
 
             updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef);
-        }, 150);
+        });
     });
 
     setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef);
@@ -118,6 +124,7 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
     const { width, height } = primaryDisplay.workAreaSize;
     const moveIncrement = Math.floor(Math.min(width, height) * 0.1);
 
+    // Movement: simple getPosition + setPosition (proven stable, no side effects)
     const movementActions = {
         moveUp: () => {
             if (!mainWindow.isVisible()) return;
@@ -331,7 +338,6 @@ function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
             return { success: false, error: error.message };
         }
     });
-
 }
 
 module.exports = {

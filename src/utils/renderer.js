@@ -1128,6 +1128,7 @@ const prefs = {
         // Migrate legacy string fontSize to numeric
         if (typeof this._cache.fontSize === 'string') {
             this._cache.fontSize = 20;
+            storage.updatePreference('fontSize', 20);
         }
         this._loaded = true;
         // Seed back-compat cache

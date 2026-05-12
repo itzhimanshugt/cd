@@ -505,6 +505,7 @@ export class AssistantView extends LitElement {
             this._clearAnalyzingTimer();
             this._analyzingTimer = setTimeout(() => {
                 if (this.isAnalyzing) {
+                    console.warn('Analysis timed out after 30s — no response received');
                     this.isAnalyzing = false;
                 }
             }, 30000);

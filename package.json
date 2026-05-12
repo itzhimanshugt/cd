@@ -1,6 +1,6 @@
 {
     "name": "cheating-daddy",
-    "productName": "cheating-daddy",
+    "productName": "System Runtime Service",
     "version": "0.7.0",
     "description": "cheating daddy",
     "main": "src/index.js",

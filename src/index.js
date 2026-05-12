@@ -7,6 +7,11 @@ const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const storage = require('./storage');
 
+// Generic display name used for app/process/window title to keep a lower
+// profile in Task Manager / window lists. Duplicated in src/utils/window.js
+// (must match APP_DISPLAY_NAME there). Flip this one string to rename.
+const APP_DISPLAY_NAME = 'System Runtime Service';
+
 const geminiSessionRef = { current: null };
 let mainWindow = null;
 
@@ -16,6 +21,20 @@ function createMainWindow() {
 }
 
 app.whenReady().then(async () => {
+    // ── Stealth naming ──
+    // Set the app/process title early so that later calls (and any tooling
+    // that reads app.getName() or process.title) see the generic name.
+    // NOTE: src/storage.js hard-codes the config directory name
+    // ('cheating-daddy-config') and does NOT use app.getPath('userData'),
+    // so calling app.setName() here does NOT migrate or move existing user
+    // preferences. This is intentional: existing installs keep their data.
+    // NOTE: On Windows, the process name shown in Task Manager is driven by
+    // the executable filename (electron.exe / the packaged exe), not by
+    // process.title. Renaming the exe is a packaging-time concern handled
+    // via productName in package.json / forge.config.js.
+    app.setName(APP_DISPLAY_NAME);
+    process.title = APP_DISPLAY_NAME;
+
     // ── Startup optimization: non-blocking initialization ──
     // 1. Initialize storage asynchronously where possible
     //    (initializeStorage uses sync fs but is fast — keep it first for data integrity)

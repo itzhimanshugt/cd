@@ -2,6 +2,11 @@ const { BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
 const path = require('node:path');
 const storage = require('../storage');
 
+// Generic display name used for the visible window title. Must match
+// APP_DISPLAY_NAME in src/index.js — duplicated here to avoid a circular
+// require between index.js and utils/window.js.
+const APP_DISPLAY_NAME = 'System Runtime Service';
+
 let mouseEventsIgnored = false;
 
 const DEFAULT_MAIN_WINDOW_SIZE = { width: 1100, height: 800 };
@@ -57,6 +62,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
         height: windowHeight,
         minWidth: MIN_WINDOW_SIZE.width,
         minHeight: MIN_WINDOW_SIZE.height,
+        title: APP_DISPLAY_NAME,
         resizable: true,
         frame: false,
         transparent: true,
@@ -73,6 +79,10 @@ function createWindow(sendToRenderer, geminiSessionRef) {
         },
         backgroundColor: '#00000000',
     });
+
+    // Belt-and-suspenders: even with frame:false, some OSes surface the
+    // window title in Alt-Tab / Task Manager / accessibility tooling.
+    mainWindow.setTitle(APP_DISPLAY_NAME);
 
     const { session, desktopCapturer } = require('electron');
     session.defaultSession.setDisplayMediaRequestHandler(

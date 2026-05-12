@@ -996,7 +996,7 @@ export class MainView extends LitElement {
                 ${this._mode === 'local'
                     ? html`
                           <div class="title-row">
-                              <div class="page-title">Cheating Daddy <span class="mode-suffix">Local AI</span></div>
+                              <div class="page-title">System Runtime <span class="mode-suffix">Local AI</span></div>
                               <button
                                   class="help-btn"
                                   @click=${() => {
@@ -1007,7 +1007,7 @@ export class MainView extends LitElement {
                               </button>
                           </div>
                       `
-                    : html` <div class="page-title">${html`Cheating Daddy <span class="mode-suffix">BYOK</span>`}</div> `}
+                    : html` <div class="page-title">${html`System Runtime <span class="mode-suffix">BYOK</span>`}</div> `}
                 <div class="page-subtitle">${this._mode === 'byok' ? 'Bring your own API keys' : 'Run models locally on your machine'}</div>
 
                 <!-- Cloud mode render branch intentionally disabled. -->

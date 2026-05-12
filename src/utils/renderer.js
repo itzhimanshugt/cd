@@ -106,18 +106,26 @@ const storage = {
     async getTodayLimits() {
         const result = await ipcRenderer.invoke('storage:get-today-limits');
         return result.success ? result.data : { flash: { count: 0 }, flashLite: { count: 0 } };
-    }
+    },
 };
 
 // Cache for preferences to avoid async calls in hot paths
+// NOTE: This cache is kept for back-compat. The canonical source is
+// `cheatingDaddy.prefs` (defined later in this file). Once prefs.load()
+// has run, preferencesCache is populated from the prefs singleton.
 let preferencesCache = null;
 
 async function loadPreferencesCache() {
+    // If the prefs singleton is initialised, mirror from it.
+    if (typeof cheatingDaddy !== 'undefined' && cheatingDaddy && cheatingDaddy.prefs && cheatingDaddy.prefs._loaded) {
+        preferencesCache = cheatingDaddy.prefs.getAll();
+        return preferencesCache;
+    }
     preferencesCache = await storage.getPreferences();
     return preferencesCache;
 }
 
-// Initialize preferences cache
+// Initialize preferences cache (back-compat only; prefs singleton is authoritative)
 loadPreferencesCache();
 
 function convertFloat32ToInt16(float32Array) {
@@ -741,7 +749,7 @@ ipcRenderer.on('save-session-context', async (event, data) => {
     try {
         await storage.saveSession(data.sessionId, {
             profile: data.profile,
-            customPrompt: data.customPrompt
+            customPrompt: data.customPrompt,
         });
         console.log('Session context saved:', data.sessionId, 'profile:', data.profile);
     } catch (error) {
@@ -755,7 +763,7 @@ ipcRenderer.on('save-screen-analysis', async (event, data) => {
         await storage.saveSession(data.sessionId, {
             screenAnalysisHistory: data.fullHistory,
             profile: data.profile,
-            customPrompt: data.customPrompt
+            customPrompt: data.customPrompt,
         });
         console.log('Screen analysis saved:', data.sessionId);
     } catch (error) {
@@ -790,75 +798,129 @@ const theme = {
     themes: {
         dark: {
             background: '#101010',
-            text: '#e0e0e0', textSecondary: '#a0a0a0', textMuted: '#6b6b6b',
-            border: '#2a2a2a', accent: '#ffffff',
-            btnPrimaryBg: '#ffffff', btnPrimaryText: '#000000', btnPrimaryHover: '#e0e0e0',
-            tooltipBg: '#1a1a1a', tooltipText: '#ffffff',
-            keyBg: 'rgba(255,255,255,0.1)'
+            text: '#e0e0e0',
+            textSecondary: '#a0a0a0',
+            textMuted: '#6b6b6b',
+            border: '#2a2a2a',
+            accent: '#ffffff',
+            btnPrimaryBg: '#ffffff',
+            btnPrimaryText: '#000000',
+            btnPrimaryHover: '#e0e0e0',
+            tooltipBg: '#1a1a1a',
+            tooltipText: '#ffffff',
+            keyBg: 'rgba(255,255,255,0.1)',
         },
         light: {
             background: '#ffffff',
-            text: '#1a1a1a', textSecondary: '#555555', textMuted: '#888888',
-            border: '#e0e0e0', accent: '#000000',
-            btnPrimaryBg: '#1a1a1a', btnPrimaryText: '#ffffff', btnPrimaryHover: '#333333',
-            tooltipBg: '#1a1a1a', tooltipText: '#ffffff',
-            keyBg: 'rgba(0,0,0,0.1)'
+            text: '#1a1a1a',
+            textSecondary: '#555555',
+            textMuted: '#888888',
+            border: '#e0e0e0',
+            accent: '#000000',
+            btnPrimaryBg: '#1a1a1a',
+            btnPrimaryText: '#ffffff',
+            btnPrimaryHover: '#333333',
+            tooltipBg: '#1a1a1a',
+            tooltipText: '#ffffff',
+            keyBg: 'rgba(0,0,0,0.1)',
         },
         midnight: {
             background: '#0d1117',
-            text: '#c9d1d9', textSecondary: '#8b949e', textMuted: '#6e7681',
-            border: '#30363d', accent: '#58a6ff',
-            btnPrimaryBg: '#58a6ff', btnPrimaryText: '#0d1117', btnPrimaryHover: '#79b8ff',
-            tooltipBg: '#161b22', tooltipText: '#c9d1d9',
-            keyBg: 'rgba(88,166,255,0.15)'
+            text: '#c9d1d9',
+            textSecondary: '#8b949e',
+            textMuted: '#6e7681',
+            border: '#30363d',
+            accent: '#58a6ff',
+            btnPrimaryBg: '#58a6ff',
+            btnPrimaryText: '#0d1117',
+            btnPrimaryHover: '#79b8ff',
+            tooltipBg: '#161b22',
+            tooltipText: '#c9d1d9',
+            keyBg: 'rgba(88,166,255,0.15)',
         },
         sepia: {
             background: '#f4ecd8',
-            text: '#5c4b37', textSecondary: '#7a6a56', textMuted: '#998875',
-            border: '#d4c8b0', accent: '#8b4513',
-            btnPrimaryBg: '#5c4b37', btnPrimaryText: '#f4ecd8', btnPrimaryHover: '#7a6a56',
-            tooltipBg: '#5c4b37', tooltipText: '#f4ecd8',
-            keyBg: 'rgba(92,75,55,0.15)'
+            text: '#5c4b37',
+            textSecondary: '#7a6a56',
+            textMuted: '#998875',
+            border: '#d4c8b0',
+            accent: '#8b4513',
+            btnPrimaryBg: '#5c4b37',
+            btnPrimaryText: '#f4ecd8',
+            btnPrimaryHover: '#7a6a56',
+            tooltipBg: '#5c4b37',
+            tooltipText: '#f4ecd8',
+            keyBg: 'rgba(92,75,55,0.15)',
         },
         catppuccin: {
             background: '#1e1e2e',
-            text: '#cdd6f4', textSecondary: '#a6adc8', textMuted: '#585b70',
-            border: '#313244', accent: '#cba6f7',
-            btnPrimaryBg: '#cba6f7', btnPrimaryText: '#1e1e2e', btnPrimaryHover: '#b4befe',
-            tooltipBg: '#313244', tooltipText: '#cdd6f4',
-            keyBg: 'rgba(203,166,247,0.12)'
+            text: '#cdd6f4',
+            textSecondary: '#a6adc8',
+            textMuted: '#585b70',
+            border: '#313244',
+            accent: '#cba6f7',
+            btnPrimaryBg: '#cba6f7',
+            btnPrimaryText: '#1e1e2e',
+            btnPrimaryHover: '#b4befe',
+            tooltipBg: '#313244',
+            tooltipText: '#cdd6f4',
+            keyBg: 'rgba(203,166,247,0.12)',
         },
         gruvbox: {
             background: '#1d2021',
-            text: '#ebdbb2', textSecondary: '#a89984', textMuted: '#665c54',
-            border: '#3c3836', accent: '#fe8019',
-            btnPrimaryBg: '#fe8019', btnPrimaryText: '#1d2021', btnPrimaryHover: '#fabd2f',
-            tooltipBg: '#3c3836', tooltipText: '#ebdbb2',
-            keyBg: 'rgba(254,128,25,0.12)'
+            text: '#ebdbb2',
+            textSecondary: '#a89984',
+            textMuted: '#665c54',
+            border: '#3c3836',
+            accent: '#fe8019',
+            btnPrimaryBg: '#fe8019',
+            btnPrimaryText: '#1d2021',
+            btnPrimaryHover: '#fabd2f',
+            tooltipBg: '#3c3836',
+            tooltipText: '#ebdbb2',
+            keyBg: 'rgba(254,128,25,0.12)',
         },
         rosepine: {
             background: '#191724',
-            text: '#e0def4', textSecondary: '#908caa', textMuted: '#6e6a86',
-            border: '#26233a', accent: '#ebbcba',
-            btnPrimaryBg: '#ebbcba', btnPrimaryText: '#191724', btnPrimaryHover: '#f6c177',
-            tooltipBg: '#26233a', tooltipText: '#e0def4',
-            keyBg: 'rgba(235,188,186,0.12)'
+            text: '#e0def4',
+            textSecondary: '#908caa',
+            textMuted: '#6e6a86',
+            border: '#26233a',
+            accent: '#ebbcba',
+            btnPrimaryBg: '#ebbcba',
+            btnPrimaryText: '#191724',
+            btnPrimaryHover: '#f6c177',
+            tooltipBg: '#26233a',
+            tooltipText: '#e0def4',
+            keyBg: 'rgba(235,188,186,0.12)',
         },
         solarized: {
             background: '#002b36',
-            text: '#93a1a1', textSecondary: '#839496', textMuted: '#586e75',
-            border: '#073642', accent: '#2aa198',
-            btnPrimaryBg: '#2aa198', btnPrimaryText: '#002b36', btnPrimaryHover: '#268bd2',
-            tooltipBg: '#073642', tooltipText: '#93a1a1',
-            keyBg: 'rgba(42,161,152,0.12)'
+            text: '#93a1a1',
+            textSecondary: '#839496',
+            textMuted: '#586e75',
+            border: '#073642',
+            accent: '#2aa198',
+            btnPrimaryBg: '#2aa198',
+            btnPrimaryText: '#002b36',
+            btnPrimaryHover: '#268bd2',
+            tooltipBg: '#073642',
+            tooltipText: '#93a1a1',
+            keyBg: 'rgba(42,161,152,0.12)',
         },
         tokyonight: {
             background: '#1a1b26',
-            text: '#c0caf5', textSecondary: '#9aa5ce', textMuted: '#565f89',
-            border: '#292e42', accent: '#7aa2f7',
-            btnPrimaryBg: '#7aa2f7', btnPrimaryText: '#1a1b26', btnPrimaryHover: '#bb9af7',
-            tooltipBg: '#292e42', tooltipText: '#c0caf5',
-            keyBg: 'rgba(122,162,247,0.12)'
+            text: '#c0caf5',
+            textSecondary: '#9aa5ce',
+            textMuted: '#565f89',
+            border: '#292e42',
+            accent: '#7aa2f7',
+            btnPrimaryBg: '#7aa2f7',
+            btnPrimaryText: '#1a1b26',
+            btnPrimaryHover: '#bb9af7',
+            tooltipBg: '#292e42',
+            tooltipText: '#c0caf5',
+            keyBg: 'rgba(122,162,247,0.12)',
         },
     },
 
@@ -878,29 +940,31 @@ const theme = {
             gruvbox: 'Gruvbox Dark',
             rosepine: 'Ros\u00e9 Pine',
             solarized: 'Solarized Dark',
-            tokyonight: 'Tokyo Night'
+            tokyonight: 'Tokyo Night',
         };
         return Object.keys(this.themes).map(key => ({
             value: key,
             name: names[key] || key,
-            colors: this.themes[key]
+            colors: this.themes[key],
         }));
     },
 
     hexToRgb(hex) {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-        } : { r: 30, g: 30, b: 30 };
+        return result
+            ? {
+                  r: parseInt(result[1], 16),
+                  g: parseInt(result[2], 16),
+                  b: parseInt(result[3], 16),
+              }
+            : { r: 30, g: 30, b: 30 };
     },
 
     lightenColor(rgb, amount) {
         return {
             r: Math.min(255, rgb.r + amount),
             g: Math.min(255, rgb.g + amount),
-            b: Math.min(255, rgb.b + amount)
+            b: Math.min(255, rgb.b + amount),
         };
     },
 
@@ -908,7 +972,7 @@ const theme = {
         return {
             r: Math.max(0, rgb.r - amount),
             g: Math.max(0, rgb.g - amount),
-            b: Math.max(0, rgb.b - amount)
+            b: Math.max(0, rgb.b - amount),
         };
     },
 
@@ -990,9 +1054,16 @@ const theme = {
 
     async load() {
         try {
-            const prefs = await storage.getPreferences();
-            const themeName = prefs.theme || 'dark';
-            const alpha = prefs.backgroundTransparency ?? 0.8;
+            let themeName, alpha;
+            if (typeof cheatingDaddy !== 'undefined' && cheatingDaddy && cheatingDaddy.prefs && cheatingDaddy.prefs._loaded) {
+                themeName = cheatingDaddy.prefs.get('theme') || 'dark';
+                alpha = cheatingDaddy.prefs.get('backgroundTransparency');
+                if (alpha === undefined || alpha === null) alpha = 0.8;
+            } else {
+                const prefs = await storage.getPreferences();
+                themeName = prefs.theme || 'dark';
+                alpha = prefs.backgroundTransparency ?? 0.8;
+            }
             this.apply(themeName, alpha);
             return themeName;
         } catch (err) {
@@ -1004,10 +1075,171 @@ const theme = {
     async save(themeName) {
         await storage.updatePreference('theme', themeName);
         this.apply(themeName);
-    }
+    },
 };
 
-// Consolidated cheatingDaddy object - all functions in one place
+// ============ PREFERENCES STORE (shared realtime state) ============
+// Singleton that owns the in-memory pref cache, applies side-effects
+// (CSS vars / theme), and broadcasts 'cheatingdaddy-prefs-changed'
+// events so every view stays in sync regardless of whether the change
+// came from a slider, a hotkey, or an external source.
+const prefs = {
+    _cache: {},
+    _loaded: false,
+
+    // Clamp / validate tables for numeric preferences.
+    // NOTE: backgroundTransparency floor is 0 (not 0.2). The old opacity
+    // hotkey floor was too high; this is the real allowed range.
+    _clamps: {
+        backgroundTransparency: { min: 0, max: 1, step: 0.01 },
+        fontSize: { min: 10, max: 48, step: 1, integer: true },
+        fontWeight: { min: 100, max: 900, step: 100, integer: true },
+        uiScale: { min: 0.5, max: 2.0, step: 0.05 },
+    },
+
+    _clamp(key, value) {
+        const c = this._clamps[key];
+        if (!c) return value;
+        let v = Number(value);
+        if (Number.isNaN(v)) return value;
+        if (c.integer) v = Math.round(v);
+        if (v < c.min) v = c.min;
+        if (v > c.max) v = c.max;
+        return v;
+    },
+
+    async load() {
+        const all = await storage.getPreferences();
+        this._cache = { ...all };
+        this._loaded = true;
+        // Seed back-compat cache
+        preferencesCache = { ...this._cache };
+        // Apply all side-effect-bearing prefs once so CSS/theme is in sync.
+        this._applyPref('theme', this.get('theme') || 'dark');
+        if (this._cache.fontSize !== undefined && typeof this._cache.fontSize === 'number') {
+            this._applyPref('fontSize', this._cache.fontSize);
+        }
+        if (this._cache.fontWeight !== undefined) {
+            this._applyPref('fontWeight', this._cache.fontWeight);
+        }
+        if (this._cache.uiScale !== undefined) {
+            this._applyPref('uiScale', this._cache.uiScale);
+        }
+        try {
+            window.dispatchEvent(new CustomEvent('cheatingdaddy-prefs-loaded', { detail: { prefs: this.getAll() } }));
+        } catch (_) {}
+        return this._cache;
+    },
+
+    get(key) {
+        return this._cache[key];
+    },
+
+    getAll() {
+        return { ...this._cache };
+    },
+
+    async set(key, value, source = 'ui') {
+        if (this._clamps[key]) {
+            value = this._clamp(key, value);
+        }
+        this._cache[key] = value;
+        // Keep back-compat cache in sync
+        if (preferencesCache) {
+            preferencesCache[key] = value;
+        }
+        try {
+            await storage.updatePreference(key, value);
+        } catch (err) {
+            console.warn('prefs.set storage write failed:', err);
+        }
+        this._applyPref(key, value);
+        try {
+            window.dispatchEvent(new CustomEvent('cheatingdaddy-prefs-changed', { detail: { key, value, source } }));
+        } catch (_) {}
+        return value;
+    },
+
+    subscribe(cb) {
+        window.addEventListener('cheatingdaddy-prefs-changed', cb);
+    },
+
+    unsubscribe(cb) {
+        window.removeEventListener('cheatingdaddy-prefs-changed', cb);
+    },
+
+    // Hotkey bridge: main process calls this via executeJavaScript.
+    // Centralises bump logic so every hotkey does the same clamping.
+    async bumpHotkey(action) {
+        const map = {
+            opacityUp: { key: 'backgroundTransparency', delta: 0.05, fallback: 0.8 },
+            opacityDown: { key: 'backgroundTransparency', delta: -0.05, fallback: 0.8 },
+            fontSizeUp: { key: 'fontSize', delta: 1, fallback: 20 },
+            fontSizeDown: { key: 'fontSize', delta: -1, fallback: 20 },
+            uiScaleUp: { key: 'uiScale', delta: 0.05, fallback: 1.0 },
+            uiScaleDown: { key: 'uiScale', delta: -0.05, fallback: 1.0 },
+            fontWeightUp: { key: 'fontWeight', delta: 100, fallback: 400 },
+            fontWeightDown: { key: 'fontWeight', delta: -100, fallback: 400 },
+        };
+        const spec = map[action];
+        if (!spec) return;
+        let current = this.get(spec.key);
+        if (current === undefined || current === null || typeof current !== 'number') {
+            current = spec.fallback;
+        }
+        const next = this._clamp(spec.key, current + spec.delta);
+        await this.set(spec.key, next, 'hotkey');
+    },
+
+    // Side-effect applier: idempotent CSS-variable / theme updates.
+    _applyPref(key, value) {
+        const root = document.documentElement;
+        if (key === 'backgroundTransparency') {
+            const themeName = this.get('theme') || 'dark';
+            const colors = theme.get(themeName);
+            theme.applyBackgrounds(colors.background, value);
+            return;
+        }
+        if (key === 'fontSize') {
+            // Only meaningful when numeric; legacy string ('medium') is ignored here.
+            if (typeof value === 'number') {
+                root.style.setProperty('--response-font-size', value + 'px');
+            }
+            return;
+        }
+        if (key === 'fontWeight') {
+            const w = Number(value) || 400;
+            root.style.setProperty('--ui-font-weight', String(w));
+            // Scale companion tokens proportionally so all UI weights track together.
+            const medium = Math.max(100, Math.min(900, w + 100));
+            const semibold = Math.max(100, Math.min(900, w + 200));
+            root.style.setProperty('--font-weight-normal', String(w));
+            root.style.setProperty('--font-weight-medium', String(medium));
+            root.style.setProperty('--font-weight-semibold', String(semibold));
+            return;
+        }
+        if (key === 'uiScale') {
+            const s = Number(value) || 1;
+            root.style.setProperty('--ui-scale', String(s));
+            // Prefer Chromium `zoom` (no layout trapping, works inside Electron).
+            try {
+                document.body.style.zoom = String(s);
+            } catch (_) {
+                // Fallback: transform the root element. Less ideal (layout-affecting)
+                // but keeps the feature working on environments without `zoom`.
+                root.style.transformOrigin = '0 0';
+                root.style.transform = s === 1 ? '' : `scale(${s})`;
+            }
+            return;
+        }
+        if (key === 'theme') {
+            const alpha = this.get('backgroundTransparency');
+            theme.apply(value, alpha === undefined || alpha === null ? 0.8 : alpha);
+            return;
+        }
+        // Unknown keys: no side-effect, just cached.
+    },
+};
 const cheatingDaddy = {
     // App version
     getVersion: async () => ipcRenderer.invoke('get-app-version'),
@@ -1040,6 +1272,9 @@ const cheatingDaddy = {
     // Theme API
     theme,
 
+    // Shared realtime preference state
+    prefs,
+
     // Refresh preferences cache (call after updating preferences)
     refreshPreferencesCache: loadPreferencesCache,
 
@@ -1051,9 +1286,18 @@ const cheatingDaddy = {
 // Make it globally available
 window.cheatingDaddy = cheatingDaddy;
 
-// Load theme after DOM is ready
+// Load preferences + theme after DOM is ready.
+// prefs.load() seeds the shared cache and re-applies theme/font side-effects,
+// so we no longer need a separate theme.load() call.
+function _bootstrapPrefsAndTheme() {
+    prefs.load().catch(err => {
+        console.warn('prefs.load failed, falling back to theme.load:', err);
+        theme.load();
+    });
+}
+
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => theme.load());
+    document.addEventListener('DOMContentLoaded', _bootstrapPrefsAndTheme);
 } else {
-    theme.load();
+    _bootstrapPrefsAndTheme();
 }

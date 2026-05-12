@@ -88,7 +88,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
     // ── Resize guard: block ALL resize during movement ──
-    mainWindow.on('will-resize', (event) => {
+    mainWindow.on('will-resize', event => {
         if (_isMoving) {
             event.preventDefault();
         }
@@ -170,13 +170,13 @@ function enterMovementMode(mainWindow) {
     // ─── CSS FREEZE ───
     // Inject a style that kills ALL transitions/animations in the renderer.
     // This prevents any CSS-driven repaints during movement.
-    mainWindow.webContents.insertCSS(
-        `*, *::before, *::after { transition: none !important; animation: none !important; }`,
-        { cssOrigin: 'user' }
-    ).then(key => {
-        // Store the key so we can remove it later
-        mainWindow._movementCssKey = key;
-    }).catch(() => {});
+    mainWindow.webContents
+        .insertCSS(`*, *::before, *::after { transition: none !important; animation: none !important; }`, { cssOrigin: 'user' })
+        .then(key => {
+            // Store the key so we can remove it later
+            mainWindow._movementCssKey = key;
+        })
+        .catch(() => {});
 }
 
 /**
@@ -227,7 +227,9 @@ function rigidMove(mainWindow, deltaX, deltaY) {
     // This prevents compositor queue buildup from rapid key repeats.
     if (_moveThrottled) return;
     _moveThrottled = true;
-    setTimeout(() => { _moveThrottled = false; }, 16);
+    setTimeout(() => {
+        _moveThrottled = false;
+    }, 16);
 
     // Enter movement mode on first call
     if (!_isMoving) {
@@ -273,6 +275,15 @@ function getDefaultKeybinds() {
         scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
         scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
         emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
+        // Live-tweak hotkeys (FEAT-002). All bridge to cheatingDaddy.prefs.bumpHotkey.
+        opacityUp: isMac ? 'Cmd+Shift+]' : 'Ctrl+Shift+]',
+        opacityDown: isMac ? 'Cmd+Shift+[' : 'Ctrl+Shift+[',
+        fontSizeUp: isMac ? 'Cmd+Shift+=' : 'Ctrl+Shift+=',
+        fontSizeDown: isMac ? 'Cmd+Shift+-' : 'Ctrl+Shift+-',
+        uiScaleUp: isMac ? 'Cmd+Alt+=' : 'Ctrl+Alt+=',
+        uiScaleDown: isMac ? 'Cmd+Alt+-' : 'Ctrl+Alt+-',
+        fontWeightUp: isMac ? 'Cmd+Alt+Shift+=' : 'Ctrl+Alt+Shift+=',
+        fontWeightDown: isMac ? 'Cmd+Alt+Shift+-' : 'Ctrl+Alt+Shift+-',
     };
 }
 
@@ -425,6 +436,24 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             console.error(`Failed to register emergencyErase:`, error);
         }
     }
+
+    // Live-tweak hotkeys (FEAT-002): all bridge into the renderer's prefs
+    // singleton via executeJavaScript. Keeps the main process stateless.
+    const prefsBumpActions = ['opacityUp', 'opacityDown', 'fontSizeUp', 'fontSizeDown', 'uiScaleUp', 'uiScaleDown', 'fontWeightUp', 'fontWeightDown'];
+    prefsBumpActions.forEach(action => {
+        const keybind = keybinds[action];
+        if (!keybind) return;
+        try {
+            globalShortcut.register(keybind, () => {
+                if (!mainWindow || mainWindow.isDestroyed()) return;
+                mainWindow.webContents
+                    .executeJavaScript(`cheatingDaddy.prefs.bumpHotkey('${action}')`)
+                    .catch(err => console.error(`Error dispatching ${action}:`, err));
+            });
+        } catch (error) {
+            console.error(`Failed to register ${action} (${keybind}):`, error);
+        }
+    });
 }
 
 function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {

@@ -184,6 +184,9 @@ export class CustomizeView extends LitElement {
         googleSearchEnabled: { type: Boolean },
         backgroundTransparency: { type: Number },
         fontSize: { type: Number },
+        fontWeight: { type: Number },
+        uiScale: { type: Number },
+        hotkeyHudEnabled: { type: Boolean },
         theme: { type: String },
         onProfileChange: { type: Function },
         onLanguageChange: { type: Function },
@@ -213,6 +216,9 @@ export class CustomizeView extends LitElement {
         this.clearStatusType = '';
         this.backgroundTransparency = 0.8;
         this.fontSize = 20;
+        this.fontWeight = 400;
+        this.uiScale = 1.0;
+        this.hotkeyHudEnabled = true;
         this.audioMode = 'speaker_only';
         this.customPrompt = '';
         this.theme = 'dark';
@@ -225,22 +231,56 @@ export class CustomizeView extends LitElement {
 
     async _loadFromStorage() {
         try {
-            const [prefs, keybinds] = await Promise.all([cheatingDaddy.storage.getPreferences(), cheatingDaddy.storage.getKeybinds()]);
+            let prefs;
+            if (window.cheatingDaddy && cheatingDaddy.prefs && cheatingDaddy.prefs._loaded) {
+                prefs = cheatingDaddy.prefs.getAll();
+            } else {
+                prefs = await cheatingDaddy.storage.getPreferences();
+            }
+            const keybinds = await cheatingDaddy.storage.getKeybinds();
             this.googleSearchEnabled = prefs.googleSearchEnabled ?? true;
             this.backgroundTransparency = prefs.backgroundTransparency ?? 0.8;
-            this.fontSize = prefs.fontSize ?? 20;
+            this.fontSize = typeof prefs.fontSize === 'number' ? prefs.fontSize : 20;
+            this.fontWeight = prefs.fontWeight ?? 400;
+            this.uiScale = prefs.uiScale ?? 1.0;
+            this.hotkeyHudEnabled = prefs.hotkeyHudEnabled ?? true;
             this.audioMode = prefs.audioMode ?? 'speaker_only';
             this.customPrompt = prefs.customPrompt ?? '';
             this.theme = prefs.theme ?? 'dark';
             if (keybinds) {
                 this.keybinds = { ...this.getDefaultKeybinds(), ...keybinds };
             }
-            this.updateBackgroundAppearance();
-            this.updateFontSize();
             this.requestUpdate();
         } catch (error) {
             console.error('Error loading settings:', error);
         }
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this._onPrefsChanged = e => {
+            if (!e || !e.detail) return;
+            const { key, value } = e.detail;
+            if (['backgroundTransparency', 'fontSize', 'fontWeight', 'uiScale', 'theme', 'hotkeyHudEnabled'].includes(key)) {
+                this[key] = value;
+                this.requestUpdate();
+            }
+        };
+        this._onPrefsLoaded = () => {
+            this._loadFromStorage();
+        };
+        window.addEventListener('cheatingdaddy-prefs-changed', this._onPrefsChanged);
+        window.addEventListener('cheatingdaddy-prefs-loaded', this._onPrefsLoaded);
+    }
+
+    disconnectedCallback() {
+        if (this._onPrefsChanged) {
+            window.removeEventListener('cheatingdaddy-prefs-changed', this._onPrefsChanged);
+        }
+        if (this._onPrefsLoaded) {
+            window.removeEventListener('cheatingdaddy-prefs-loaded', this._onPrefsLoaded);
+        }
+        super.disconnectedCallback();
     }
 
     getProfiles() {
@@ -303,6 +343,14 @@ export class CustomizeView extends LitElement {
             nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
             scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
             scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
+            opacityUp: isMac ? 'Cmd+Shift+]' : 'Ctrl+Shift+]',
+            opacityDown: isMac ? 'Cmd+Shift+[' : 'Ctrl+Shift+[',
+            fontSizeUp: isMac ? 'Cmd+Shift+=' : 'Ctrl+Shift+=',
+            fontSizeDown: isMac ? 'Cmd+Shift+-' : 'Ctrl+Shift+-',
+            uiScaleUp: isMac ? 'Cmd+Alt+=' : 'Ctrl+Alt+=',
+            uiScaleDown: isMac ? 'Cmd+Alt+-' : 'Ctrl+Alt+-',
+            fontWeightUp: isMac ? 'Cmd+Alt+Shift+=' : 'Ctrl+Alt+Shift+=',
+            fontWeightDown: isMac ? 'Cmd+Alt+Shift+-' : 'Ctrl+Alt+Shift+-',
         };
     }
 
@@ -319,6 +367,14 @@ export class CustomizeView extends LitElement {
             { key: 'nextResponse', name: 'Next Response', description: 'Move to next AI response' },
             { key: 'scrollUp', name: 'Scroll Response Up', description: 'Scroll response content upward' },
             { key: 'scrollDown', name: 'Scroll Response Down', description: 'Scroll response content downward' },
+            { key: 'opacityUp', name: 'Opacity +', description: 'Increase background opacity' },
+            { key: 'opacityDown', name: 'Opacity -', description: 'Decrease background opacity (down to 0)' },
+            { key: 'fontSizeUp', name: 'Font Size +', description: 'Increase response font size' },
+            { key: 'fontSizeDown', name: 'Font Size -', description: 'Decrease response font size' },
+            { key: 'uiScaleUp', name: 'UI Scale +', description: 'Scale the whole UI up' },
+            { key: 'uiScaleDown', name: 'UI Scale -', description: 'Scale the whole UI down' },
+            { key: 'fontWeightUp', name: 'Font Weight +', description: 'Make UI text heavier' },
+            { key: 'fontWeightDown', name: 'Font Weight -', description: 'Make UI text lighter' },
         ];
     }
 
@@ -363,8 +419,7 @@ export class CustomizeView extends LitElement {
 
     async handleThemeChange(e) {
         this.theme = e.target.value;
-        await cheatingDaddy.theme.save(this.theme);
-        this.updateBackgroundAppearance();
+        await cheatingDaddy.prefs.set('theme', this.theme, 'ui');
         this.requestUpdate();
     }
 
@@ -383,26 +438,42 @@ export class CustomizeView extends LitElement {
     }
 
     async handleBackgroundTransparencyChange(e) {
-        this.backgroundTransparency = parseFloat(e.target.value);
-        await cheatingDaddy.storage.updatePreference('backgroundTransparency', this.backgroundTransparency);
-        this.updateBackgroundAppearance();
+        const val = parseFloat(e.target.value);
+        this.backgroundTransparency = val;
+        await cheatingDaddy.prefs.set('backgroundTransparency', val, 'ui');
         this.requestUpdate();
-    }
-
-    updateBackgroundAppearance() {
-        const colors = cheatingDaddy.theme.get(this.theme);
-        cheatingDaddy.theme.applyBackgrounds(colors.background, this.backgroundTransparency);
     }
 
     async handleFontSizeChange(e) {
-        this.fontSize = parseInt(e.target.value, 10);
-        await cheatingDaddy.storage.updatePreference('fontSize', this.fontSize);
-        this.updateFontSize();
+        const val = parseInt(e.target.value, 10);
+        this.fontSize = val;
+        await cheatingDaddy.prefs.set('fontSize', val, 'ui');
         this.requestUpdate();
     }
 
-    updateFontSize() {
-        document.documentElement.style.setProperty('--response-font-size', `${this.fontSize}px`);
+    async handleFontWeightChange(e) {
+        const val = parseInt(e.target.value, 10);
+        this.fontWeight = val;
+        await cheatingDaddy.prefs.set('fontWeight', val, 'ui');
+        this.requestUpdate();
+    }
+
+    async handleUiScaleChange(e) {
+        const val = parseFloat(e.target.value);
+        this.uiScale = val;
+        await cheatingDaddy.prefs.set('uiScale', val, 'ui');
+        this.requestUpdate();
+    }
+
+    fontWeightLabel(w) {
+        if (w <= 200) return 'Thin';
+        if (w <= 300) return 'Light';
+        if (w <= 400) return 'Regular';
+        if (w <= 500) return 'Medium';
+        if (w <= 600) return 'Semibold';
+        if (w <= 700) return 'Bold';
+        if (w <= 800) return 'Extrabold';
+        return 'Black';
     }
 
     handleKeybindChange(action, value) {
@@ -487,12 +558,19 @@ export class CustomizeView extends LitElement {
                 selectedImageQuality: 'medium',
                 audioMode: 'speaker_only',
                 fontSize: 20,
+                fontWeight: 400,
+                uiScale: 1.0,
+                hotkeyHudEnabled: true,
                 backgroundTransparency: 0.8,
                 googleSearchEnabled: false,
                 theme: 'dark',
             };
             for (const [key, value] of Object.entries(defaults)) {
-                await cheatingDaddy.storage.updatePreference(key, value);
+                if (window.cheatingDaddy && cheatingDaddy.prefs) {
+                    await cheatingDaddy.prefs.set(key, value, 'ui');
+                } else {
+                    await cheatingDaddy.storage.updatePreference(key, value);
+                }
             }
 
             // Restore keybinds
@@ -509,6 +587,9 @@ export class CustomizeView extends LitElement {
             this.selectedImageQuality = defaults.selectedImageQuality;
             this.audioMode = defaults.audioMode;
             this.fontSize = defaults.fontSize;
+            this.fontWeight = defaults.fontWeight;
+            this.uiScale = defaults.uiScale;
+            this.hotkeyHudEnabled = defaults.hotkeyHudEnabled;
             this.backgroundTransparency = defaults.backgroundTransparency;
             this.googleSearchEnabled = defaults.googleSearchEnabled;
             this.customPrompt = defaults.customPrompt;
@@ -518,11 +599,6 @@ export class CustomizeView extends LitElement {
             this.onProfileChange(defaults.selectedProfile);
             this.onLanguageChange(defaults.selectedLanguage);
             this.onImageQualityChange(defaults.selectedImageQuality);
-
-            // Apply visual changes
-            this.updateBackgroundAppearance();
-            this.updateFontSize();
-            await cheatingDaddy.theme.save(defaults.theme);
 
             this.clearStatusMessage = 'All settings restored to defaults';
             this.clearStatusType = 'success';
@@ -580,9 +656,9 @@ export class CustomizeView extends LitElement {
                             <option value="both">Both Speaker and Microphone</option>
                         </select>
                     </div>
-                    ${this.audioMode !== 'speaker_only' ? html`
-                        <div class="warning-callout">May cause unexpected behavior. Only change this if you know what you're doing.</div>
-                    ` : ''}
+                    ${this.audioMode !== 'speaker_only'
+                        ? html` <div class="warning-callout">May cause unexpected behavior. Only change this if you know what you're doing.</div> `
+                        : ''}
                     <div class="form-group">
                         <label class="form-label">Image Quality</label>
                         <select class="control" .value=${this.selectedImageQuality} @change=${this.handleImageQualitySelect}>
@@ -628,6 +704,7 @@ export class CustomizeView extends LitElement {
                             <label class="form-label">Background Transparency</label>
                             <span class="slider-value">${Math.round(this.backgroundTransparency * 100)}%</span>
                         </div>
+                        <!-- min is intentionally 0 so the overlay can go nearly invisible. -->
                         <input
                             class="slider-input"
                             type="range"
@@ -637,6 +714,9 @@ export class CustomizeView extends LitElement {
                             .value=${this.backgroundTransparency}
                             @input=${this.handleBackgroundTransparencyChange}
                         />
+                        <span class="keybind-name" style="font-size: var(--font-size-xs); color: var(--text-muted);">
+                            Drag fully left for a nearly invisible background.
+                        </span>
                     </div>
                     <div class="form-group slider-wrap">
                         <div class="slider-header">
@@ -653,6 +733,36 @@ export class CustomizeView extends LitElement {
                             @input=${this.handleFontSizeChange}
                         />
                     </div>
+                    <div class="form-group slider-wrap">
+                        <div class="slider-header">
+                            <label class="form-label">UI Font Weight</label>
+                            <span class="slider-value">${this.fontWeight} ${this.fontWeightLabel(this.fontWeight)}</span>
+                        </div>
+                        <input
+                            class="slider-input"
+                            type="range"
+                            min="100"
+                            max="900"
+                            step="100"
+                            .value=${this.fontWeight}
+                            @input=${this.handleFontWeightChange}
+                        />
+                    </div>
+                    <div class="form-group slider-wrap">
+                        <div class="slider-header">
+                            <label class="form-label">UI Scale</label>
+                            <span class="slider-value">${Math.round(this.uiScale * 100)}%</span>
+                        </div>
+                        <input
+                            class="slider-input"
+                            type="range"
+                            min="0.5"
+                            max="2"
+                            step="0.05"
+                            .value=${this.uiScale}
+                            @input=${this.handleUiScaleChange}
+                        />
+                    </div>
                 </div>
             </section>
         `;
@@ -662,20 +772,22 @@ export class CustomizeView extends LitElement {
         return html`
             <section class="surface">
                 <div class="surface-title">Keyboard Shortcuts</div>
-                ${this.getKeybindActions().map(action => html`
-                    <div class="keybind-row">
-                        <span class="keybind-name">${action.name}</span>
-                        <input
-                            type="text"
-                            class="control keybind-input"
-                            .value=${this.keybinds[action.key]}
-                            data-action=${action.key}
-                            @keydown=${this.handleKeybindInput}
-                            @focus=${this.handleKeybindFocus}
-                            readonly
-                        />
-                    </div>
-                `)}
+                ${this.getKeybindActions().map(
+                    action => html`
+                        <div class="keybind-row">
+                            <span class="keybind-name">${action.name}</span>
+                            <input
+                                type="text"
+                                class="control keybind-input"
+                                .value=${this.keybinds[action.key]}
+                                data-action=${action.key}
+                                @keydown=${this.handleKeybindInput}
+                                @focus=${this.handleKeybindFocus}
+                                readonly
+                            />
+                        </div>
+                    `
+                )}
                 <div style="margin-top: var(--space-sm);">
                     <button class="control" style="width:auto;padding:8px 10px;" @click=${this.resetKeybinds}>Reset to defaults</button>
                 </div>
@@ -695,9 +807,9 @@ export class CustomizeView extends LitElement {
                         ${this.isClearing ? 'Clearing...' : 'Delete all data'}
                     </button>
                 </div>
-                ${this.clearStatusMessage ? html`
-                    <div class="status ${this.clearStatusType === 'success' ? 'success' : 'error'}">${this.clearStatusMessage}</div>
-                ` : ''}
+                ${this.clearStatusMessage
+                    ? html` <div class="status ${this.clearStatusType === 'success' ? 'success' : 'error'}">${this.clearStatusMessage}</div> `
+                    : ''}
             </section>
         `;
     }
@@ -707,10 +819,7 @@ export class CustomizeView extends LitElement {
             <div class="unified-page">
                 <div class="unified-wrap">
                     <div class="page-title">Settings</div>
-                    ${this.renderAudioSection()}
-                    ${this.renderLanguageSection()}
-                    ${this.renderAppearanceSection()}
-                    ${this.renderKeyboardSection()}
+                    ${this.renderAudioSection()} ${this.renderLanguageSection()} ${this.renderAppearanceSection()} ${this.renderKeyboardSection()}
                     ${this.renderPrivacySection()}
                 </div>
             </div>

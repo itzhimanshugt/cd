@@ -784,8 +784,22 @@ function handleShortcut(shortcutKey) {
     if (shortcutKey === 'ctrl+enter' || shortcutKey === 'cmd+enter') {
         if (currentView === 'main') {
             cheatingDaddy.element().handleStart();
+        } else if (currentView === 'assistant') {
+            // Route through the assistant-view element's handleScreenAnswer()
+            // so isAnalyzing flips on and the waveform/aurora animation runs
+            // exactly the same as when the Analyze button is clicked.
+            const app = cheatingDaddy.element();
+            const assistant = app && app.shadowRoot ? app.shadowRoot.querySelector('assistant-view') : null;
+            if (assistant && typeof assistant.handleScreenAnswer === 'function') {
+                assistant.handleScreenAnswer();
+            } else {
+                console.warn('handleShortcut: assistant-view not mounted, falling back to manual screenshot');
+                captureManualScreenshot();
+            }
         } else {
-            captureManualScreenshot();
+            // Non-main / non-assistant views: no-op with a warning so hotkeys
+            // don't misfire during onboarding/history/etc.
+            console.warn(`handleShortcut: ctrl+enter ignored on view '${currentView}'`);
         }
     }
 }

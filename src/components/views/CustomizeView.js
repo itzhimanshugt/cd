@@ -465,6 +465,17 @@ export class CustomizeView extends LitElement {
         this.requestUpdate();
     }
 
+    async handleHotkeyHudEnabledChange(e) {
+        const checked = !!e.target.checked;
+        this.hotkeyHudEnabled = checked;
+        if (window.cheatingDaddy && cheatingDaddy.prefs) {
+            await cheatingDaddy.prefs.set('hotkeyHudEnabled', checked, 'ui');
+        } else {
+            await cheatingDaddy.storage.updatePreference('hotkeyHudEnabled', checked);
+        }
+        this.requestUpdate();
+    }
+
     fontWeightLabel(w) {
         if (w <= 200) return 'Thin';
         if (w <= 300) return 'Light';
@@ -762,6 +773,21 @@ export class CustomizeView extends LitElement {
                             .value=${this.uiScale}
                             @input=${this.handleUiScaleChange}
                         />
+                    </div>
+                    <div class="form-group">
+                        <div class="toggle-row">
+                            <input
+                                id="hotkey-hud-toggle"
+                                class="toggle-input"
+                                type="checkbox"
+                                .checked=${this.hotkeyHudEnabled}
+                                @change=${this.handleHotkeyHudEnabledChange}
+                            />
+                            <label class="toggle-label" for="hotkey-hud-toggle">Show hotkey change overlay</label>
+                        </div>
+                        <span class="keybind-name" style="font-size: var(--font-size-xs); color: var(--text-muted);">
+                            A small popup briefly shows the value when you change settings via a hotkey.
+                        </span>
                     </div>
                 </div>
             </section>

@@ -108,6 +108,8 @@ export class HotkeyHud extends LitElement {
                 const cap = s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s;
                 return { label: 'Theme', value: cap };
             }
+            case 'resetAppearance':
+                return { label: 'Appearance', value: 'Reset' };
             default:
                 return null;
         }

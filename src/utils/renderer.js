@@ -1125,6 +1125,10 @@ const prefs = {
     async load() {
         const all = await storage.getPreferences();
         this._cache = { ...all };
+        // Migrate legacy string fontSize to numeric
+        if (typeof this._cache.fontSize === 'string') {
+            this._cache.fontSize = 20;
+        }
         this._loaded = true;
         // Seed back-compat cache
         preferencesCache = { ...this._cache };

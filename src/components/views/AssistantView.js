@@ -463,6 +463,7 @@ export class AssistantView extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         this._stopWaveformAnimation();
+        this._clearAnalyzingTimer();
 
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
@@ -501,7 +502,20 @@ export class AssistantView extends LitElement {
             }
             this.isAnalyzing = true;
             this._responseCountWhenStarted = this.responses.length;
+            this._clearAnalyzingTimer();
+            this._analyzingTimer = setTimeout(() => {
+                if (this.isAnalyzing) {
+                    this.isAnalyzing = false;
+                }
+            }, 30000);
             window.captureManualScreenshot();
+        }
+    }
+
+    _clearAnalyzingTimer() {
+        if (this._analyzingTimer) {
+            clearTimeout(this._analyzingTimer);
+            this._analyzingTimer = null;
         }
     }
 
@@ -672,6 +686,7 @@ export class AssistantView extends LitElement {
 
         if (changedProperties.has('responses') && this.isAnalyzing) {
             if (this.responses.length > this._responseCountWhenStarted) {
+                this._clearAnalyzingTimer();
                 this.isAnalyzing = false;
             }
         }

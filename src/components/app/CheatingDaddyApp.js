@@ -969,34 +969,33 @@ export class CheatingDaddyApp extends LitElement {
     }
 
     render() {
+        let content;
         // Onboarding is fullscreen, no sidebar
         if (this.currentView === 'onboarding') {
-            return html`
-                <div class="fullscreen">${this.renderCurrentView()}</div>
-                ${this._storageLoaded ? html`<hotkey-hud></hotkey-hud>` : ''}
+            content = html`<div class="fullscreen">${this.renderCurrentView()}</div>`;
+        } else {
+            const isLive = this._isLiveMode();
+
+            content = html`
+                <div class="app-shell">
+                    <div class="top-drag-bar ${isLive ? 'hidden' : ''}">
+                        <div class="traffic-lights">
+                            <button class="traffic-light close" @click=${() => this.handleClose()} title="Close"></button>
+                            <button class="traffic-light minimize" @click=${() => this._handleMinimize()} title="Minimize"></button>
+                            <button class="traffic-light maximize" title="Maximize"></button>
+                        </div>
+                        <div class="drag-region"></div>
+                    </div>
+                    ${this.renderSidebar()}
+                    <div class="content">
+                        ${isLive ? this.renderLiveBar() : ''}
+                        <div class="content-inner ${isLive ? 'live' : ''}">${this.renderCurrentView()}</div>
+                    </div>
+                </div>
             `;
         }
 
-        const isLive = this._isLiveMode();
-
-        return html`
-            <div class="app-shell">
-                <div class="top-drag-bar ${isLive ? 'hidden' : ''}">
-                    <div class="traffic-lights">
-                        <button class="traffic-light close" @click=${() => this.handleClose()} title="Close"></button>
-                        <button class="traffic-light minimize" @click=${() => this._handleMinimize()} title="Minimize"></button>
-                        <button class="traffic-light maximize" title="Maximize"></button>
-                    </div>
-                    <div class="drag-region"></div>
-                </div>
-                ${this.renderSidebar()}
-                <div class="content">
-                    ${isLive ? this.renderLiveBar() : ''}
-                    <div class="content-inner ${isLive ? 'live' : ''}">${this.renderCurrentView()}</div>
-                </div>
-                ${this._storageLoaded ? html`<hotkey-hud></hotkey-hud>` : ''}
-            </div>
-        `;
+        return html`${content}${this._storageLoaded ? html`<hotkey-hud></hotkey-hud>` : ''}`;
     }
 }
 

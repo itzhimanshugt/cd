@@ -271,6 +271,7 @@ export class CustomizeView extends LitElement {
         };
         window.addEventListener('cheatingdaddy-prefs-changed', this._onPrefsChanged);
         window.addEventListener('cheatingdaddy-prefs-loaded', this._onPrefsLoaded);
+        this._loadFromStorage();
     }
 
     disconnectedCallback() {
@@ -351,6 +352,7 @@ export class CustomizeView extends LitElement {
             uiScaleDown: isMac ? 'Cmd+Alt+-' : 'Ctrl+Alt+-',
             fontWeightUp: isMac ? 'Cmd+Alt+Shift+=' : 'Ctrl+Alt+Shift+=',
             fontWeightDown: isMac ? 'Cmd+Alt+Shift+-' : 'Ctrl+Alt+Shift+-',
+            resetAppearance: isMac ? 'Cmd+Shift+0' : 'Ctrl+Shift+0',
         };
     }
 
@@ -375,6 +377,7 @@ export class CustomizeView extends LitElement {
             { key: 'uiScaleDown', name: 'UI Scale -', description: 'Scale the whole UI down' },
             { key: 'fontWeightUp', name: 'Font Weight +', description: 'Make UI text heavier' },
             { key: 'fontWeightDown', name: 'Font Weight -', description: 'Make UI text lighter' },
+            { key: 'resetAppearance', name: 'Reset Appearance', description: 'Reset all visual settings to defaults' },
         ];
     }
 
@@ -798,6 +801,7 @@ export class CustomizeView extends LitElement {
         return html`
             <section class="surface">
                 <div class="surface-title">Keyboard Shortcuts</div>
+                <div class="warning-callout">These shortcuts are registered globally and may conflict with other applications.</div>
                 ${this.getKeybindActions().map(
                     action => html`
                         <div class="keybind-row">

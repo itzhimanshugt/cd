@@ -227,6 +227,16 @@ const apiKeys = {
         ipcRenderer.on('api-keys:updated', listener);
         return () => ipcRenderer.removeListener('api-keys:updated', listener);
     },
+    onFailover(handler) {
+        const listener = (_event, payload) => handler(payload);
+        ipcRenderer.on('api-keys:failover', listener);
+        return () => ipcRenderer.removeListener('api-keys:failover', listener);
+    },
+    onAllFailed(handler) {
+        const listener = (_event, payload) => handler(payload);
+        ipcRenderer.on('api-keys:all-failed', listener);
+        return () => ipcRenderer.removeListener('api-keys:all-failed', listener);
+    },
 };
 
 // Cache for preferences to avoid async calls in hot paths
@@ -1299,6 +1309,26 @@ ipcRenderer.on('opacity-changed', (_, val) => {
 ipcRenderer.on('voice-toggled', (_, enabled) => {
     _eventBus.dispatchEvent(new CustomEvent('voice-toggled', { detail: { enabled } }));
     showToast(`Voice: ${enabled ? 'On' : 'Off'}`);
+});
+
+// ============ API KEY FAILOVER NOTIFICATIONS ============
+
+ipcRenderer.on('api-keys:failover', (_, payload) => {
+    const { from, to, reason, crossProvider } = payload;
+    let message;
+    if (crossProvider) {
+        message = `All ${from.provider} keys failed, switched to ${to.provider} "${to.label}"`;
+    } else {
+        message = `Switched from "${from.label}" to "${to.label}" (${reason})`;
+    }
+    showToast(message);
+    _eventBus.dispatchEvent(new CustomEvent('api-key-failover', { detail: payload }));
+});
+
+ipcRenderer.on('api-keys:all-failed', (_, payload) => {
+    const { providers, reason } = payload;
+    showToast(`All ${providers.join(' and ')} API keys failed`);
+    _eventBus.dispatchEvent(new CustomEvent('api-keys-all-failed', { detail: payload }));
 });
 
 // ============ GLOBAL EVENT BUS ============

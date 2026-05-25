@@ -22,8 +22,10 @@ const HOTKEY_GROUPS = [
         actions: [
             { id: 'toggleVisibility', label: 'Toggle Visibility', desc: 'Show / hide app window', toggle: null },
             { id: 'toggleClickThrough', label: 'Toggle Click-through', desc: 'Enable / disable click-through', toggle: null },
-            { id: 'opacityUp', label: 'Opacity +', desc: 'Increase window transparency', toggle: 'opacityEnabled' },
-            { id: 'opacityDown', label: 'Opacity −', desc: 'Decrease window transparency', toggle: 'opacityEnabled' },
+            { id: 'fontOpacityUp', label: 'Font Opacity +', desc: 'Increase text opacity', toggle: null },
+            { id: 'fontOpacityDown', label: 'Font Opacity \u2212', desc: 'Decrease text opacity', toggle: null },
+            { id: 'bgOpacityUp', label: 'Background Opacity +', desc: 'Increase background opacity', toggle: null },
+            { id: 'bgOpacityDown', label: 'Background Opacity \u2212', desc: 'Decrease background opacity', toggle: null },
         ],
     },
     {
@@ -389,12 +391,6 @@ export class HotkeysView extends LitElement {
                 this.requestUpdate();
             }
         };
-        const onOpacity = (_, v) => {
-            if (this._state) {
-                this._state = { ...this._state, opacity: v };
-                this.requestUpdate();
-            }
-        };
         const onFontSize = (_, v) => {
             this.requestUpdate();
         };
@@ -406,13 +402,11 @@ export class HotkeysView extends LitElement {
         };
         ipcRenderer.on('scale-changed', onScale);
         ipcRenderer.on('zoom-changed', onZoom);
-        ipcRenderer.on('opacity-changed', onOpacity);
         ipcRenderer.on('font-size-changed', onFontSize);
         ipcRenderer.on('voice-toggled', onVoice);
         this._ipcCleanups = [
             () => ipcRenderer.removeListener('scale-changed', onScale),
             () => ipcRenderer.removeListener('zoom-changed', onZoom),
-            () => ipcRenderer.removeListener('opacity-changed', onOpacity),
             () => ipcRenderer.removeListener('font-size-changed', onFontSize),
             () => ipcRenderer.removeListener('voice-toggled', onVoice),
         ];
@@ -695,11 +689,9 @@ export class HotkeysView extends LitElement {
                         <div class="settings-grid">
                             ${this._renderSlider('Scale', 'scale', 0.3, 1.5, 0.05, 1)}
                             ${this._renderSlider('Content Zoom', 'zoom', 0.5, 2.0, 0.05, 1)}
-                            ${this._renderSlider('Opacity', 'opacity', 0.0, 1.0, 0.05, 1)}
                             ${this._renderSlider('Move Step (px)', 'moveStep', 1, 500, 1, 0)}
                             ${this._renderSlider('Scale Step', 'scaleStep', 0.05, 0.5, 0.01)}
                             ${this._renderSlider('Zoom Step', 'zoomStep', 0.05, 0.5, 0.01)}
-                            ${this._renderSlider('Opacity Step', 'opacityStep', 0.05, 0.2, 0.01)}
                         </div>
                     </section>
 

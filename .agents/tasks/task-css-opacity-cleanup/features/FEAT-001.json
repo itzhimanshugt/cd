@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-001",
+  "type": "refactor",
+  "description": "Remove native window opacity dead code from src/utils/window.js - the applyOpacity() function, the window:set-opacity IPC handler, the opacity branch in _applyStatePatch(), the opacity-related HARD_LIMITS entries, and the applyOpacity export. Also remove the onOpacityChanged and setOpacity methods from windowControls in src/utils/renderer.js, and remove the opacity-changed toast handler.",
+  "status": "in_progress",
+  "steps": [
+    "In src/utils/window.js: Remove `opacityMax`, `opacityMin`, `opacityStepMin` from the HARD_LIMITS object (lines 23-25 area). Keep scaleMax, scaleMin, zoomMax, zoomMin, scaleStepMin, zoomStepMin.",
+    "In src/utils/window.js: Remove the entire `applyOpacity` function (around line 459-476 area) that calls win.setOpacity().",
+    "In src/utils/window.js: In setupWindowIpcHandlers(), remove the `ipcMain.handle('window:set-opacity', ...)` handler block.",
+    "In src/utils/window.js: In `_applyStatePatch()`, remove the `if (patch.opacity !== undefined)` block that calls win.setOpacity(). Keep the zoom and scale blocks.",
+    "In src/utils/window.js: Remove `applyOpacity` from the module.exports object.",
+    "In src/utils/window.js: Add a comment near the BrowserWindow creation options (after the `transparent: true` line) noting: '// Native opacity stays at 1.0; transparency is CSS-driven via --bg-app rgba values. Only stealth fade mode would use win.setOpacity().'",
+    "In src/utils/renderer.js: Remove the `setOpacity(v)` method from the windowControls object (the one that calls ipcRenderer.invoke('window:set-opacity', v)).",
+    "In src/utils/renderer.js: Remove the `onOpacityChanged(fn)` subscription method from windowControls.",
+    "In src/utils/renderer.js: Remove the `ipcRenderer.on('opacity-changed', ...)` toast handler that shows 'Window Opacity: X%'."
+  ],
+  "acceptance_criteria": [
+    "No references to win.setOpacity() remain in window.js except possibly in comments",
+    "No 'window:set-opacity' IPC handler exists in window.js",
+    "No applyOpacity function or export exists in window.js",
+    "HARD_LIMITS no longer contains opacityMax, opacityMin, or opacityStepMin",
+    "_applyStatePatch no longer sets native window opacity",
+    "windowControls in renderer.js no longer has setOpacity or onOpacityChanged methods",
+    "No 'opacity-changed' listener remains in renderer.js toast section",
+    "node -e \"require('./src/utils/window.js')\" exits without error",
+    "node -e \"require('./src/storage.js')\" exits without error"
+  ],
+  "verification": [
+    "Run: node -e \"require('./src/utils/window.js')\" from /projects/sandbox/cd (will fail since electron not available in node - use grep verification instead)",
+    "Run: grep -n 'applyOpacity' src/utils/window.js (should return nothing or only comments)",
+    "Run: grep -n 'window:set-opacity' src/utils/window.js (should return nothing)",
+    "Run: grep -n 'setOpacity' src/utils/renderer.js (should return nothing)",
+    "Run: grep -n 'opacity-changed' src/utils/renderer.js (should return nothing)",
+    "Run: grep -n 'opacityMax\\|opacityMin\\|opacityStepMin' src/utils/window.js (should return nothing)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

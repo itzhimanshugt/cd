@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "refactor",
+  "description": "Fix HotkeysView.js to replace old opacityUp/opacityDown entries with the new split font/bg opacity keybinds, remove the native opacity slider and step slider from the render, and remove the opacity-changed IPC listener.",
+  "status": "completed",
+  "steps": [
+    "In src/components/views/HotkeysView.js: In the HOTKEY_GROUPS array, find the 'visibility' group (id: 'visibility'). Replace the two entries `{ id: 'opacityUp', ... }` and `{ id: 'opacityDown', ... }` with four new entries: `{ id: 'fontOpacityUp', label: 'Font Opacity +', desc: 'Increase text opacity', toggle: null }`, `{ id: 'fontOpacityDown', label: 'Font Opacity \\u2212', desc: 'Decrease text opacity', toggle: null }`, `{ id: 'bgOpacityUp', label: 'Background Opacity +', desc: 'Increase background opacity', toggle: null }`, `{ id: 'bgOpacityDown', label: 'Background Opacity \\u2212', desc: 'Decrease background opacity', toggle: null }`",
+    "In src/components/views/HotkeysView.js: In the render() method, remove the line `${this._renderSlider('Opacity', 'opacity', 0.0, 1.0, 0.05, 1)}` from the settings-grid. This was the native window opacity slider.",
+    "In src/components/views/HotkeysView.js: In the render() method, remove the line `${this._renderSlider('Opacity Step', 'opacityStep', 0.05, 0.2, 0.01)}` from the settings-grid.",
+    "In src/components/views/HotkeysView.js: In connectedCallback(), remove the `onOpacity` listener that subscribes to 'opacity-changed'. Keep the scale-changed, zoom-changed, font-size-changed, and voice-toggled listeners. Also remove the corresponding cleanup function from _ipcCleanups."
+  ],
+  "acceptance_criteria": [
+    "HOTKEY_GROUPS no longer contains 'opacityUp' or 'opacityDown' action IDs",
+    "HOTKEY_GROUPS visibility section contains fontOpacityUp, fontOpacityDown, bgOpacityUp, bgOpacityDown",
+    "No 'Opacity' slider or 'Opacity Step' slider is rendered in the settings-grid (Scale, Zoom, Move Step, Scale Step, Zoom Step remain)",
+    "No 'opacity-changed' IPC listener exists in connectedCallback()",
+    "The file has no syntax errors (valid ES module)"
+  ],
+  "verification": [
+    "Run: grep -n 'opacityUp\\|opacityDown' src/components/views/HotkeysView.js (should return nothing - old IDs removed)",
+    "Run: grep -n 'fontOpacityUp\\|bgOpacityUp' src/components/views/HotkeysView.js (should show the new entries)",
+    "Run: grep -c \"'opacity'\" src/components/views/HotkeysView.js (should be 0 - no native opacity slider reference)",
+    "Run: grep -n 'opacity-changed' src/components/views/HotkeysView.js (should return nothing)"
+  ],
+  "blocked_reason": null,
+  "findings": "Pre-existing prettier issues in src/storage.js and src/utils/apiKeys.js (not caused by this change). HotkeysView.js passes prettier and syntax checks."
+}

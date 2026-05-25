@@ -17,12 +17,9 @@ const HARD_LIMITS = {
     scaleMin: 0.2,
     zoomMax: 2.0,
     zoomMin: 0.3,
-    opacityMax: 1.0,
-    opacityMin: 0.0,
     // Minimum step values to prevent rapid-fire redraws
     scaleStepMin: 0.05,
     zoomStepMin: 0.05,
-    opacityStepMin: 0.05,
 };
 
 // ──────────────────────────────────────────────────────────────
@@ -98,6 +95,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
         resizable: true,
         frame: false,
         transparent: true,
+        // Native opacity stays at 1.0; transparency is CSS-driven via --bg-app rgba values.
         hasShadow: false,
         alwaysOnTop: true,
         webPreferences: {
@@ -456,23 +454,6 @@ function applyZoom(win, delta, limit) {
     win.webContents.send('zoom-changed', next);
 }
 
-function applyOpacity(win, delta, limit) {
-    const ws = storage.getWindowState();
-    const current = ws.opacity ?? 1.0;
-    // Enforce hard limits
-    const effectiveLimit = delta > 0 ? Math.min(limit, HARD_LIMITS.opacityMax) : Math.max(limit, HARD_LIMITS.opacityMin);
-    const next =
-        delta > 0
-            ? Math.min(parseFloat((current + Math.abs(delta)).toFixed(2)), effectiveLimit)
-            : Math.max(parseFloat((current - Math.abs(delta)).toFixed(2)), effectiveLimit);
-    if (next === current) return;
-    try {
-        win.setOpacity(next);
-    } catch (_) {}
-    storage.updateWindowState('opacity', next);
-    win.webContents.send('opacity-changed', next);
-}
-
 // ──────────────────────────────────────────────────────────────
 // IPC handlers
 // ──────────────────────────────────────────────────────────────
@@ -544,16 +525,6 @@ function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
         return { success: true };
     });
 
-    ipcMain.handle('window:set-opacity', (event, opacity) => {
-        const clamped = Math.max(HARD_LIMITS.opacityMin, Math.min(HARD_LIMITS.opacityMax, opacity));
-        try {
-            mainWindow.setOpacity(clamped);
-        } catch (_) {}
-        storage.updateWindowState('opacity', clamped);
-        mainWindow.webContents.send('opacity-changed', clamped);
-        return { success: true };
-    });
-
     ipcMain.handle('window:set-voice', (event, enabled) => {
         storage.updateWindowState('voiceEnabled', enabled);
         sendToRenderer('voice-toggled', enabled);
@@ -562,12 +533,6 @@ function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
 }
 
 function _applyStatePatch(win, patch) {
-    if (patch.opacity !== undefined) {
-        const clamped = Math.max(HARD_LIMITS.opacityMin, Math.min(HARD_LIMITS.opacityMax, patch.opacity));
-        try {
-            win.setOpacity(clamped);
-        } catch (_) {}
-    }
     if (patch.zoom !== undefined) {
         const clamped = Math.max(HARD_LIMITS.zoomMin, Math.min(HARD_LIMITS.zoomMax, patch.zoom));
         try {
@@ -593,6 +558,5 @@ module.exports = {
     setupWindowIpcHandlers,
     applyScale,
     applyZoom,
-    applyOpacity,
     HARD_LIMITS,
 };

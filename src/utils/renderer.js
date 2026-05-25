@@ -126,9 +126,6 @@ const windowControls = {
     async setZoom(v) {
         return ipcRenderer.invoke('window:set-zoom', v);
     },
-    async setOpacity(v) {
-        return ipcRenderer.invoke('window:set-opacity', v);
-    },
     async setVoice(enabled) {
         return ipcRenderer.invoke('window:set-voice', enabled);
     },
@@ -183,11 +180,6 @@ const windowControls = {
         const l = (_, v) => fn(v);
         ipcRenderer.on('zoom-changed', l);
         return () => ipcRenderer.removeListener('zoom-changed', l);
-    },
-    onOpacityChanged(fn) {
-        const l = (_, v) => fn(v);
-        ipcRenderer.on('opacity-changed', l);
-        return () => ipcRenderer.removeListener('opacity-changed', l);
     },
     onVoiceToggled(fn) {
         const l = (_, v) => fn(v);
@@ -1300,10 +1292,6 @@ ipcRenderer.on('scale-changed', (_, val) => {
 
 ipcRenderer.on('zoom-changed', (_, val) => {
     showToast(`Zoom: ${Math.round(val * 100)}%`);
-});
-
-ipcRenderer.on('opacity-changed', (_, val) => {
-    showToast(`Window Opacity: ${Math.round(val * 100)}%`);
 });
 
 ipcRenderer.on('voice-toggled', (_, enabled) => {

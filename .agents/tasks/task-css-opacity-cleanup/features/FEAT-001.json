@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "refactor",
   "description": "Remove native window opacity dead code from src/utils/window.js - the applyOpacity() function, the window:set-opacity IPC handler, the opacity branch in _applyStatePatch(), the opacity-related HARD_LIMITS entries, and the applyOpacity export. Also remove the onOpacityChanged and setOpacity methods from windowControls in src/utils/renderer.js, and remove the opacity-changed toast handler.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/utils/window.js: Remove `opacityMax`, `opacityMin`, `opacityStepMin` from the HARD_LIMITS object (lines 23-25 area). Keep scaleMax, scaleMin, zoomMax, zoomMin, scaleStepMin, zoomStepMin.",
     "In src/utils/window.js: Remove the entire `applyOpacity` function (around line 459-476 area) that calls win.setOpacity().",
@@ -34,5 +34,5 @@
     "Run: grep -n 'opacityMax\\|opacityMin\\|opacityStepMin' src/utils/window.js (should return nothing)"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 9 removal steps completed successfully. Grep verification confirms no remaining references to applyOpacity, window:set-opacity, opacityMax/Min/StepMin in window.js, and no setOpacity or opacity-changed in renderer.js. The only opacity-changed references remaining in renderer.js are font-opacity-changed and bg-opacity-changed events which belong to the CSS-driven opacity system."
 }

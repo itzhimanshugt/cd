@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-003",
+  "type": "refactor",
+  "description": "Fix the getDefaultKeybinds() in renderer.js windowControls to match the correct keybinds from window.js (replace old opacityUp/opacityDown and scrollUp/scrollDown with the correct split keys).",
+  "status": "completed",
+  "steps": [
+    "In src/utils/renderer.js: In the windowControls.getDefaultKeybinds() method (around line 140-180), replace the keybind entries. Currently it has `opacityUp: 'Ctrl+Shift+]'` and `opacityDown: 'Ctrl+Shift+['` - replace these with `fontOpacityUp: isMac ? 'Cmd+]' : 'Ctrl+]'`, `fontOpacityDown: isMac ? 'Cmd+[' : 'Ctrl+['`, `bgOpacityUp: isMac ? 'Cmd+Shift+]' : 'Ctrl+Shift+]'`, `bgOpacityDown: isMac ? 'Cmd+Shift+[' : 'Ctrl+Shift+['`.",
+    "In src/utils/renderer.js: In the same getDefaultKeybinds() method, fix `scrollUp` and `scrollDown`. Currently they use `'Ctrl+['` / `'Ctrl+]'` which conflicts with the font opacity keys. Change them to `scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up'` and `scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down'` to match window.js."
+  ],
+  "acceptance_criteria": [
+    "windowControls.getDefaultKeybinds() returns fontOpacityUp, fontOpacityDown, bgOpacityUp, bgOpacityDown instead of opacityUp/opacityDown",
+    "scrollUp/scrollDown use Ctrl+Shift+Up/Down (matching window.js) instead of conflicting Ctrl+[/]",
+    "The renderer.js getDefaultKeybinds() matches window.js getDefaultKeybinds() for all opacity and scroll keys"
+  ],
+  "verification": [
+    "Run: grep -n 'opacityUp\\|opacityDown' src/utils/renderer.js (should return nothing)",
+    "Run: grep -n 'fontOpacityUp\\|bgOpacityUp' src/utils/renderer.js (should show the new entries)",
+    "Run: grep -n 'scrollUp.*Shift+Up\\|scrollDown.*Shift+Down' src/utils/renderer.js (should show correct scroll keys)"
+  ],
+  "blocked_reason": null,
+  "findings": "Replaced opacityUp/opacityDown with fontOpacityUp/fontOpacityDown/bgOpacityUp/bgOpacityDown and fixed scrollUp/scrollDown to use Shift+Up/Down. Prettier check passes."
+}

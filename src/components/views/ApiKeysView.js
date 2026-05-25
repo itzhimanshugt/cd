@@ -4,8 +4,7 @@ import { unifiedPageStyles } from './sharedPageStyles.js';
 // State display config
 const STATE_CONFIG = {
     ready: { dot: '#22C55E', badge: 'rgba(34,197,94,0.12)', text: '#22C55E', label: 'READY' },
-    checking: { dot: '#3B82F6', badge: 'rgba(59,130,246,0.12)', text: '#3B82F6', label: 'CHECKING' },
-    exhausted: { dot: '#D4A017', badge: 'rgba(212,160,23,0.12)', text: '#D4A017', label: 'EXHAUSTED' },
+    failed: { dot: '#D4A017', badge: 'rgba(212,160,23,0.12)', text: '#D4A017', label: 'FAILED' },
     invalid: { dot: '#EF4444', badge: 'rgba(239,68,68,0.12)', text: '#EF4444', label: 'INVALID' },
     unknown: { dot: '#555', badge: 'rgba(85,85,85,0.12)', text: '#777', label: 'UNKNOWN' },
 };
@@ -330,7 +329,7 @@ export class ApiKeysView extends LitElement {
     static properties = {
         _geminiKeys: { state: true },
         _groqKeys: { state: true },
-        _geminiTab: { state: true }, // 'all' | 'ready' | 'exhausted' | 'invalid' | 'checking'
+        _geminiTab: { state: true }, // 'all' | 'ready' | 'failed' | 'invalid'
         _groqTab: { state: true },
         _geminiInput: { state: true },
         _geminiLabel: { state: true },
@@ -472,23 +471,11 @@ export class ApiKeysView extends LitElement {
         await this._loadKeys();
     }
 
-    _countdown(until) {
-        const r = until - this._now;
-        if (r <= 0) return 'Retry soon…';
-        const h = Math.floor(r / 3600000);
-        const m = Math.floor((r % 3600000) / 60000);
-        const s = Math.floor((r % 60000) / 1000);
-        if (h > 0) return `${h}h ${m}m`;
-        if (m > 0) return `${m}m ${s}s`;
-        return `${s}s`;
-    }
-
     _counts(keys) {
         return {
             all: keys.length,
             ready: keys.filter(k => k.state === 'ready').length,
-            checking: keys.filter(k => k.state === 'checking' || k.state === 'unknown').length,
-            exhausted: keys.filter(k => k.state === 'exhausted').length,
+            failed: keys.filter(k => k.state === 'failed' || k.state === 'unknown').length,
             invalid: keys.filter(k => k.state === 'invalid').length,
         };
     }
@@ -496,14 +483,13 @@ export class ApiKeysView extends LitElement {
     _filterKeys(keys, tab) {
         if (tab === 'all') return keys;
         if (tab === 'ready') return keys.filter(k => k.state === 'ready');
-        if (tab === 'checking') return keys.filter(k => k.state === 'checking' || k.state === 'unknown');
-        if (tab === 'exhausted') return keys.filter(k => k.state === 'exhausted');
+        if (tab === 'failed') return keys.filter(k => k.state === 'failed' || k.state === 'unknown');
         if (tab === 'invalid') return keys.filter(k => k.state === 'invalid');
         return keys;
     }
 
     _sortKeys(keys) {
-        const order = { ready: 0, checking: 1, unknown: 1, exhausted: 2, invalid: 3 };
+        const order = { ready: 0, unknown: 1, failed: 2, invalid: 3 };
         return [...keys].sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9));
     }
 
@@ -516,13 +502,13 @@ export class ApiKeysView extends LitElement {
         if (isInUse) {
             statusText = 'In Use';
             statusCls = 'in-use';
-        } else if (k.state === 'exhausted' && k.exhaustedUntil) {
-            statusText = `Retry in: ${this._countdown(k.exhaustedUntil)}`;
+        } else if (k.state === 'failed') {
+            statusText = k.errorReason ? k.errorReason.slice(0, 40) : 'Temporarily failed';
             statusCls = 'countdown';
         } else if (k.state === 'invalid') {
             statusText = k.errorReason ? k.errorReason.slice(0, 30) : 'Invalid';
             statusCls = 'err';
-        } else if (k.state === 'checking' || k.state === 'unknown') {
+        } else if (k.state === 'unknown') {
             statusText = 'Validating…';
         } else if (k.state === 'ready') {
             statusText = 'Standby';
@@ -580,8 +566,7 @@ export class ApiKeysView extends LitElement {
         const tabs = [
             { id: 'all', label: 'All', count: counts.all },
             { id: 'ready', label: 'Ready', count: counts.ready },
-            { id: 'checking', label: 'Checking', count: counts.checking },
-            { id: 'exhausted', label: 'Exhausted', count: counts.exhausted },
+            { id: 'failed', label: 'Failed', count: counts.failed },
             { id: 'invalid', label: 'Invalid', count: counts.invalid },
         ];
 

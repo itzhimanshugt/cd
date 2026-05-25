@@ -306,8 +306,7 @@ async function sendToGroq(transcription) {
             }
 
             // On success: mark key ready (recovered from prior exhausted/unknown).
-            storage.markProviderKeyState('groq', entry.id, 'ready', { errorReason: null });
-            apiKeys.broadcastUpdate('groq');
+            apiKeys.markKeyReady('groq', entry.id);
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -423,8 +422,7 @@ async function sendToGemma(transcription) {
             });
 
             // On success: mark this key ready (recovered from prior exhausted/unknown).
-            storage.markProviderKeyState('gemini', entry.id, 'ready', { errorReason: null });
-            apiKeys.broadcastUpdate('gemini');
+            apiKeys.markKeyReady('gemini', entry.id);
 
             let fullText = '';
             let isFirst = true;
@@ -881,8 +879,7 @@ async function sendImageToGeminiHttp(base64Data, prompt) {
             }
 
             // Recovered — mark ready.
-            storage.markProviderKeyState('gemini', entry.id, 'ready', { errorReason: null });
-            apiKeys.broadcastUpdate('gemini');
+            apiKeys.markKeyReady('gemini', entry.id);
 
             console.log(`Image response completed from ${model}`);
 
@@ -942,17 +939,19 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 if (session) {
                     geminiSessionRef.current = session;
                     if (entry.id) {
-                        storage.markProviderKeyState('gemini', entry.id, 'ready', { errorReason: null });
-                        apiKeys.broadcastUpdate('gemini');
+                        apiKeys.markKeyReady('gemini', entry.id);
                     }
                     return true;
                 }
             } catch (err) {
                 lastError = err;
                 const verdict = apiKeys.classifyError(err);
-                if (entry.id && (verdict === 'invalid' || verdict === 'exhausted')) {
-                    storage.markProviderKeyState('gemini', entry.id, verdict, { errorReason: err.message });
-                    apiKeys.broadcastUpdate('gemini');
+                if (entry.id && (verdict === 'invalid' || verdict === 'rate_limited')) {
+                    if (verdict === 'invalid') {
+                        apiKeys.markKeyInvalid('gemini', entry.id, err.message);
+                    } else {
+                        apiKeys.markKeyFailed('gemini', entry.id, err.message);
+                    }
                     continue;
                 }
                 // Transient — bail out

@@ -16,14 +16,13 @@ const DEFAULT_CREDENTIALS = {
     apiKey: '',
     groqApiKey: '',
     // Provider key pools. Each entry:
-    //   { id, key, label, state: 'ready'|'exhausted'|'invalid'|'unknown',
-    //     lastCheckedAt, exhaustedUntil, errorReason, createdAt }
+    //   { id, key, label, state: 'ready'|'failed'|'invalid'|'unknown',
+    //     lastCheckedAt, failedAt, errorReason, createdAt }
     geminiKeys: [],
     groqKeys: [],
 };
 
 const API_KEY_PROVIDERS = ['gemini', 'groq'];
-const EXHAUSTION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h
 
 // Available Gemini models for pipeline task assignment
 const GEMINI_MODELS = [
@@ -309,8 +308,7 @@ function _sanitizeEntry(entry) {
         masked: _redact(entry.key),
         state: entry.state || 'unknown',
         lastCheckedAt: entry.lastCheckedAt || null,
-        exhaustedAt: entry.exhaustedAt || null,
-        exhaustedUntil: entry.exhaustedUntil || null,
+        failedAt: entry.failedAt || null,
         errorReason: entry.errorReason || null,
         createdAt: entry.createdAt || null,
     };
@@ -341,7 +339,7 @@ function _ensureMigrated(credentials) {
                 label: 'Primary',
                 state: 'unknown',
                 lastCheckedAt: null,
-                exhaustedUntil: null,
+                failedAt: null,
                 errorReason: null,
                 createdAt: Date.now(),
             });
@@ -387,16 +385,15 @@ function getActiveProviderKey(provider) {
     // Does NOT migrate here to avoid recursion from getApiKey()/getGroqApiKey().
     const creds = readJsonFile(getCredentialsPath(), DEFAULT_CREDENTIALS);
     const pool = creds[_poolField(provider)] || [];
-    // Only return keys that are explicitly 'ready'. Never 'unknown', 'checking', 'exhausted', or 'invalid'.
-    return pool.find(k => k.state === 'ready') || null;
+    // Return first key that is 'ready' or 'unknown' (available for use).
+    return pool.find(k => k.state === 'ready' || k.state === 'unknown') || pool.find(k => k.state === 'failed') || null;
 }
 
 function listReadyProviderKeys(provider) {
-    // Used by rotation — ONLY returns state === 'ready' keys.
-    // 'unknown' and 'checking' are NOT ready for use; they must be validated first.
+    // Returns keys available for rotation — 'ready' and 'unknown' states.
     const creds = _readCredentialsMigrated();
     const pool = creds[_poolField(provider)] || [];
-    return pool.filter(k => k.state === 'ready');
+    return pool.filter(k => k.state === 'ready' || k.state === 'unknown');
 }
 
 function listAllProviderKeysRaw(provider) {
@@ -421,7 +418,7 @@ function addProviderKey(provider, key, label = '') {
         label: (label || '').trim(),
         state: 'unknown',
         lastCheckedAt: null,
-        exhaustedUntil: null,
+        failedAt: null,
         errorReason: null,
         createdAt: Date.now(),
     };
@@ -455,7 +452,7 @@ function updateProviderKey(provider, id, patch) {
         return { ok: false, error: 'Key not found' };
     }
     const current = pool[idx];
-    const allowed = ['label', 'state', 'lastCheckedAt', 'exhaustedAt', 'exhaustedUntil', 'errorReason'];
+    const allowed = ['label', 'state', 'lastCheckedAt', 'failedAt', 'errorReason'];
     for (const k of allowed) {
         if (Object.prototype.hasOwnProperty.call(patch, k)) {
             current[k] = patch[k];
@@ -473,14 +470,8 @@ function markProviderKeyState(provider, id, state, opts = {}) {
         state,
         lastCheckedAt: Date.now(),
         errorReason: opts.errorReason || null,
+        failedAt: (state === 'failed') ? Date.now() : null,
     };
-    if (state === 'exhausted') {
-        patch.exhaustedAt = opts.exhaustedAt || Date.now();
-        patch.exhaustedUntil = opts.exhaustedUntil || Date.now() + EXHAUSTION_COOLDOWN_MS;
-    } else {
-        patch.exhaustedAt = null;
-        patch.exhaustedUntil = null;
-    }
     return updateProviderKey(provider, id, patch);
 }
 
@@ -861,7 +852,6 @@ module.exports = {
 
     // Provider key pools
     API_KEY_PROVIDERS,
-    EXHAUSTION_COOLDOWN_MS,
     GEMINI_MODELS,
     listProviderKeys,
     listAllProviderKeysRaw,

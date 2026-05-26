@@ -2,19 +2,19 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Create the service layer foundation in src/services/ - async StorageService, HotkeyService, and SessionService that run in the main process (CommonJS). These provide cleaner abstractions over the raw storage.js and window.js code.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
-    "Create src/services/StorageService.js - CommonJS module. Class with: constructor() initializes in-memory caches for config/preferences/keybinds/windowState/credentials. async init() loads all data from storage.js into cache. getPreferences()/getConfig()/etc return cached data (sync). updatePreference(key, value) updates cache immediately, schedules debounced flush (200ms) to storage.js writeJsonFile. Same pattern for updateConfig, updateWindowState, etc. Exposes same operations as storage.js but cached + async flush. Uses existing storage.js functions internally (require('../storage')).",
-    "Create src/services/HotkeyService.js - CommonJS module. Class with: constructor(globalShortcut). register(accelerator, callback) - registers and tracks. unregister(accelerator) - unregisters single binding. updateBindings(newKeybinds, handlers) - diffs against current registered set, only changes what changed (not full rebuild). getRegistered() - returns currently registered bindings. Uses Electron globalShortcut internally.",
-    "Create src/services/SessionService.js - CommonJS module. Class extends EventEmitter. Owns geminiSessionRef. Methods: start(params), stop(), isActive(), getStatus(), getSessionId(). Emits 'started', 'stopped', 'error', 'reconnecting'. Tracks reconnection state. Route-independent - lives as singleton in main process.",
-    "Create src/services/index.js - CommonJS barrel export of all services."
+    "Create src/services/StorageService.js - CommonJS module. Class with: constructor() initializes in-memory cache (empty objects). async init() loads all data from storage.js into cache using require('../storage'). get(key) returns value from cache. set(key, value) updates cache immediately and schedules a debounced flush (200ms timeout). getAll() returns full cache copy. flush() writes pending changes immediately to disk using storage.js functions. Uses existing storage.js internally: getPreferences(), getConfig(), getWindowState(), getKeybinds(), getTypingSettings(), and the corresponding setters. The cache is organized as { preferences: {...}, config: {...}, windowState: {...}, keybinds: {...}, typingSettings: {...} }.",
+    "Create src/services/HotkeyService.js - CommonJS module. Class with: constructor() creates a _registry Map. register(action, accelerator, handler) - uses Electron globalShortcut.register(), stores {accelerator, handler} in the Map keyed by action. unregister(action) - looks up action in Map, calls globalShortcut.unregister(accelerator), removes from Map. updateBinding(action, newAccelerator, handler) - if action exists with same accelerator, skip. Otherwise unregister old, register new. rebuildAll(keybinds, handlers) - full rebuild fallback: unregisters everything, re-registers from keybinds object. getRegistered() - returns Object.fromEntries of the Map. Does NOT call globalShortcut.unregisterAll() on every change - only changes what is different.",
+    "Create src/services/SessionService.js - CommonJS module. Class extends require('events').EventEmitter. Holds _session reference (the live session object), _active boolean, _provider string, _profile string, _startTime timestamp, _connected boolean. Methods: start(params) - stores params, sets _active=true, emits 'started'. stop() - sets _active=false, clears _session, emits 'stopped'. isActive() returns _active. getStatus() returns { active, provider, profile, duration: Date.now() - _startTime, connected }. setSession(sessionObj) - stores reference. getSession() - returns reference. Events: 'started', 'stopped', 'reconnecting', 'error'. Route-independent.",
+    "Create src/services/index.js - CommonJS barrel export: module.exports = { StorageService, HotkeyService, SessionService }."
   ],
   "acceptance_criteria": [
-    "src/services/StorageService.js exports a class that caches storage reads and debounces writes",
-    "src/services/HotkeyService.js exports a class that supports incremental hotkey registration",
-    "src/services/SessionService.js exports a class that manages session lifecycle independently of UI",
+    "src/services/StorageService.js exports a class with get(key), set(key, value), getAll(), flush() methods, uses 200ms debounced writes",
+    "src/services/HotkeyService.js exports a class with register(action, accelerator, handler), unregister(action), updateBinding(action, newAccelerator, handler), rebuildAll(keybinds, handlers), getRegistered()",
+    "src/services/SessionService.js exports an EventEmitter class with start(params), stop(), isActive(), getStatus() and session reference management",
     "All service files use CommonJS (require/module.exports) since they run in main process",
-    "Services use existing storage.js and Electron APIs internally",
+    "Services reference existing storage.js and Electron APIs internally but do not break if Electron is not available (graceful checks)",
     "Files pass node --check syntax validation"
   ],
   "verification": [

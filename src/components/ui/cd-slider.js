@@ -50,9 +50,9 @@ export class CdSlider extends LitElement {
             -webkit-appearance: none;
             appearance: none;
             width: 100%;
-            height: 5px;
+            height: 4px;
             border-radius: 3px;
-            background: var(--border);
+            background: var(--border-strong);
             outline: none;
             cursor: pointer;
             transition: background 0.15s;
@@ -108,6 +108,11 @@ export class CdSlider extends LitElement {
         );
     }
 
+    _getTrackBackground() {
+        const percent = ((this.value - this.min) / (this.max - this.min)) * 100;
+        return `linear-gradient(to right, var(--accent) ${percent}%, var(--border-strong) ${percent}%)`;
+    }
+
     render() {
         return html`
             <div class="slider-header">
@@ -123,6 +128,7 @@ export class CdSlider extends LitElement {
                 step=${this.step}
                 ?disabled=${this.disabled}
                 @input=${this._handleInput}
+                style="background: ${this._getTrackBackground()}"
             />
         `;
     }

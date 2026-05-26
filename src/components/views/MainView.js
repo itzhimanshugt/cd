@@ -1072,6 +1072,7 @@ export class MainView extends LitElement {
                 <input
                     type="checkbox"
                     id="ai-hearing-byok"
+                    class="styled-checkbox"
                     .checked=${this._aiHearingEnabled}
                     @change=${e => this._saveAiHearing(e.target.checked)}
                 />

@@ -172,4 +172,32 @@ export const unifiedPageStyles = css`
             padding: var(--space-md);
         }
     }
+
+    .styled-checkbox {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--border-strong);
+        border-radius: 3px;
+        background: var(--bg-elevated);
+        cursor: pointer;
+        position: relative;
+        flex-shrink: 0;
+    }
+    .styled-checkbox:checked {
+        background: var(--accent);
+        border-color: var(--accent);
+    }
+    .styled-checkbox:checked::after {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 1px;
+        width: 4px;
+        height: 8px;
+        border: solid white;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+    }
 `;

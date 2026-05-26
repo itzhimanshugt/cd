@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-002",
+  "type": "refactor",
+  "description": "Migrate HotkeysView and CustomizeView sliders to cd-slider component and ensure all views use shared components consistently",
+  "status": "pending",
+  "steps": [
+    "In HotkeysView.js: Replace the _renderSlider method to use <cd-slider> instead of raw <input type='range'>. The cd-slider component accepts value, min, max, step, label props and fires slider-input event. Keep the min/max bounds inputs below as separate number inputs. Remove .setting-slider CSS since cd-slider handles its own styling.",
+    "In CustomizeView.js: Replace the font size raw slider (class='slider-input' type='range' min=8 max=48) with <cd-slider label='Response Font Size' .value=${this.fontSize} min=8 max=48 step=1 @slider-input=${handler}>. Replace the font weight raw slider with <cd-slider label='Font Weight' .value=${this.fontWeight} min=100 max=900 step=100 @slider-input=${handler}>. Remove the .slider-input, .slider-wrap, .slider-header CSS classes that duplicate cd-slider.",
+    "In DebugView.js: Style the debug-btn buttons consistently - they already have a .debug-btn class with proper styling, so verify it matches the pattern. No raw range inputs to replace here.",
+    "Verify AutoTypeView.js already uses <cd-slider> and <cd-toggle> everywhere - it does based on the code read. No changes needed.",
+    "Commit all changes with a descriptive message"
+  ],
+  "acceptance_criteria": [
+    "HotkeysView uses <cd-slider> for Scale, Content Zoom, Move Step, Scale Step, Zoom Step",
+    "CustomizeView uses <cd-slider> for font size and font weight",
+    "No raw <input type='range'> elements remain in HotkeysView or CustomizeView",
+    "All modified JS files pass node --check syntax validation"
+  ],
+  "verification": [
+    "Run: find /projects/sandbox/cd/src -name '*.js' -exec node --check {} \\; to verify no syntax errors",
+    "Run: grep -rn 'type=\"range\"' /projects/sandbox/cd/src/components/views/ to verify no raw range inputs remain (except possibly in edge cases)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

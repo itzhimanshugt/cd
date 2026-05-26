@@ -80,13 +80,21 @@ const API_KEY_PROVIDERS = ['gemini', 'groq'];
 
 // Available Gemini models for pipeline task assignment
 const GEMINI_MODELS = [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', shortName: 'Gem 2.5 Flash' },
-    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', shortName: 'Gem 2.5 Lite' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', shortName: 'Gem 2.5 Pro' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', shortName: 'Gem 2.0 Flash' },
-    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', shortName: 'Gem 2.0 Lite' },
-    { id: 'gemma-3-27b-it', name: 'Gemma 3 27B', shortName: 'Gemma 27B' },
+    { id: 'auto', name: 'Auto (Smart Select)', shortName: 'Auto', tier: 'free', auto: true },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', shortName: 'Gem 2.5 Flash', tier: 'free' },
+    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', shortName: 'Gem 2.5 Lite', tier: 'free' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', shortName: 'Gem 2.5 Pro', tier: 'paid' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', shortName: 'Gem 2.0 Flash', tier: 'limited' },
+    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', shortName: 'Gem 2.0 Lite', tier: 'limited' },
+    { id: 'gemma-3-27b-it', name: 'Gemma 3 27B', shortName: 'Gemma 27B', tier: 'free' },
 ];
+
+function getAutoModel(context = {}) {
+    const task = context.task || 'solution';
+    if (task === 'extraction') return 'gemini-2.5-flash-lite';
+    if (task === 'debugging') return 'gemini-2.5-flash';
+    return 'gemini-2.5-flash'; // default for solution and other tasks
+}
 
 const DEFAULT_PREFERENCES = {
     customPrompt: '',
@@ -967,6 +975,7 @@ module.exports = {
     // Provider key pools
     API_KEY_PROVIDERS,
     GEMINI_MODELS,
+    getAutoModel,
     listProviderKeys,
     listAllProviderKeysRaw,
     listReadyProviderKeys,

@@ -918,6 +918,7 @@ export class CheatingDaddyApp extends LitElement {
 
     _getModelShortName(modelId) {
         const map = {
+            'auto': 'Auto',
             'gemini-2.5-flash': 'Gem 2.5 Flash',
             'gemini-2.5-flash-lite': 'Gem 2.5 Lite',
             'gemini-2.5-pro': 'Gem 2.5 Pro',

@@ -9,6 +9,7 @@ const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = requir
 const apiKeys = require('./utils/apiKeys');
 const storage = require('./storage');
 const { TypingManager, WindowTargetLock } = require('./typing');
+const { StorageService } = require('./services/StorageService');
 
 // Lazy-loaded modules
 let _logger = null;
@@ -20,6 +21,7 @@ const geminiSessionRef = { current: null };
 let mainWindow = null;
 let typingManager = null;
 let typingTargetLock = null;
+let storageService = null;
 
 function createMainWindow() {
     mainWindow = createWindow(sendToRenderer, geminiSessionRef, typingManager);
@@ -41,6 +43,10 @@ if (!gotTheLock) {
         // === IMMEDIATE ===
         // Initialize storage (checks version, resets if needed)
         storage.initializeStorage();
+
+        // Initialize StorageService cache
+        storageService = new StorageService();
+        storageService.init();
 
         // Trigger screen recording permission prompt on macOS if not already granted
         if (process.platform === 'darwin') {
@@ -94,6 +100,7 @@ if (!gotTheLock) {
     });
 
     app.on('before-quit', () => {
+        storageService.flush();
         storage.flushAll();
         stopMacOSAudioCapture();
         apiKeys.stopBackgroundValidation();
@@ -595,6 +602,20 @@ function setupTypingIpcHandlers() {
             return { success: true };
         } catch (error) {
             console.error('Error setting typing settings:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:test-backend', async (event, backendName) => {
+        try {
+            if (backendName) {
+                typingManager.setBackend(backendName);
+            }
+            typingManager.loadResponse('Hello World - typing backend test');
+            typingManager.start();
+            return { success: true };
+        } catch (error) {
+            console.error('Error testing typing backend:', error);
             return { success: false, error: error.message };
         }
     });

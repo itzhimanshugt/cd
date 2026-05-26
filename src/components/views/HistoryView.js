@@ -574,6 +574,15 @@ export class HistoryView extends LitElement {
             if (turn.transcription) messages.push({ type: 'user', content: turn.transcription, timestamp: turn.timestamp });
             if (turn.ai_response) messages.push({ type: 'ai', content: turn.ai_response, timestamp: turn.timestamp });
         });
+        // Include screen analysis responses
+        const screenHistory = session.screenAnalysisHistory || [];
+        screenHistory.forEach(entry => {
+            if (entry.response) {
+                messages.push({ type: 'ai', content: entry.response, timestamp: entry.timestamp });
+            }
+        });
+        // Sort by timestamp
+        messages.sort((a, b) => a.timestamp - b.timestamp);
         return messages;
     }
 

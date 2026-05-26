@@ -249,6 +249,9 @@ const typingControls = {
     async setSettings(patch) {
         return ipcRenderer.invoke('typing:set-settings', patch);
     },
+    async testBackend(backendName) {
+        return ipcRenderer.invoke('typing:test-backend', backendName);
+    },
 };
 
 // ============ API KEYS API ============

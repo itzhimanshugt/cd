@@ -262,10 +262,20 @@ export class CustomizeView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._storeUnsubscribe = settingsStore.subscribe(state => {
-            this.backgroundTransparency = state.backgroundTransparency ?? this.backgroundTransparency;
-            this.hotkeyToastsEnabled = state.hotkeyToastsEnabled ?? this.hotkeyToastsEnabled;
-            this.theme = state.theme ?? this.theme;
-            this.requestUpdate();
+            let changed = false;
+            if (state.backgroundTransparency != null && state.backgroundTransparency !== this.backgroundTransparency) {
+                this.backgroundTransparency = state.backgroundTransparency;
+                changed = true;
+            }
+            if (state.hotkeyToastsEnabled != null && state.hotkeyToastsEnabled !== this.hotkeyToastsEnabled) {
+                this.hotkeyToastsEnabled = state.hotkeyToastsEnabled;
+                changed = true;
+            }
+            if (state.theme != null && state.theme !== this.theme) {
+                this.theme = state.theme;
+                changed = true;
+            }
+            if (changed) this.requestUpdate();
         });
     }
 
@@ -391,13 +401,6 @@ export class CustomizeView extends LitElement {
         this.requestUpdate();
     }
 
-    async handleThemeChange(e) {
-        this.theme = e.target.value;
-        await cheatingDaddy.theme.save(this.theme);
-        this.updateBackgroundAppearance();
-        this.requestUpdate();
-    }
-
     async handleGoogleSearchChange(e) {
         this.googleSearchEnabled = e.target.checked;
         await cheatingDaddy.storage.updatePreference('googleSearchEnabled', this.googleSearchEnabled);
@@ -409,13 +412,6 @@ export class CustomizeView extends LitElement {
                 console.error('Failed to notify main process:', error);
             }
         }
-        this.requestUpdate();
-    }
-
-    async handleBackgroundTransparencyChange(e) {
-        this.backgroundTransparency = parseFloat(e.target.value);
-        await cheatingDaddy.storage.updatePreference('backgroundTransparency', this.backgroundTransparency);
-        this.updateBackgroundAppearance();
         this.requestUpdate();
     }
 
@@ -453,17 +449,9 @@ export class CustomizeView extends LitElement {
         document.documentElement.style.setProperty('--response-font-weight', String(this.fontWeight));
     }
 
-    async handleHotkeyToastsChange(e) {
-        this.hotkeyToastsEnabled = e.target.checked;
-        await cheatingDaddy.storage.updatePreference('hotkeyToastsEnabled', this.hotkeyToastsEnabled);
-        cheatingDaddy.setHotkeyToastsEnabled(this.hotkeyToastsEnabled);
-        this.requestUpdate();
-    }
-
     _handleBgTransparencySlider(e) {
         this.backgroundTransparency = e.detail.value;
         settingsStore.set({ backgroundTransparency: e.detail.value });
-        cheatingDaddy.storage.updatePreference('backgroundTransparency', e.detail.value);
         this.updateBackgroundAppearance();
         this.requestUpdate();
     }
@@ -471,7 +459,6 @@ export class CustomizeView extends LitElement {
     _handleHotkeyToastsToggle(e) {
         this.hotkeyToastsEnabled = e.detail.checked;
         settingsStore.set({ hotkeyToastsEnabled: e.detail.checked });
-        cheatingDaddy.storage.updatePreference('hotkeyToastsEnabled', e.detail.checked);
         cheatingDaddy.setHotkeyToastsEnabled(e.detail.checked);
         this.requestUpdate();
     }
@@ -711,7 +698,6 @@ export class CustomizeView extends LitElement {
                             max="1"
                             step="0.01"
                             label="Background Transparency"
-                            unit="%"
                             @slider-input=${this._handleBgTransparencySlider}
                         ></cd-slider>
                     </div>

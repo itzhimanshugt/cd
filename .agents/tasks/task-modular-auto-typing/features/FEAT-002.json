@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement pluggable injection backends (src/typing/backends/) with a common interface and the TypingManager orchestrator that ties everything together. Backends: Win32SendInput, ClipboardInjection, PowerShellSendKeys, RobotJS (stub/fallback). Also includes the HotkeyController for hold-to-type, abort, and full-response triggers.",
+  "status": "completed",
+  "steps": [
+    "Create src/typing/backends/BaseBackend.js - Abstract base class defining the backend interface. Methods: inject(text), injectKey(keyCode), getName(), isAvailable(), initialize(), destroy(). Throws 'not implemented' for unoverridden methods.",
+    "Create src/typing/backends/Win32SendInputBackend.js - Primary backend for Windows. Uses child_process to invoke a small inline PowerShell script that calls user32.dll SendInput via Add-Type/P-Invoke. Methods: inject(text) splits into chars and sends scan-code based keystrokes. Supports key combinations. Has configurable inter-key delay. isAvailable() checks process.platform === 'win32'.",
+    "Create src/typing/backends/ClipboardInjectionBackend.js - Clipboard-based injection. Flow: save current clipboard (via electron clipboard module), write chunk to clipboard, simulate Ctrl+V keystroke (via the Win32 backend or PowerShell), optionally restore clipboard. Supports chunked mode (sentence/paragraph). Methods: inject(text), injectChunk(text), setChunkMode(mode).",
+    "Create src/typing/backends/PowerShellSendKeysBackend.js - Fallback backend using PowerShell WScript.Shell SendKeys. Spawns PowerShell with a script that uses [System.Windows.Forms.SendKeys]::SendWait(). Supports configurable startup delay and key pacing. isAvailable() checks win32.",
+    "Create src/typing/backends/RobotJSBackend.js - Stub/legacy fallback. Attempts to require('robotjs') if available, otherwise marks itself unavailable. Simple typeString() wrapper.",
+    "Create src/typing/backends/index.js - Barrel export of all backends.",
+    "Create src/typing/TypingManager.js - Top-level orchestrator. Composes: ResponseBuffer, TypingQueue, InjectionScheduler, HumanizationEngine, AbortController, active backend instance. Methods: loadResponse(text), start(), pause(), resume(), abort(), setBackend(name), setSpeed(wpm), getStatus(), skipSentence(), getAvailableBackends(). Emits events: 'typing-started', 'typing-paused', 'typing-resumed', 'typing-completed', 'typing-aborted', 'status-changed', 'progress-changed'.",
+    "Create src/typing/HotkeyController.js - Manages hold-to-type behavior and keybind actions. Integrates with Electron globalShortcut. Methods: registerHoldToType(keybind, manager), registerAbort(keybind, manager), registerFullResponse(keybind, manager), unregisterAll(). Hold-to-type: on key-down starts/resumes typing, on key-up pauses. Uses globalShortcut for keydown but needs a polling mechanism or accelerator for hold detection (since globalShortcut fires once). Implementation: register shortcut that toggles state, user presses to start and presses again to pause (toggle mode) as true hold detection requires native hooks.",
+    "Create src/typing/WindowTargetLock.js - Captures the active foreground window when typing starts (on Windows via PowerShell Get-Process / user32 GetForegroundWindow). Monitors if focus changes during typing and can warn/pause. Methods: lock(), isLocked(), checkFocus(), getTargetInfo(), unlock().",
+    "Update src/typing/index.js to export TypingManager, HotkeyController, WindowTargetLock, and backends."
+  ],
+  "acceptance_criteria": [
+    "All backend files pass `node --check` syntax validation",
+    "BaseBackend throws errors for unimplemented methods",
+    "Win32SendInputBackend.isAvailable() returns true only on win32",
+    "ClipboardInjectionBackend has proper clipboard save/restore flow",
+    "TypingManager can be instantiated and exposes loadResponse/start/pause/resume/abort",
+    "HotkeyController can register keybinds (tested via mock)",
+    "WindowTargetLock has lock/unlock/checkFocus methods",
+    "All modules export correctly from src/typing/index.js"
+  ],
+  "verification": [
+    "Run `node --check src/typing/backends/BaseBackend.js src/typing/backends/Win32SendInputBackend.js src/typing/backends/ClipboardInjectionBackend.js src/typing/backends/PowerShellSendKeysBackend.js src/typing/backends/RobotJSBackend.js src/typing/backends/index.js`",
+    "Run `node --check src/typing/TypingManager.js src/typing/HotkeyController.js src/typing/WindowTargetLock.js`",
+    "Run `node -e \"const {TypingManager, HotkeyController, WindowTargetLock} = require('./src/typing'); const m = new TypingManager(); console.assert(typeof m.loadResponse === 'function'); console.assert(typeof m.start === 'function'); console.log('TypingManager OK');\"` ",
+    "Run `node -e \"const {backends} = require('./src/typing'); console.log(Object.keys(backends)); console.assert(Object.keys(backends).length >= 4); console.log('Backends OK');\"` "
+  ],
+  "blocked_reason": null,
+  "findings": "All 10 modules created and verified. node --check passes for all files. Barrel export from src/typing/index.js works correctly with 5 backends exposed. TypingManager instantiates cleanly and exposes all required methods. HotkeyController gracefully returns false when Electron globalShortcut is unavailable. WindowTargetLock stubs checkFocus() to true on non-Windows. ClipboardInjectionBackend.isAvailable() returns false without Electron. Prettier reformatted WindowTargetLock.js (trailing newline)."
+}

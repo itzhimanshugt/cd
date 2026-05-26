@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Review feedback fixes: move currentProviderMode into _sessionState, add minLen to validateString, rate-limit injection error toasts",
+  "status": "in_progress",
+  "steps": [
+    "In src/utils/gemini.js, remove standalone `let currentProviderMode = 'byok';` and add `providerMode: 'byok'` to _sessionState. Update all references. Add providerMode reset in resetSessionState(). Remove redundant assignments in close paths.",
+    "In src/index.js, add minLen parameter to validateString. Update api-keys:add validation for label to allow null/undefined labels.",
+    "In src/utils/renderer.js, add rate-limiting to the typing-injection-error toast (max 1 per 5 seconds)."
+  ],
+  "acceptance_criteria": [
+    "No standalone currentProviderMode variable exists in gemini.js",
+    "_sessionState.providerMode is used everywhere instead",
+    "resetSessionState() resets providerMode to 'byok'",
+    "validateString requires minLen=1 by default",
+    "api-keys:add allows null/undefined labels",
+    "Injection error toasts are rate-limited to 1 per 5 seconds",
+    "node --check passes on all 3 files"
+  ],
+  "verification": [
+    "Run: node --check /projects/sandbox/cd/src/utils/gemini.js",
+    "Run: node --check /projects/sandbox/cd/src/index.js",
+    "Run: node --check /projects/sandbox/cd/src/utils/renderer.js"
+  ],
+  "blocked_reason": null
+}

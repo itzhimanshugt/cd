@@ -23,8 +23,8 @@ let typingManager = null;
 let storageService = null;
 
 // ── IPC Payload Validation ──
-function validateString(val, maxLen = 10000) {
-    return typeof val === 'string' && val.length <= maxLen;
+function validateString(val, maxLen = 10000, minLen = 1) {
+    return typeof val === 'string' && val.length >= minLen && val.length <= maxLen;
 }
 function validateNumber(val, min = -Infinity, max = Infinity) {
     return typeof val === 'number' && !isNaN(val) && val >= min && val <= max;
@@ -395,7 +395,8 @@ function setupApiKeysIpcHandlers() {
     // Add a key to a provider pool; fire-and-forget validation is triggered internally
     ipcMain.handle('api-keys:add', async (event, provider, key, label) => {
         try {
-            if (!validateString(provider) || !validateString(key) || !validateString(label || '')) return { success: false, error: 'Invalid input' };
+            if (!validateString(provider) || !validateString(key)) return { success: false, error: 'Invalid input' };
+            if (label != null && typeof label !== 'string') return { success: false, error: 'Invalid input' };
             const result = await apiKeys.addKey(provider, key, label);
             if (!result.ok) {
                 return { success: false, error: result.error };

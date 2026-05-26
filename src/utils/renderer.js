@@ -1419,8 +1419,13 @@ ipcRenderer.on('typing-aborted', () => {
     _eventBus.dispatchEvent(new CustomEvent('typing-aborted'));
     showToast('Typing aborted');
 });
+let _lastInjectionErrorToast = 0;
 ipcRenderer.on('typing-injection-error', (_, detail) => {
-    showToast(`Typing error: ${detail.error} (${detail.backend})`);
+    const now = Date.now();
+    if (now - _lastInjectionErrorToast > 5000) {
+        _lastInjectionErrorToast = now;
+        showToast(`Typing error: ${detail.error} (${detail.backend})`);
+    }
     _eventBus.dispatchEvent(new CustomEvent('typing-injection-error', { detail }));
 });
 ipcRenderer.on('typing-response-ready', (_, data) => {

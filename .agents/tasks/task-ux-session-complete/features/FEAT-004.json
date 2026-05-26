@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "History Management (multi-select, bulk actions, pin, rename, delete, continue session) + Session Persistence Fix + Continue Session from History",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/components/views/HistoryView.js - List view enhancements: Add `_selectedIds` (Set), `_selectAll` (Boolean) state properties. Add checkboxes to each session-card (left side). Add 'Select All' checkbox in header area. Add bulk action bar that appears when _selectedIds.size > 0 showing 'Delete Selected (N)' button. Add per-session actions (visible on hover or always): 'Pin' icon button, 'Delete' icon button, 'Rename' inline edit. Add `_pinnedIds` state property loaded from storage (use a new preference key 'pinnedSessions' array). Pinned sessions sort to top with a pin icon. Implement bulk delete: calls cheatingDaddy.storage.deleteSession for each, then reloads.",
     "In src/components/views/HistoryView.js - Detail view enhancements: Add action buttons at top of detail view: 'Continue Session' button, 'Export' button (copies JSON to clipboard), 'Delete' button (deletes and returns to list). 'Continue Session' dispatches a custom event 'continue-session' with sessionId on the element, and also dispatches on cheatingDaddy.events so the parent app can handle it.",
@@ -26,5 +26,5 @@
     "Inspect CheatingDaddyApp.js for continueSession method"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All four parts implemented. Used bun for syntax verification since node is not available in sandbox. Storage.js getSessionMessages helper validated via require. Renderer files validated via bun build --no-bundle parser. No test infrastructure exists in this project."
 }

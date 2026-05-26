@@ -211,7 +211,7 @@ export class AICustomizeView extends LitElement {
             <div class="unified-page">
                 <div class="unified-wrap">
                     <div>
-                        <div class="page-title">AI Context</div>
+                        <div class="page-title">AI Customization</div>
                     </div>
 
                     <section class="surface">

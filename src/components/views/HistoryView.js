@@ -852,7 +852,7 @@ export class HistoryView extends LitElement {
                                               </svg>
                                           </button>
                                       </div>
-                                      ${session.messageCount > 0 ? html`<span class="session-badge">${session.messageCount}</span>` : ''}
+                                      ${session.messageCount > 0 ? html`<span class="session-badge">${session.messageCount} ${session.messageCount === 1 ? 'msg' : 'msgs'}</span>` : ''}
                                   </button>
                               `
                           )

@@ -543,7 +543,7 @@ export class DebugView extends LitElement {
                               ${this._renderStateSection('typingStatus', 'Typing Status', this._runtimeState.typingStatus)}
                               ${this._renderStateSection('memoryUsage', 'Memory Usage', this._runtimeState.memoryUsage)}
                           `
-                        : html`<div class="feedback">Click "Load State" to inspect runtime state</div>`}
+                        : html`<div class="feedback">No data loaded</div>`}
                 </div>
 
                 <!-- Performance Metrics -->
@@ -601,7 +601,7 @@ export class DebugView extends LitElement {
                                   </div>
                               </div>
                           `
-                        : html`<div class="feedback">Click "Refresh" to load performance metrics</div>`}
+                        : html`<div class="feedback">No metrics loaded</div>`}
                 </div>
 
                 <!-- Debug Snapshot Export -->

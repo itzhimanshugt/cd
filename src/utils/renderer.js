@@ -1462,7 +1462,7 @@ function _ensureStatusPill() {
     _statusPill = document.createElement('div');
     _statusPill.id = 'cd-status-pill';
     _statusPill.style.cssText =
-        'position:fixed;bottom:12px;left:12px;z-index:99998;background:rgba(20,20,20,0.85);' +
+        'position:fixed;bottom:40px;left:12px;z-index:99998;background:rgba(20,20,20,0.85);' +
         'border-radius:12px;padding:4px 10px;font-size:11px;color:#ccc;pointer-events:none;' +
         'opacity:0;transition:opacity 0.3s;font-family:system-ui,-apple-system,sans-serif;';
     document.body.appendChild(_statusPill);

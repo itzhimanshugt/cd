@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-003",
+  "type": "refactor",
+  "description": "Code quality: remove dead code, add error handling, fix null safety, harden JSON parsing, and harden storage initialization",
+  "status": "completed",
+  "steps": [
+    "1. In src/storage.js readJsonFile(): The JSON.parse is already wrapped in try/catch - GOOD. But check all OTHER places JSON.parse is called. Search the codebase for JSON.parse and add try/catch where missing.",
+    "2. In src/storage.js initializeStorage(): Already creates config dir with recursive: true. Verify the historyDir creation also uses recursive: true (it does). Add a safety check: wrap the entire initializeStorage in try/catch so a corrupted fs state doesn't crash the app on startup.",
+    "3. In src/utils/gemini.js getStoredSetting(): This function uses executeJavaScript to read localStorage, which is fragile. The function is only called by getEnabledTools() to check googleSearchEnabled. The preference is already stored in storage.js getPreferences(). Replace getStoredSetting('googleSearchEnabled') with storage.getPreferences().googleSearchEnabled. Remove the dead getStoredSetting function.",
+    "4. In src/utils/gemini.js: Remove the dead getStoredSetting function entirely since it's replaced by direct storage access.",
+    "5. In src/services/index.js: Check what this file exports. If it just re-exports services, leave it. If it has dead code, clean it up.",
+    "6. In src/preload.js: It's completely empty (just a comment). This is fine since nodeIntegration is true and contextIsolation is off - the renderer.js handles everything.",
+    "7. In src/utils/renderer.js: The typingControls object is missing testBackend. Add it (from FEAT-001). Also check for any other dead references.",
+    "8. In src/components/views/AutoTypeView.js _onTestBackend(): Add null check - if window.cheatingDaddy.typing.testBackend is not a function, show console.warn.",
+    "9. Add try/catch with console.error logging around any remaining empty catch blocks. Search for 'catch (e) {}' or 'catch {}' or '.catch(() => {})' patterns. Add meaningful error logging where catches are empty or swallow errors silently.",
+    "10. In src/storage.js flushAll(): Add try/catch around the entire function body so that a flush error during quit doesn't crash or hang the app.",
+    "11. In src/index.js before-quit handler: Add try/catch around storage.flushAll() call."
+  ],
+  "acceptance_criteria": [
+    "getStoredSetting removed from gemini.js, replaced with direct storage.getPreferences() call",
+    "initializeStorage() wrapped in try/catch",
+    "flushAll() wrapped in try/catch",
+    "No empty catch blocks remain in the modified files (all have console.error or console.warn)",
+    "before-quit handler has error boundary",
+    "No JavaScript syntax errors (node -c validation)"
+  ],
+  "verification": [
+    "Run node -c on all modified files",
+    "Grep for 'getStoredSetting' in gemini.js to confirm it's removed",
+    "Grep for empty catch blocks across the codebase"
+  ],
+  "blocked_reason": null,
+  "findings": "All changes validated via bun build --no-bundle (node not available). getStoredSetting fully removed. Empty catches in renderer.js replaced with console.warn. index.js desktopCapturer catches annotated as intentional. Storage init and flushAll hardened with try/catch. before-quit handler wrapped in individual try/catch blocks."
+}

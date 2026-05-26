@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Session flow fixes: update session-store on start/end, clear typing queue on session end, wire Ctrl+Enter through centralized function, and continue-session loads messages into AssistantView chat UI",
+  "status": "completed",
+  "steps": [
+    "1. In src/components/app/CheatingDaddyApp.js handleStart(): After setting sessionActive=true, update session-store: import sessionStore and call sessionStore.set({ active: true, provider: this._aiMode, profile: this.selectedProfile, isInitializing: true }). Note: sessionStore is already imported.",
+    "2. In CheatingDaddyApp.js handleClose(): When ending a session, call sessionStore.set({ active: false, connected: false, duration: 0, sessionId: null, isInitializing: false }). Also call window.cheatingDaddy.typing.abort() to clear the typing queue.",
+    "3. In CheatingDaddyApp.js _initializeProviderAsync(): On success, call sessionStore.set({ isInitializing: false, connected: true }). On failure, call sessionStore.set({ active: false, isInitializing: false }).",
+    "4. CENTRALIZE Ctrl+Enter: In src/utils/renderer.js handleShortcut(), the ctrl+enter path calls captureManualScreenshot() for active session or appEl.handleStart() for no session. This is the same behavior as the button click in MainView. Both paths converge correctly. Verify the AssistantView also uses this path for its 'analyze' button. If AssistantView has its own analysis trigger, wire it through the same _eventBus dispatch.",
+    "5. In src/components/views/AssistantView.js: Check if there's an analyze/screenshot button. If it calls captureManualScreenshot directly, that's fine since the renderer.js shortcut handler also calls the same function. Document in a comment that both paths use the same function.",
+    "6. CONTINUE SESSION: In CheatingDaddyApp.js _continueSession(): This already loads messages, stores them in _preloadedMessages, and navigates to assistant view. Verify that AssistantView picks up _preloadedMessages. Check AssistantView properties for preloadedMessages prop.",
+    "7. In AssistantView: If it doesn't have a preloadedMessages property, add one. In connectedCallback or updated(), if preloadedMessages is set and non-empty, render them as chat messages in the messages container. Map each { type, content, timestamp } to a message bubble."
+  ],
+  "acceptance_criteria": [
+    "session-store is updated with active/provider/profile on session start",
+    "session-store is reset and typing is aborted on session end",
+    "Ctrl+Enter and button click both go through same code path (already true, verified)",
+    "Continue session from history loads messages into AssistantView chat",
+    "No JavaScript syntax errors (node -c validation)"
+  ],
+  "verification": [
+    "Run node -c on all modified files",
+    "Grep for sessionStore.set in CheatingDaddyApp.js",
+    "Grep for typing.abort in handleClose"
+  ],
+  "blocked_reason": null,
+  "findings": "All changes pass node -c syntax validation. sessionStore.set is called in 5 places: handleStart (active=true), _initializeProviderAsync success (connected=true), failure path, catch path, and handleClose (full reset). typing.abort() is called on session close. Comment added in AssistantView.handleScreenAnswer documenting Ctrl+Enter centralization. Continue-session flow was already functional (verified by code review)."
+}

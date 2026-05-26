@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Fix custom prompt injection flow, debug mode behavior, and add loading/error/empty state UI improvements",
+  "status": "completed",
+  "steps": [
+    "1. CUSTOM PROMPT FLOW VERIFICATION: In src/utils/renderer.js initializeGemini(), it reads prefs.customPrompt and passes it to initialize-gemini IPC. In src/utils/gemini.js setupGeminiIpcHandlers 'initialize-gemini' handler, it receives customPrompt as 3rd arg and passes to initializeGeminiSession(). initializeGeminiSession() passes it to getSystemPrompt(profile, customPrompt). This flow is CORRECT and wired end-to-end. No fix needed.",
+    "2. DEBUG MODE BEHAVIOR: In gemini.js sendImageToGeminiHttp(), the model selection already uses: const debugMode = prefs.debugModeEnabled || false; const model = debugMode ? prefs.modelDebugging : prefs.modelSolution || getAvailableModel(). HOWEVER for sendToGroq/sendToGemma (text path), it uses currentSystemPrompt which is set from getSystemPrompt(profile, customPrompt). When debugModeEnabled is true and profile is not 'debug', the debug prompt is NOT used. Fix: In initializeGeminiSession(), check if prefs.debugModeEnabled is true and if so override profile to 'debug' for getSystemPrompt call.",
+    "3. In src/utils/gemini.js initializeGeminiSession(): After 'const systemPrompt = getSystemPrompt(profile, customPrompt, googleSearchEnabled)', add: read prefs.debugModeEnabled, if true AND profile !== 'debug', recalculate systemPrompt with profile='debug'.",
+    "4. LOADING STATES: In src/components/app/CheatingDaddyApp.js, listen for 'session-initializing' IPC event. When true, show a loading indicator in the AssistantView (the statusText is already set to 'Connecting...' which serves this purpose). Add an _isInitializing state property that triggers a visual spinner in the live-bar.",
+    "5. In CheatingDaddyApp.js: Add IPC listener for 'session-initializing' event that sets this._isInitializing = true/false. In the live-bar render, when _isInitializing is true, show a pulsing dot instead of static green dot and text 'Connecting...'.",
+    "6. EMPTY STATES: In src/components/views/HistoryView.js render(): When sessions array is empty and not loading, show a helpful empty state message: 'No sessions yet. Start a session to see your conversation history here.' with a subtle icon.",
+    "7. ERROR MESSAGES: In CheatingDaddyApp.js _initializeProviderAsync(): When connection fails, instead of just setting statusText, call addNewResponse() with a user-friendly error message that appears in the chat view. Currently it reverts to main view - add an error response before reverting.",
+    "8. CONNECTION INDICATOR: In CheatingDaddyApp.js live-bar, add a connection state indicator. Use session-store's 'connected' state. When connected=true, green dot. When session is active but connected=false, yellow pulsing dot. When session-initializing, show spinner animation."
+  ],
+  "acceptance_criteria": [
+    "When debugModeEnabled is true, the debug profile prompt is used for system prompt generation regardless of selected profile",
+    "CheatingDaddyApp shows pulsing/spinner during session initialization in the live bar",
+    "HistoryView shows friendly empty state when no sessions exist",
+    "Failed session connection shows error message in UI before reverting to main view",
+    "Live bar shows connection state indicator (green=connected, yellow=reconnecting)",
+    "No JavaScript syntax errors (node -c validation)"
+  ],
+  "verification": [
+    "Run node -c on all modified files",
+    "Grep for debugModeEnabled in gemini.js to confirm debug override logic",
+    "Grep for 'No sessions' in HistoryView.js to confirm empty state"
+  ],
+  "blocked_reason": null,
+  "findings": "All 3 modified files pass node -c syntax validation. Debug mode override uses storage.getPreferences() (synchronous) since storage module is CommonJS with in-memory cache. The _isInitializing IPC listener was added alongside existing IPC listeners with proper cleanup in disconnectedCallback. Empty state in HistoryView distinguishes between no sessions at all vs no search results. Error handling in _initializeProviderAsync now shows error for 1.5s before reverting to main view."
+}

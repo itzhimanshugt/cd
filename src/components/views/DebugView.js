@@ -5,20 +5,6 @@ export class DebugView extends LitElement {
     static styles = [
         unifiedPageStyles,
         css`
-            .debug-section {
-                margin-bottom: var(--space-lg);
-            }
-            .debug-section h3 {
-                font-size: var(--font-size-md);
-                font-weight: var(--font-weight-semibold);
-                color: var(--text-primary);
-                margin-bottom: var(--space-sm);
-            }
-            .debug-section p {
-                font-size: var(--font-size-sm);
-                color: var(--text-muted);
-                margin-bottom: var(--space-sm);
-            }
             .btn-row {
                 display: flex;
                 gap: var(--space-sm);

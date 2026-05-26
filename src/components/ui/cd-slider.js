@@ -108,6 +108,12 @@ export class CdSlider extends LitElement {
         );
     }
 
+    _formatValue() {
+        const stepStr = String(this.step);
+        const decimals = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
+        return Number(this.value).toFixed(decimals);
+    }
+
     _getTrackBackground() {
         const percent = ((this.value - this.min) / (this.max - this.min)) * 100;
         return `linear-gradient(to right, var(--accent) ${percent}%, var(--border-strong) ${percent}%)`;
@@ -117,7 +123,7 @@ export class CdSlider extends LitElement {
         return html`
             <div class="slider-header">
                 <span class="slider-label">${this.label}</span>
-                <span class="slider-value">${this.value}${this.unit ? ` ${this.unit}` : ''}</span>
+                <span class="slider-value">${this._formatValue()}${this.unit ? ` ${this.unit}` : ''}</span>
             </div>
             <input
                 type="range"

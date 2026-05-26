@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "refactor",
   "description": "Migrate HotkeysView and CustomizeView sliders to cd-slider component and ensure all views use shared components consistently",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "In HotkeysView.js: Replace the _renderSlider method to use <cd-slider> instead of raw <input type='range'>. The cd-slider component accepts value, min, max, step, label props and fires slider-input event. Keep the min/max bounds inputs below as separate number inputs. Remove .setting-slider CSS since cd-slider handles its own styling.",
     "In CustomizeView.js: Replace the font size raw slider (class='slider-input' type='range' min=8 max=48) with <cd-slider label='Response Font Size' .value=${this.fontSize} min=8 max=48 step=1 @slider-input=${handler}>. Replace the font weight raw slider with <cd-slider label='Font Weight' .value=${this.fontWeight} min=100 max=900 step=100 @slider-input=${handler}>. Remove the .slider-input, .slider-wrap, .slider-header CSS classes that duplicate cd-slider.",

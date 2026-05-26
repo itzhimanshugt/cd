@@ -609,6 +609,7 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
         if (!isReconnect) {
             sendToRenderer('session-initializing', false);
         }
+        sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: currentProfile });
         return session;
     } catch (error) {
         console.error('Failed to initialize Gemini session:', error);
@@ -921,6 +922,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             sendToRenderer('session-initializing', true);
             await connectCloud(token, profile, userContext);
             sendToRenderer('session-initializing', false);
+            sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: currentProfile });
             return true;
         } catch (err) {
             console.error('[Cloud] Init error:', err);
@@ -980,6 +982,8 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
         const success = await getLocalAi().initializeLocalSession(ollamaHost, ollamaModel, whisperModel, profile, customPrompt);
         if (!success) {
             currentProviderMode = 'byok';
+        } else {
+            sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: profile });
         }
         return success;
     });
@@ -1172,12 +1176,14 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             if (currentProviderMode === 'cloud') {
                 closeCloud();
                 currentProviderMode = 'byok';
+                sendToRenderer('session-stopped');
                 return { success: true };
             }
 
             if (currentProviderMode === 'local') {
                 getLocalAi().closeLocalSession();
                 currentProviderMode = 'byok';
+                sendToRenderer('session-stopped');
                 return { success: true };
             }
 
@@ -1191,6 +1197,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 geminiSessionRef.current = null;
             }
 
+            sendToRenderer('session-stopped');
             return { success: true };
         } catch (error) {
             console.error('Error closing session:', error);

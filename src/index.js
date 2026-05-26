@@ -7,12 +7,14 @@ const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const apiKeys = require('./utils/apiKeys');
 const storage = require('./storage');
+const { TypingManager } = require('./typing');
 
 const geminiSessionRef = { current: null };
 let mainWindow = null;
+let typingManager = null;
 
 function createMainWindow() {
-    mainWindow = createWindow(sendToRenderer, geminiSessionRef);
+    mainWindow = createWindow(sendToRenderer, geminiSessionRef, typingManager);
     return mainWindow;
 }
 
@@ -37,11 +39,22 @@ if (!gotTheLock) {
             desktopCapturer.getSources({ types: ['screen'] }).catch(() => {});
         }
 
+        typingManager = new TypingManager();
         createMainWindow();
+
+        // Forward typing events to renderer
+        typingManager.on('status-changed', status => sendToRenderer('typing-status-changed', status));
+        typingManager.on('progress-changed', progress => sendToRenderer('typing-progress-changed', progress));
+        typingManager.on('typing-started', () => sendToRenderer('typing-started'));
+        typingManager.on('typing-paused', () => sendToRenderer('typing-paused'));
+        typingManager.on('typing-completed', () => sendToRenderer('typing-completed'));
+        typingManager.on('typing-aborted', () => sendToRenderer('typing-aborted'));
+
         setupGeminiIpcHandlers(geminiSessionRef);
         setupStorageIpcHandlers();
         setupApiKeysIpcHandlers();
         setupGeneralIpcHandlers();
+        setupTypingIpcHandlers();
 
         // Pre-warm screen capture subsystem to avoid first-session freeze on Windows
         setTimeout(() => {
@@ -427,5 +440,123 @@ function setupGeneralIpcHandlers() {
     // Debug logging from renderer
     ipcMain.on('log-message', (event, msg) => {
         console.log(msg);
+    });
+}
+
+function setupTypingIpcHandlers() {
+    ipcMain.handle('typing:load-response', async (event, text) => {
+        try {
+            typingManager.loadResponse(text);
+            return { success: true };
+        } catch (error) {
+            console.error('Error loading typing response:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:start', async () => {
+        try {
+            typingManager.start();
+            return { success: true };
+        } catch (error) {
+            console.error('Error starting typing:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:pause', async () => {
+        try {
+            typingManager.pause();
+            return { success: true };
+        } catch (error) {
+            console.error('Error pausing typing:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:resume', async () => {
+        try {
+            typingManager.resume();
+            return { success: true };
+        } catch (error) {
+            console.error('Error resuming typing:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:abort', async () => {
+        try {
+            typingManager.abort();
+            return { success: true };
+        } catch (error) {
+            console.error('Error aborting typing:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:set-speed', async (event, wpm) => {
+        try {
+            typingManager.setSpeed(wpm);
+            return { success: true };
+        } catch (error) {
+            console.error('Error setting typing speed:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:set-backend', async (event, name) => {
+        try {
+            typingManager.setBackend(name);
+            return { success: true };
+        } catch (error) {
+            console.error('Error setting typing backend:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:get-status', async () => {
+        try {
+            return { success: true, data: typingManager.getStatus() };
+        } catch (error) {
+            console.error('Error getting typing status:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:skip-sentence', async () => {
+        try {
+            typingManager.skipSentence();
+            return { success: true };
+        } catch (error) {
+            console.error('Error skipping sentence:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:get-settings', async () => {
+        try {
+            return { success: true, data: storage.getTypingSettings() };
+        } catch (error) {
+            console.error('Error getting typing settings:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:set-settings', async (event, patch) => {
+        try {
+            storage.setTypingSettings(patch);
+            // Reconfigure typing manager with updated settings
+            const settings = storage.getTypingSettings();
+            if (patch.typingSpeed !== undefined) {
+                typingManager.setSpeed(settings.typingSpeed);
+            }
+            if (patch.backend !== undefined) {
+                typingManager.setBackend(settings.backend);
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('Error setting typing settings:', error);
+            return { success: false, error: error.message };
+        }
     });
 }

@@ -86,6 +86,16 @@ const HOTKEY_GROUPS = [
             { id: 'emergencyQuit', label: 'Quit App', desc: 'Quit the application immediately', toggle: null },
         ],
     },
+    {
+        id: 'typing',
+        label: 'Typing Controls',
+        icon: '\u2328',
+        actions: [
+            { id: 'holdToType', label: 'Hold to Type', desc: 'Toggle typing on/off (hold-to-type)', toggle: null },
+            { id: 'abortTyping', label: 'Abort Typing', desc: 'Immediately stop all typing', toggle: null },
+            { id: 'fullResponseType', label: 'Type Full Response', desc: 'Start typing the full last response', toggle: null },
+        ],
+    },
 ];
 
 export class HotkeysView extends LitElement {

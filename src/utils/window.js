@@ -5,7 +5,7 @@ const storage = require('../storage');
 let mouseEventsIgnored = false;
 let _programmaticMove = false;
 
-const KEYBINDS_VERSION = 5; // Bumped: remap opacity keys to font/bg split
+const KEYBINDS_VERSION = 6; // Bumped: add typing control hotkeys
 
 const DEFAULT_MAIN_WINDOW_SIZE = { width: 1100, height: 800 };
 const MIN_WINDOW_SIZE = { width: 400, height: 260 };
@@ -73,6 +73,10 @@ function getDefaultKeybinds() {
         debugToggle: 'Alt+D',
         cycleSolutionModel: isMac ? 'Cmd+Y' : 'Ctrl+Y',
         cycleExtractionModel: isMac ? "Cmd+'" : "Ctrl+'",
+        // ── Typing ──
+        holdToType: isMac ? 'Cmd+Shift+F' : 'Ctrl+Shift+F',
+        abortTyping: isMac ? 'Cmd+Shift+X' : 'Ctrl+Shift+X',
+        fullResponseType: isMac ? 'Cmd+Shift+G' : 'Ctrl+Shift+G',
     };
 }
 
@@ -80,7 +84,7 @@ function getDefaultKeybinds() {
 // Window creation
 // ──────────────────────────────────────────────────────────────
 
-function createWindow(sendToRenderer, geminiSessionRef) {
+function createWindow(sendToRenderer, geminiSessionRef, typingManagerRef) {
     const winState = storage.getWindowState();
     const baseW = Math.round(DEFAULT_MAIN_WINDOW_SIZE.width * (winState.scale || 1.0));
     const baseH = Math.round(DEFAULT_MAIN_WINDOW_SIZE.height * (winState.scale || 1.0));
@@ -155,7 +159,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
                 keybinds = { ...defaultKB, _version: KEYBINDS_VERSION };
                 storage.setKeybinds(keybinds);
             }
-            updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef);
+            updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
         }, 100);
     });
 
@@ -185,7 +189,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
         }, 250);
     });
 
-    setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef);
+    setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
     return mainWindow;
 }
 
@@ -193,7 +197,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
 // Hotkey registration
 // ──────────────────────────────────────────────────────────────
 
-function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef) {
+function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef) {
     globalShortcut.unregisterAll();
 
     const winState = () => storage.getWindowState();
@@ -388,6 +392,29 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         storage.updatePreference('modelExtraction', next);
         sendToRenderer('model-changed', { task: 'extraction', model: next });
     });
+
+    // ── Typing Controls ──
+    if (typingManagerRef) {
+        tryRegister('holdToType', keybinds.holdToType, () => {
+            const status = typingManagerRef.getStatus();
+            if (status.state === 'typing') {
+                typingManagerRef.pause();
+            } else if (status.state === 'paused') {
+                typingManagerRef.resume();
+            } else if (status.state === 'idle' || status.state === 'completed') {
+                typingManagerRef.start();
+            }
+            sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+        });
+        tryRegister('abortTyping', keybinds.abortTyping, () => {
+            typingManagerRef.abort();
+            sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+        });
+        tryRegister('fullResponseType', keybinds.fullResponseType, () => {
+            typingManagerRef.start();
+            sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+        });
+    }
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -458,7 +485,7 @@ function applyZoom(win, delta, limit) {
 // IPC handlers
 // ──────────────────────────────────────────────────────────────
 
-function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
+function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef) {
     ipcMain.on('view-changed', (event, view) => {
         if (!mainWindow.isDestroyed() && view !== 'assistant') {
             mainWindow.setIgnoreMouseEvents(false);
@@ -482,7 +509,7 @@ function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
     ipcMain.on('update-keybinds', (event, newKeybinds) => {
         if (!mainWindow.isDestroyed()) {
             storage.setKeybinds(newKeybinds);
-            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef);
+            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
         }
     });
 
@@ -497,14 +524,14 @@ function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
 
     ipcMain.handle('window:update-keybinds', (event, keybinds) => {
         storage.setKeybinds(keybinds);
-        updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef);
+        updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
         return { success: true };
     });
 
     ipcMain.handle('window:reset-keybinds', () => {
         const defaults = getDefaultKeybinds();
         storage.setKeybinds(defaults);
-        updateGlobalShortcuts(defaults, mainWindow, sendToRenderer, geminiSessionRef);
+        updateGlobalShortcuts(defaults, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
         return { success: true, keybinds: defaults };
     });
 

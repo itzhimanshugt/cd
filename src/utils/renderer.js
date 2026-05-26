@@ -170,6 +170,9 @@ const windowControls = {
             debugToggle: 'Alt+D',
             cycleSolutionModel: isMac ? 'Cmd+Y' : 'Ctrl+Y',
             cycleExtractionModel: isMac ? "Cmd+'" : "Ctrl+'",
+            holdToType: isMac ? 'Cmd+Shift+F' : 'Ctrl+Shift+F',
+            abortTyping: isMac ? 'Cmd+Shift+X' : 'Ctrl+Shift+X',
+            fullResponseType: isMac ? 'Cmd+Shift+G' : 'Ctrl+Shift+G',
         };
     },
     // Subscribe to state change events. Returns an unsubscribe function.
@@ -187,6 +190,43 @@ const windowControls = {
         const l = (_, v) => fn(v);
         ipcRenderer.on('voice-toggled', l);
         return () => ipcRenderer.removeListener('voice-toggled', l);
+    },
+};
+
+// ============ TYPING CONTROLS API ============
+const typingControls = {
+    async loadResponse(text) {
+        return ipcRenderer.invoke('typing:load-response', text);
+    },
+    async start() {
+        return ipcRenderer.invoke('typing:start');
+    },
+    async pause() {
+        return ipcRenderer.invoke('typing:pause');
+    },
+    async resume() {
+        return ipcRenderer.invoke('typing:resume');
+    },
+    async abort() {
+        return ipcRenderer.invoke('typing:abort');
+    },
+    async setSpeed(wpm) {
+        return ipcRenderer.invoke('typing:set-speed', wpm);
+    },
+    async setBackend(name) {
+        return ipcRenderer.invoke('typing:set-backend', name);
+    },
+    async getStatus() {
+        return ipcRenderer.invoke('typing:get-status');
+    },
+    async skipSentence() {
+        return ipcRenderer.invoke('typing:skip-sentence');
+    },
+    async getSettings() {
+        return ipcRenderer.invoke('typing:get-settings');
+    },
+    async setSettings(patch) {
+        return ipcRenderer.invoke('typing:set-settings', patch);
     },
 };
 
@@ -1321,6 +1361,35 @@ ipcRenderer.on('api-keys:all-failed', (_, payload) => {
     _eventBus.dispatchEvent(new CustomEvent('api-keys-all-failed', { detail: payload }));
 });
 
+// ============ TYPING EVENT LISTENERS ============
+
+ipcRenderer.on('typing-status-changed', (_, status) => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-status-changed', { detail: status }));
+    showToast(`Typing: ${status.state}`);
+});
+ipcRenderer.on('typing-progress-changed', (_, progress) => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-progress-changed', { detail: progress }));
+});
+ipcRenderer.on('typing-started', () => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-started'));
+    showToast('Typing started');
+});
+ipcRenderer.on('typing-paused', () => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-paused'));
+    showToast('Typing paused');
+});
+ipcRenderer.on('typing-completed', () => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-completed'));
+    showToast('Typing complete');
+});
+ipcRenderer.on('typing-aborted', () => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-aborted'));
+    showToast('Typing aborted');
+});
+ipcRenderer.on('typing-response-ready', (_, data) => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-response-ready', { detail: data }));
+});
+
 // ============ GLOBAL EVENT BUS ============
 // Allows components to subscribe to state changes triggered by hotkeys
 const _eventBus = new EventTarget();
@@ -1360,6 +1429,9 @@ const cheatingDaddy = {
 
     // Window Controls API
     window: windowControls,
+
+    // Typing Controls API
+    typing: typingControls,
 
     // Theme API
     theme,

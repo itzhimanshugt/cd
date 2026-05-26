@@ -364,6 +364,11 @@ async function sendToGroq(transcription) {
 
             console.log(`Groq response completed (${modelToUse})`);
             sendToRenderer('update-status', 'Listening...');
+
+            // Notify renderer that a new response is available for typing
+            if (cleanedResponse) {
+                sendToRenderer('typing-response-ready', { text: cleanedResponse, sessionId: currentSessionId });
+            }
         });
     } catch (error) {
         if (error.code === 'NO_READY_KEY' || error.code === 'ALL_KEYS_UNAVAILABLE') {
@@ -458,6 +463,11 @@ async function sendToGemma(transcription) {
 
             console.log('Gemma response completed');
             sendToRenderer('update-status', 'Listening...');
+
+            // Notify renderer that a new response is available for typing
+            if (fullText.trim()) {
+                sendToRenderer('typing-response-ready', { text: fullText.trim(), sessionId: currentSessionId });
+            }
         });
     } catch (error) {
         if (error.code === 'NO_READY_KEY' || error.code === 'ALL_KEYS_UNAVAILABLE') {

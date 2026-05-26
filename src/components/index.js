@@ -8,3 +8,4 @@ export { CustomizeView } from './views/CustomizeView.js';
 export { HistoryView } from './views/HistoryView.js';
 export { AssistantView } from './views/AssistantView.js';
 export { OnboardingView } from './views/OnboardingView.js';
+import './views/TypingSettingsView.js';

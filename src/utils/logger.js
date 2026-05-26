@@ -32,6 +32,7 @@ class Logger {
         this._currentSize = 0;
         this._maxFileSize = 5 * 1024 * 1024; // 5MB
         this._maxFiles = 5;
+        this._parent = null;
     }
 
     _getLogDir() {
@@ -53,20 +54,22 @@ class Logger {
     }
 
     getLevel() {
-        return LEVEL_NAMES[this._minLevel] || 'INFO';
+        const effectiveLevel = this._parent ? this._parent._minLevel : this._minLevel;
+        return LEVEL_NAMES[effectiveLevel] || 'INFO';
     }
 
     child(category) {
         const child = new Logger();
         child._entries = this._entries; // share the ring buffer
-        child._minLevel = this._minLevel;
+        child._parent = this; // delegate level checks to parent
         child._category = category;
         child._logDir = this._logDir;
         return child;
     }
 
     _log(level, message, data) {
-        if (level < this._minLevel) return;
+        const effectiveLevel = this._parent ? this._parent._minLevel : this._minLevel;
+        if (level < effectiveLevel) return;
         const entry = {
             timestamp: Date.now(),
             level: LEVEL_NAMES[level],
@@ -94,7 +97,11 @@ class Logger {
                 this._currentSize = 0;
             }
             const line = `[${new Date(entry.timestamp).toISOString()}] [${entry.level}] [${entry.category}] ${entry.message}${entry.data ? ' ' + JSON.stringify(entry.data) : ''}\n`;
-            fs.appendFileSync(this._currentFile, line);
+            fs.appendFile(this._currentFile, line, err => {
+                if (err) {
+                    // Fail silently - logging should never crash the app
+                }
+            });
             this._currentSize += Buffer.byteLength(line);
         } catch (e) {
             // Fail silently - logging should never crash the app

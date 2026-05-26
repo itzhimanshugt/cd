@@ -235,6 +235,7 @@ export class AutoTypeView extends LitElement {
         this._status = { state: 'idle' };
         this._progress = {};
         this._backends = [];
+        this._debounceTimer = null;
     }
 
     connectedCallback() {
@@ -291,11 +292,16 @@ export class AutoTypeView extends LitElement {
 
     async _updateSetting(key, value) {
         this._settings = { ...this._settings, [key]: value };
-        try {
-            await window.cheatingDaddy.typing.setSettings({ [key]: value });
-        } catch (e) {
-            console.error('Failed to save typing setting:', e);
+        if (this._debounceTimer) {
+            clearTimeout(this._debounceTimer);
         }
+        this._debounceTimer = setTimeout(async () => {
+            try {
+                await window.cheatingDaddy.typing.setSettings({ [key]: value });
+            } catch (e) {
+                console.error('Failed to save typing setting:', e);
+            }
+        }, 150);
     }
 
     _onBackendChange(e) {

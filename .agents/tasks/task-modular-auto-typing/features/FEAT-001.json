@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create the core typing engine module (src/typing/) with: ResponseBuffer (immutable response storage), TypingQueue (position tracking, pause/resume state machine), InjectionScheduler (timing/humanization control), and AbortController. This is the backbone that all other features build on.",
+  "status": "in_progress",
+  "steps": [
+    "Create src/typing/ResponseBuffer.js - An immutable buffer class that stores AI response text snapshots. Methods: create(text) returns frozen buffer with id/text/timestamp, getPosition(), getRemaining(). This prevents race conditions from streaming updates.",
+    "Create src/typing/TypingQueue.js - State machine managing typing position. States: idle, typing, paused, aborted. Properties: buffer reference, currentPosition (character index), Methods: load(buffer), advance(count), pause(), resume(), abort(), reset(), getState(), getProgress(). Emits events via EventEmitter pattern (Node.js events module in main process).",
+    "Create src/typing/HumanizationEngine.js - Computes delays between keystrokes. Config: baseWPM, burstSize, punctuationDelay, sentenceDelay, jitterRange, startupDelay. Methods: getNextDelay(char, context), setSpeed(wpm), getConfig(), updateConfig(patch). Uses randomization for natural feel.",
+    "Create src/typing/InjectionScheduler.js - Orchestrates the typing loop. Takes a queue + humanization engine + backend. Methods: start(), stop(), pause(), resume(), skipSentence(), setSpeed(wpm). Internally runs a recursive setTimeout loop that: checks queue state, gets next char(s), computes delay via humanization, calls backend.inject(). Handles granularity modes: character, word, sentence, paragraph.",
+    "Create src/typing/AbortController.js - Simple abort mechanism. Methods: abort(), isAborted(), reset(), onAbort(callback). Used by scheduler to immediately stop injection.",
+    "Create src/typing/index.js - CommonJS barrel export of all typing modules.",
+    "Ensure all modules use CommonJS (require/module.exports) since they run in Electron main process."
+  ],
+  "acceptance_criteria": [
+    "All files in src/typing/ pass `node --check` syntax validation",
+    "ResponseBuffer.create() returns a frozen object with text, id, timestamp",
+    "TypingQueue correctly transitions between idle/typing/paused/aborted states",
+    "HumanizationEngine produces variable delays based on character context",
+    "InjectionScheduler can be instantiated with mock backend and drives injection loop",
+    "AbortController signals abort to registered callbacks"
+  ],
+  "verification": [
+    "Run `node --check src/typing/ResponseBuffer.js src/typing/TypingQueue.js src/typing/HumanizationEngine.js src/typing/InjectionScheduler.js src/typing/AbortController.js src/typing/index.js`",
+    "Run `node -e \"const typing = require('./src/typing'); console.log(Object.keys(typing));\"` to confirm exports",
+    "Run `node -e \"const {ResponseBuffer} = require('./src/typing'); const b = ResponseBuffer.create('hello'); console.assert(b.text === 'hello'); console.assert(Object.isFrozen(b)); console.log('ResponseBuffer OK');\"` ",
+    "Run `node -e \"const {TypingQueue} = require('./src/typing'); const q = new TypingQueue(); console.assert(q.getState() === 'idle'); console.log('TypingQueue OK');\"` ",
+    "Run `node -e \"const {HumanizationEngine} = require('./src/typing'); const h = new HumanizationEngine({baseWPM: 60}); const d = h.getNextDelay('a', {}); console.assert(d > 0); console.log('HumanizationEngine OK');\"` "
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

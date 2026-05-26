@@ -214,6 +214,9 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
     // ── Emergency Quit — always registered, no guards ──
     handlers.emergencyQuit = () => {
         try {
+            storage.flushAll();
+        } catch (_) {}
+        try {
             const { stopMacOSAudioCapture } = require('./gemini');
             stopMacOSAudioCapture();
         } catch (_) {}

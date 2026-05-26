@@ -61,6 +61,24 @@ const DEFAULT_PREFERENCES = {
 
 const DEFAULT_KEYBINDS = null; // null means use defaults from getDefaultKeybinds()
 
+// Default typing settings
+const DEFAULT_TYPING_SETTINGS = {
+    enabled: false,
+    backend: 'win32-sendinput',
+    typingSpeed: 80,
+    startupDelay: 200,
+    burstSize: 3,
+    punctuationDelay: 150,
+    sentenceDelay: 300,
+    jitterRange: 0.3,
+    holdToTypeKeybind: 'CapsLock',
+    abortKeybind: 'Escape',
+    fullResponseKeybind: 'Ctrl+Shift+T',
+    pasteMode: false,
+    granularity: 'character',
+    sentenceBySentence: false,
+};
+
 // Default window state — persisted across restarts
 const DEFAULT_WINDOW_STATE = {
     // Position (null = center on screen at startup)
@@ -470,7 +488,7 @@ function markProviderKeyState(provider, id, state, opts = {}) {
         state,
         lastCheckedAt: Date.now(),
         errorReason: opts.errorReason || null,
-        failedAt: (state === 'failed') ? Date.now() : null,
+        failedAt: state === 'failed' ? Date.now() : null,
     };
     return updateProviderKey(provider, id, patch);
 }
@@ -528,6 +546,22 @@ function updateWindowState(key, value) {
     const state = getWindowState();
     state[key] = value;
     return writeJsonFile(getWindowStatePath(), state);
+}
+
+// ============ TYPING SETTINGS ============
+
+function getTypingSettingsPath() {
+    return path.join(getConfigDir(), 'typing-settings.json');
+}
+
+function getTypingSettings() {
+    return { ...DEFAULT_TYPING_SETTINGS, ...readJsonFile(getTypingSettingsPath(), {}) };
+}
+
+function setTypingSettings(patch) {
+    const current = getTypingSettings();
+    const updated = { ...current, ...patch };
+    return writeJsonFile(getTypingSettingsPath(), updated);
 }
 
 // ============ LIMITS (Rate Limiting) ============
@@ -878,6 +912,11 @@ module.exports = {
     setWindowState,
     updateWindowState,
     DEFAULT_WINDOW_STATE,
+
+    // Typing Settings
+    getTypingSettings,
+    setTypingSettings,
+    DEFAULT_TYPING_SETTINGS,
 
     // Limits (Rate Limiting)
     getLimits,

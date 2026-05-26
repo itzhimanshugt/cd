@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Expand BaseBackend interface with capability-reporting methods and unified naming, update all 4 existing backends to implement the new interface, and add 8 new injection backends: AutoHotkeyBackend, NutJSBackend, UIAutomationBackend, ElectronWebContentsBackend, VirtualKeyboardBackend, BatchPasteBackend, HybridTypingBackend, PowerShellAddTypeBackend.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Expand src/typing/backends/BaseBackend.js to add: supportsRealtimeStreaming() -> false, supportsKeyCombos() -> false, supportsUnicode() -> false, supportsChunking() -> false, pause() (no-op), resume() (no-op), abort() (no-op), cleanup() as alias for destroy(), typeText(text) as alias calling inject(text)",
     "Update src/typing/backends/Win32SendInputBackend.js - add supportsRealtimeStreaming() -> true, supportsKeyCombos() -> true, supportsUnicode() -> true, supportsChunking() -> false, typeText alias",
@@ -35,5 +35,5 @@
     "Run: node -e \"const b = require('./src/typing/backends'); console.log(Object.keys(b).length)\" and confirm 13 keys (12 backends + BaseBackend)"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 8 new backends created and verified. 13 exports from index.js confirmed. All files pass node --check. Prettier reformatted AutoHotkeyBackend.js and BatchPasteBackend.js. mise node@24.16.0 required for node CLI usage in sandbox."
 }

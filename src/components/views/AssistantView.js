@@ -739,7 +739,7 @@ export class AssistantView extends LitElement {
         }
 
         if (changedProperties.has('responses')) {
-            // Add new AI responses to current page
+            // Add new AI responses to the LAST page (not current page)
             if (this.responses.length > this._lastResponseCount) {
                 const newResponses = this.responses.slice(this._lastResponseCount);
                 const newMessages = newResponses.map(content => ({
@@ -748,19 +748,25 @@ export class AssistantView extends LitElement {
                     timestamp: Date.now(),
                 }));
                 const updatedPages = [...this._pages];
-                updatedPages[this._currentPage] = [...updatedPages[this._currentPage], ...newMessages];
+                // Always append to the LAST page, not current page
+                const lastPageIdx = updatedPages.length - 1;
+                updatedPages[lastPageIdx] = [...updatedPages[lastPageIdx], ...newMessages];
                 this._pages = updatedPages;
+                // Auto-navigate to last page
+                this._currentPage = lastPageIdx;
                 this._scrollToBottom();
             } else if (this.responses.length > 0 && this.responses.length === this._lastResponseCount) {
-                // Update the last AI message (streaming update)
-                const currentMessages = this._pages[this._currentPage];
+                // Update the last AI message on the LAST page (streaming update)
+                const lastPageIdx = this._pages.length - 1;
+                const currentMessages = this._pages[lastPageIdx];
                 const lastAiIdx = this._findLastAiMessageIndex(currentMessages);
                 if (lastAiIdx >= 0) {
                     const updatedMessages = [...currentMessages];
                     updatedMessages[lastAiIdx] = { ...updatedMessages[lastAiIdx], content: this.responses[this.responses.length - 1] };
                     const updatedPages = [...this._pages];
-                    updatedPages[this._currentPage] = updatedMessages;
+                    updatedPages[lastPageIdx] = updatedMessages;
                     this._pages = updatedPages;
+                    this._currentPage = lastPageIdx;
                 }
             }
             this._lastResponseCount = this.responses.length;

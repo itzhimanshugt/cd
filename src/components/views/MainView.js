@@ -920,14 +920,7 @@ export class MainView extends LitElement {
     }
 
     async _endSession() {
-        cheatingDaddy.stopCapture();
-        if (window.require) {
-            const { ipcRenderer } = window.require('electron');
-            await ipcRenderer.invoke('close-session').catch(err => {
-                console.error('Error closing session:', err);
-            });
-        }
-        sessionStore.set({ active: false, connected: false, duration: 0, sessionId: null, isInitializing: false });
+        this.dispatchEvent(new CustomEvent('end-session', { bubbles: true, composed: true }));
     }
 
     // ── Start ──

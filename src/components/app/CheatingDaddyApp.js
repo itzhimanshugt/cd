@@ -991,6 +991,7 @@ export class CheatingDaddyApp extends LitElement {
                         .onExternalLink=${url => this.handleExternalLinkClick(url)}
                         .onNavigate=${view => this.navigate(view)}
                         .whisperDownloading=${this._whisperDownloading}
+                        @end-session=${() => this.handleClose()}
                     ></main-view>
                 `;
 

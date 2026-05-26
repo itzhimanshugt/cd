@@ -836,6 +836,7 @@ export class CheatingDaddyApp extends LitElement {
             this.sessionActive = false;
             this._stopTimer();
             this.currentView = 'main';
+            // Optimistic write: IPC 'session-stopped' event provides authoritative confirmation via session-store
             sessionStore.set({ active: false, connected: false, duration: 0, sessionId: null, isInitializing: false });
 
             // Clear typing queue
@@ -904,8 +905,9 @@ export class CheatingDaddyApp extends LitElement {
         this.currentResponseIndex = -1;
         this.startTime = Date.now();
         this.sessionActive = true;
-        sessionStore.set({ active: true, provider: this._aiMode, profile: this.selectedProfile, isInitializing: true });
         this._aiMode = providerMode;
+        // Optimistic write: IPC 'session-started' event provides authoritative confirmation via session-store
+        sessionStore.set({ active: true, provider: providerMode, profile: this.selectedProfile, isInitializing: true });
         this.currentView = 'assistant';
         this.statusText = 'Connecting...';
         this._startTimer();
@@ -928,32 +930,28 @@ export class CheatingDaddyApp extends LitElement {
             }
 
             if (!success && providerMode !== 'byok') {
-                // Show error briefly in status before reverting
+                // Show error in status text (visible on main view) and revert immediately
                 this.statusText = 'Connection failed. Please check your settings and try again.';
-                this.requestUpdate();
-                sessionStore.set({ active: false, isInitializing: false, connected: false });
-                // Give user a moment to see the error
-                await new Promise(resolve => setTimeout(resolve, 1500));
                 this.sessionActive = false;
                 this._stopTimer();
                 this.currentView = 'main';
+                sessionStore.set({ active: false, isInitializing: false, connected: false });
                 this.requestUpdate();
                 return;
             }
 
             // Start capture after provider is ready
             cheatingDaddy.startCapture(this.selectedScreenshotInterval, this.selectedImageQuality, aiHearingEnabled);
+            // Optimistic write: IPC 'session-started' event provides authoritative confirmation via session-store
             sessionStore.set({ isInitializing: false, connected: true });
         } catch (error) {
             console.error('Provider initialization failed:', error);
-            // Show error message to user
+            // Show error in status text (visible on main view) and revert immediately
             this.statusText = 'Error: ' + (error.message || 'Connection failed');
-            this.requestUpdate();
-            sessionStore.set({ active: false, isInitializing: false, connected: false });
-            await new Promise(resolve => setTimeout(resolve, 1500));
             this.sessionActive = false;
             this._stopTimer();
             this.currentView = 'main';
+            sessionStore.set({ active: false, isInitializing: false, connected: false });
             this.requestUpdate();
         }
     }

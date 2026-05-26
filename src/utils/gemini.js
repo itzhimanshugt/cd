@@ -936,12 +936,14 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
     ipcMain.handle('initialize-cloud', async (event, token, profile, userContext) => {
         try {
             currentProviderMode = 'cloud';
-            initializeNewSession(profile, userContext);
+            const prefs = storage.getPreferences();
+            const effectiveProfile = (prefs.debugModeEnabled && profile !== 'debug') ? 'debug' : profile;
+            initializeNewSession(effectiveProfile, userContext);
             setOnTurnComplete((transcription, response) => {
                 saveConversationTurn(transcription, response);
             });
             sendToRenderer('session-initializing', true);
-            await connectCloud(token, profile, userContext);
+            await connectCloud(token, effectiveProfile, userContext);
             sendToRenderer('session-initializing', false);
             sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: currentProfile });
             return true;
@@ -1000,11 +1002,14 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
     ipcMain.handle('initialize-local', async (event, ollamaHost, ollamaModel, whisperModel, profile, customPrompt) => {
         currentProviderMode = 'local';
-        const success = await getLocalAi().initializeLocalSession(ollamaHost, ollamaModel, whisperModel, profile, customPrompt);
+        // Apply debug profile override if debug mode is enabled
+        const prefs = storage.getPreferences();
+        const effectiveProfile = (prefs.debugModeEnabled && profile !== 'debug') ? 'debug' : profile;
+        const success = await getLocalAi().initializeLocalSession(ollamaHost, ollamaModel, whisperModel, effectiveProfile, customPrompt);
         if (!success) {
             currentProviderMode = 'byok';
         } else {
-            sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: profile });
+            sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: effectiveProfile });
         }
         return success;
     });

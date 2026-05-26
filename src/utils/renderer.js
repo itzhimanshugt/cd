@@ -80,7 +80,8 @@ const storage = {
     async updatePreference(key, value) {
         const result = await ipcRenderer.invoke('storage:update-preference', key, value);
         // Show toast when customPrompt changes during an active session
-        if (key === 'customPrompt' && cheatingDaddyApp && cheatingDaddyApp.sessionActive) {
+        const app = cheatingDaddyApp || document.querySelector('cheating-daddy-app');
+        if (key === 'customPrompt' && app && app.sessionActive) {
             showToast('Custom instructions updated - will apply on next session');
         }
         return result;
@@ -1465,10 +1466,10 @@ function _fadeStatusPill(delayMs) {
 
 // Listen for typing events on the event bus
 _eventBus.addEventListener('typing-started', () => {
-    const status = cheatingDaddyApp && cheatingDaddyApp._settings
-        ? cheatingDaddyApp._settings.backend || 'SendInput'
-        : 'SendInput';
-    _showStatusPill(`Typing via ${status}`);
+    ipcRenderer.invoke('typing:get-status').then(r => {
+        const backend = (r && r.data && r.data.activeBackend) || 'SendInput';
+        _showStatusPill('Typing via ' + backend);
+    }).catch(() => _showStatusPill('Typing...'));
 });
 _eventBus.addEventListener('typing-paused', () => {
     _showStatusPill('Typing Paused');

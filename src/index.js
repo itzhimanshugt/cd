@@ -92,6 +92,7 @@ if (!gotTheLock) {
     });
 
     app.on('before-quit', () => {
+        storage.flushAll();
         stopMacOSAudioCapture();
         apiKeys.stopBackgroundValidation();
     });

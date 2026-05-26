@@ -102,6 +102,16 @@ export class ModelSettingsView extends LitElement {
                 border-radius: var(--radius-sm);
                 padding: 1px 6px;
             }
+
+            .tier-warning {
+                font-size: var(--font-size-xs);
+                color: var(--danger, #EF4444);
+                padding: var(--space-sm) var(--space-md);
+                border: 1px solid rgba(239,68,68,0.2);
+                border-radius: var(--radius-sm);
+                background: rgba(239,68,68,0.06);
+                margin-top: var(--space-sm);
+            }
         `,
     ];
 
@@ -164,9 +174,19 @@ export class ModelSettingsView extends LitElement {
     }
 
     _renderModelSelect(task, currentValue) {
+        const autoModel = this._models.find(m => m.auto);
+        const freeModels = this._models.filter(m => m.tier === 'free' && !m.auto);
+        const paidLimitedModels = this._models.filter(m => m.tier === 'paid' || m.tier === 'limited');
+
         return html`
             <select class="control model-select" @change=${e => this._handleModelChange(task, e)}>
-                ${this._models.map(m => html` <option value=${m.id} ?selected=${m.id === currentValue}>${m.name}</option> `)}
+                ${autoModel ? html`<option value=${autoModel.id} ?selected=${autoModel.id === currentValue}>${autoModel.name}</option>` : ''}
+                <optgroup label="Free Tier">
+                    ${freeModels.map(m => html`<option value=${m.id} ?selected=${m.id === currentValue}>${m.name}</option>`)}
+                </optgroup>
+                <optgroup label="Paid / Limited">
+                    ${paidLimitedModels.map(m => html`<option value=${m.id} ?selected=${m.id === currentValue}>${m.name}${m.tier === 'paid' ? ' (Paid)' : m.tier === 'limited' ? ' (Limited)' : ''}</option>`)}
+                </optgroup>
             </select>
         `;
     }
@@ -219,6 +239,7 @@ export class ModelSettingsView extends LitElement {
                                 ${this._renderModelSelect('debugging', this._modelDebugging)}
                             </div>
                         </div>
+                        ${this._hasPaidModelSelected() ? html`<div class="tier-warning">Paid model selected. This may consume API credits faster.</div>` : ''}
                     </div>
 
                     <div class="surface">
@@ -254,6 +275,19 @@ export class ModelSettingsView extends LitElement {
                 </div>
             </div>
         `;
+    }
+
+    _getModelTier(modelId) {
+        const model = this._models.find(m => m.id === modelId);
+        return model ? model.tier : null;
+    }
+
+    _hasPaidModelSelected() {
+        return (
+            this._getModelTier(this._modelExtraction) === 'paid' ||
+            this._getModelTier(this._modelSolution) === 'paid' ||
+            this._getModelTier(this._modelDebugging) === 'paid'
+        );
     }
 
     _getShortName(modelId) {

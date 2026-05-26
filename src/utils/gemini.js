@@ -536,7 +536,11 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
     const enabledTools = await getEnabledTools();
     const googleSearchEnabled = enabledTools.some(tool => tool.googleSearch);
 
-    const systemPrompt = getSystemPrompt(profile, customPrompt, googleSearchEnabled);
+    // Check if debug mode is enabled - override profile for prompt generation
+    const sessionPrefs = storage.getPreferences();
+    const effectiveProfile = (sessionPrefs.debugModeEnabled && profile !== 'debug') ? 'debug' : profile;
+
+    const systemPrompt = getSystemPrompt(effectiveProfile, customPrompt, googleSearchEnabled);
     currentSystemPrompt = systemPrompt; // Store for Groq
 
     // Append cross-session context for AI memory

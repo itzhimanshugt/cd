@@ -242,7 +242,8 @@ function getHistoryDir() {
     return path.join(getConfigDir(), 'history');
 }
 
-// Helper to read JSON file safely
+// Helper to read JSON file safely.
+// Returns defaultValue on any failure: missing file, read error, or malformed JSON.
 function readJsonFile(filePath, defaultValue) {
     try {
         if (fs.existsSync(filePath)) {

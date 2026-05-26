@@ -533,6 +533,7 @@ export class CheatingDaddyApp extends LitElement {
         sidebarCollapsed: { type: Boolean },
         _flyoutOpen: { state: true },
         _isMacOS: { state: true },
+        _preloadedMessages: { state: true },
     };
 
     constructor() {
@@ -568,6 +569,7 @@ export class CheatingDaddyApp extends LitElement {
         this._flyoutOpen = false;
         this._isMacOS = (typeof process !== 'undefined' && process.platform === 'darwin') ||
                         (navigator.platform && navigator.platform.toLowerCase().includes('mac'));
+        this._preloadedMessages = null;
 
         this._loadFromStorage();
         setTimeout(() => this._checkForUpdates(), 10000);
@@ -655,6 +657,13 @@ export class CheatingDaddyApp extends LitElement {
         };
         window.cheatingDaddy.events.addEventListener('model-changed', this._modelChangeHandler);
 
+        // Listen for continue-session event from HistoryView
+        this._continueSessionHandler = async (e) => {
+            const { sessionId } = e.detail;
+            await this._continueSession(sessionId);
+        };
+        window.cheatingDaddy.events.addEventListener('continue-session', this._continueSessionHandler);
+
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
             this._ipcNewResponse = (_, response) => this.addNewResponse(response);
@@ -687,6 +696,7 @@ export class CheatingDaddyApp extends LitElement {
         window.cheatingDaddy.events.removeEventListener('ai-mode-toggled', this._aiModeHandler);
         window.cheatingDaddy.events.removeEventListener('debug-mode-toggled', this._debugModeHandler);
         window.cheatingDaddy.events.removeEventListener('model-changed', this._modelChangeHandler);
+        window.cheatingDaddy.events.removeEventListener('continue-session', this._continueSessionHandler);
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.removeListener('new-response', this._ipcNewResponse);
@@ -870,6 +880,64 @@ export class CheatingDaddyApp extends LitElement {
             this.currentView = 'main';
             this.statusText = 'Error: ' + (error.message || 'Connection failed');
             this.requestUpdate();
+        }
+    }
+
+    async _continueSession(sessionId) {
+        try {
+            const session = await cheatingDaddy.storage.getSession(sessionId);
+            if (!session) return;
+
+            // Build messages array from session data
+            const messages = [];
+            const history = session.conversationHistory || [];
+            for (const turn of history) {
+                if (turn.transcription) {
+                    messages.push({ type: 'user', content: turn.transcription, timestamp: turn.timestamp });
+                }
+                if (turn.ai_response) {
+                    messages.push({ type: 'ai', content: turn.ai_response, timestamp: turn.timestamp });
+                }
+            }
+
+            // Also include screen analysis
+            const screenHistory = session.screenAnalysisHistory || [];
+            for (const entry of screenHistory) {
+                if (entry.response) {
+                    messages.push({ type: 'ai', content: entry.response, timestamp: entry.timestamp });
+                }
+            }
+
+            // Sort by timestamp
+            messages.sort((a, b) => a.timestamp - b.timestamp);
+
+            // Store for AssistantView to pick up
+            this._preloadedMessages = messages;
+
+            // Set profile from session
+            if (session.profile) {
+                this.selectedProfile = session.profile;
+            }
+
+            // Navigate to assistant and start session
+            this.currentView = 'assistant';
+            this.responses = [];
+            this.currentResponseIndex = -1;
+            this.startTime = Date.now();
+            this.sessionActive = true;
+            this.statusText = 'Resuming session...';
+            this._startTimer();
+            this._flyoutOpen = false;
+            this.requestUpdate();
+
+            // Initialize provider in background
+            const prefs = await cheatingDaddy.storage.getPreferences();
+            const providerMode = prefs.providerMode || 'byok';
+            const aiHearingEnabled = prefs.aiHearingEnabled || false;
+            this._aiMode = providerMode;
+            this._initializeProviderAsync(providerMode, aiHearingEnabled);
+        } catch (error) {
+            console.error('Error continuing session:', error);
         }
     }
 

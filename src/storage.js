@@ -868,6 +868,33 @@ function getAllSessions() {
     }
 }
 
+function getSessionMessages(sessionId) {
+    const session = getSession(sessionId);
+    if (!session) return [];
+
+    const messages = [];
+
+    const history = session.conversationHistory || [];
+    for (const turn of history) {
+        if (turn.transcription) {
+            messages.push({ role: 'user', content: turn.transcription, timestamp: turn.timestamp });
+        }
+        if (turn.ai_response) {
+            messages.push({ role: 'ai', content: turn.ai_response, timestamp: turn.timestamp });
+        }
+    }
+
+    const screenHistory = session.screenAnalysisHistory || [];
+    for (const entry of screenHistory) {
+        if (entry.response) {
+            messages.push({ role: 'ai', content: entry.response, timestamp: entry.timestamp });
+        }
+    }
+
+    messages.sort((a, b) => a.timestamp - b.timestamp);
+    return messages;
+}
+
 function deleteSession(sessionId) {
     const sessionPath = getSessionPath(sessionId);
     try {
@@ -1019,6 +1046,7 @@ module.exports = {
     // History
     saveSession,
     getSession,
+    getSessionMessages,
     getAllSessions,
     getRecentSessionContext,
     deleteSession,

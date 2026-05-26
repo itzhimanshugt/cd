@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Create the service layer foundation in src/services/ - async StorageService, HotkeyService, and SessionService that run in the main process (CommonJS). These provide cleaner abstractions over the raw storage.js and window.js code.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/services/StorageService.js - CommonJS module. Class with: constructor() initializes in-memory cache (empty objects). async init() loads all data from storage.js into cache using require('../storage'). get(key) returns value from cache. set(key, value) updates cache immediately and schedules a debounced flush (200ms timeout). getAll() returns full cache copy. flush() writes pending changes immediately to disk using storage.js functions. Uses existing storage.js internally: getPreferences(), getConfig(), getWindowState(), getKeybinds(), getTypingSettings(), and the corresponding setters. The cache is organized as { preferences: {...}, config: {...}, windowState: {...}, keybinds: {...}, typingSettings: {...} }.",
     "Create src/services/HotkeyService.js - CommonJS module. Class with: constructor() creates a _registry Map. register(action, accelerator, handler) - uses Electron globalShortcut.register(), stores {accelerator, handler} in the Map keyed by action. unregister(action) - looks up action in Map, calls globalShortcut.unregister(accelerator), removes from Map. updateBinding(action, newAccelerator, handler) - if action exists with same accelerator, skip. Otherwise unregister old, register new. rebuildAll(keybinds, handlers) - full rebuild fallback: unregisters everything, re-registers from keybinds object. getRegistered() - returns Object.fromEntries of the Map. Does NOT call globalShortcut.unregisterAll() on every change - only changes what is different.",
@@ -25,5 +25,5 @@
     "Run: node -e \"require('./src/services')\" to confirm all services load without error"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Node.js not installed in sandbox - used bun 1.2.14 for verification (same as FEAT-001). All service files already conform to prettier formatting (4-space indent, single quotes, semicolons, 150 print width). Verified via bun run prettier --write. All services load correctly via require('./src/services') and instantiation/method checks pass. HotkeyService gracefully returns false when globalShortcut not initialized."
 }

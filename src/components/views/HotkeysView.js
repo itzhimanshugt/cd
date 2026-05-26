@@ -250,28 +250,6 @@ export class HotkeysView extends LitElement {
                 font-size: var(--font-size-xs);
                 color: var(--text-secondary);
             }
-            .setting-control {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-            }
-            .setting-slider {
-                flex: 1;
-                -webkit-appearance: none;
-                height: 4px;
-                background: var(--border);
-                border-radius: 2px;
-                outline: none;
-                cursor: pointer;
-            }
-            .setting-slider::-webkit-slider-thumb {
-                -webkit-appearance: none;
-                width: 14px;
-                height: 14px;
-                border-radius: 50%;
-                background: var(--text-primary);
-                border: none;
-            }
             .setting-num {
                 width: 66px;
                 background: var(--bg-elevated);
@@ -547,27 +525,14 @@ export class HotkeysView extends LitElement {
         const val = this._state?.[stateKey] ?? 0;
         return html`
             <div class="setting-row">
-                <div class="setting-label">${label}</div>
-                <div class="setting-control">
-                    <input
-                        class="setting-slider"
-                        type="range"
-                        min=${min}
-                        max=${max}
-                        step=${step}
-                        .value=${String(val)}
-                        @input=${e => this._updateSlider(stateKey, parseFloat(e.target.value))}
-                    />
-                    <input
-                        class="setting-num"
-                        type="number"
-                        min=${min}
-                        max=${max}
-                        step=${step}
-                        .value=${val.toFixed(decimals)}
-                        @change=${e => this._updateSlider(stateKey, Math.max(min, Math.min(max, parseFloat(e.target.value) || 0)))}
-                    />
-                </div>
+                <cd-slider
+                    label="${label}"
+                    .value=${val}
+                    .min=${min}
+                    .max=${max}
+                    .step=${step}
+                    @slider-input=${e => this._updateSlider(stateKey, e.detail.value)}
+                ></cd-slider>
                 ${minKey && maxKey
                     ? html`
                           <div class="setting-bounds">

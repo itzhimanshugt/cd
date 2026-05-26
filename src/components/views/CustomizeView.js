@@ -60,69 +60,6 @@ export class CustomizeView extends LitElement {
                 user-select: none;
             }
 
-            .slider-wrap {
-                display: flex;
-                flex-direction: column;
-                align-items: stretch;
-                gap: var(--space-xs);
-            }
-
-            .slider-header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: var(--space-sm);
-            }
-
-            .slider-value {
-                font-family: var(--font-mono);
-                font-size: var(--font-size-xs);
-                color: var(--text-secondary);
-                background: var(--bg-elevated);
-                border: 1px solid var(--border);
-                border-radius: var(--radius-sm);
-                padding: 2px 8px;
-            }
-
-            .slider-input {
-                -webkit-appearance: none;
-                appearance: none;
-                width: 100%;
-                height: 5px;
-                border-radius: 3px;
-                background: var(--border);
-                outline: none;
-                cursor: pointer;
-                transition: background 0.15s;
-            }
-
-            .slider-input::-webkit-slider-thumb {
-                -webkit-appearance: none;
-                appearance: none;
-                width: 16px;
-                height: 16px;
-                border-radius: 50%;
-                background: var(--text-primary);
-                border: none;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-                cursor: pointer;
-                transition: transform 0.15s ease;
-            }
-
-            .slider-input::-webkit-slider-thumb:hover {
-                transform: scale(1.15);
-            }
-
-            .slider-input::-moz-range-thumb {
-                width: 16px;
-                height: 16px;
-                border-radius: 50%;
-                background: var(--text-primary);
-                border: none;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-                cursor: pointer;
-            }
-
             .keybind-row {
                 display: flex;
                 align-items: center;
@@ -703,46 +640,17 @@ export class CustomizeView extends LitElement {
                             @slider-input=${this._handleBgTransparencySlider}
                         ></cd-slider>
                     </div>
-                    <div class="form-group slider-wrap">
-                        <div class="slider-header">
-                            <label class="form-label">Response Font Size</label>
-                            <div style="display:flex;align-items:center;gap:6px;">
-                                <input
-                                    type="number"
-                                    min="8"
-                                    max="48"
-                                    step="1"
-                                    .value=${String(this.fontSize)}
-                                    @change=${e => this.handleFontSizeChange(e)}
-                                    style="width:60px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 8px;font-size:var(--font-size-xs);font-family:var(--font-mono);text-align:center;"
-                                />
-                                <span class="slider-value">${this.fontSize}px</span>
-                            </div>
-                        </div>
-                        <input
-                            class="slider-input"
-                            type="range"
-                            min="8"
-                            max="48"
-                            step="1"
+                    <div class="form-group vertical">
+                        <cd-slider
+                            label="Response Font Size"
                             .value=${this.fontSize}
-                            @input=${this.handleFontSizeChange}
-                        />
+                            .min=${8}
+                            .max=${48}
+                            .step=${1}
+                            unit="px"
+                            @slider-input=${e => this.handleFontSizeChange({ target: { value: e.detail.value } })}
+                        ></cd-slider>
                         <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-                            <span style="font-size:10px;color:var(--text-muted);">Min:</span>
-                            <input
-                                type="number"
-                                value="8"
-                                style="width:50px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px 6px;font-size:10px;font-family:var(--font-mono);text-align:center;"
-                                readonly
-                            />
-                            <span style="font-size:10px;color:var(--text-muted);">Max:</span>
-                            <input
-                                type="number"
-                                value="48"
-                                style="width:50px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px 6px;font-size:10px;font-family:var(--font-mono);text-align:center;"
-                                readonly
-                            />
                             <button
                                 @click=${this._resetFontSize}
                                 style="margin-left:auto;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-secondary);padding:3px 8px;font-size:10px;cursor:pointer;"
@@ -751,20 +659,15 @@ export class CustomizeView extends LitElement {
                             </button>
                         </div>
                     </div>
-                    <div class="form-group slider-wrap">
-                        <div class="slider-header">
-                            <label class="form-label">Font Weight</label>
-                            <span class="slider-value">${this.fontWeight}</span>
-                        </div>
-                        <input
-                            class="slider-input"
-                            type="range"
-                            min="100"
-                            max="900"
-                            step="100"
+                    <div class="form-group vertical">
+                        <cd-slider
+                            label="Font Weight"
                             .value=${this.fontWeight}
-                            @input=${this.handleFontWeightChange}
-                        />
+                            .min=${100}
+                            .max=${900}
+                            .step=${100}
+                            @slider-input=${e => this.handleFontWeightChange({ target: { value: e.detail.value } })}
+                        ></cd-slider>
                     </div>
                     <cd-toggle
                         .checked=${this.hotkeyToastsEnabled}

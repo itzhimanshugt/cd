@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "fix",
   "description": "Harden storage readJsonFile, and add a clarifying comment to StorageService.js explaining its role vs storage.js",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/storage.js, verify readJsonFile already catches parse errors and returns defaultValue. The current implementation (lines 246-254) already has a try/catch that returns defaultValue on any error. Confirm this handles JSON.parse errors specifically (it does since JSON.parse is inside the try block). If it is already correct, document this explicitly with a brief inline comment.",
     "In src/services/StorageService.js, add a JSDoc comment at the top of the file (before the require) explaining: StorageService is a write-coalescing cache layer on top of storage.js. It batches frequent writes (e.g. window state, preferences) via debounced flushes to reduce disk I/O. storage.js remains the authoritative persistence layer - StorageService reads from it on init and writes back through it on flush.",
@@ -18,5 +18,5 @@
     "Run: node --check /projects/sandbox/cd/src/services/StorageService.js"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Both files pass node --check. Changes are documentation-only: added clarifying comment to readJsonFile in storage.js, and added top-level JSDoc to StorageService.js explaining its role relative to storage.js."
 }

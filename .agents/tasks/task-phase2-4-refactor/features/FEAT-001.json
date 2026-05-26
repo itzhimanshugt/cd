@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Phase 2 Performance: Async storage cache, hotkey optimization, event consolidation, and startup laziness",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "ITEM 6 - Async Storage Cache in src/storage.js: Add a _cache object at module level. On first read of each file (config, credentials, preferences, keybinds, windowState, typingSettings), populate cache. Subsequent reads return from cache. Writes update cache AND schedule a debounced flush (300ms). Add flushAll() export that writes all dirty entries immediately. Keep existing sync function signatures (getPreferences, getWindowState, etc.) so callers remain unchanged - they just read from cache now. Add initializeCache() called from initializeStorage() to pre-populate cache on startup.",
     "ITEM 7 - Wire HotkeyService into src/utils/window.js: Import { HotkeyService } at top. Create a module-level instance: const hotkeyService = new HotkeyService(). In createWindow(), after mainWindow.webContents dom-ready, call hotkeyService.init(globalShortcut). Refactor updateGlobalShortcuts(): On FIRST call (hotkeyService._registry.size === 0), build a handlers map object {action: handler} and call hotkeyService.rebuildAll(keybinds, handlers). On subsequent calls, build the same handlers map, then iterate keybinds entries: for each action, call hotkeyService.updateBinding(action, keybinds[action], handlers[action]). Remove the globalShortcut.unregisterAll() call. Keep all existing handler logic intact.",
@@ -23,5 +23,5 @@
     "Run: node -e \"const acorn = require('acorn'); acorn.parse(require('fs').readFileSync('/projects/sandbox/cd/src/utils/renderer.js','utf8'), {sourceType:'module', ecmaVersion:2022})\" or use a simple syntax check"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All syntax checks passed via bun (node not available in sandbox). Used bun -e with Function constructor for CJS files and bun build --no-bundle for ESM files. No pre-commit hooks present."
 }

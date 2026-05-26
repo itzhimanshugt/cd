@@ -18,19 +18,34 @@ function getLocalAi() {
 // Provider mode: 'byok', 'cloud', or 'local'
 let currentProviderMode = 'byok';
 
-// Groq conversation history for context
-let groqConversationHistory = [];
+// Groq conversation history for context - now part of _sessionState
 
-// Conversation tracking variables
-let currentSessionId = null;
-let currentTranscription = '';
-let conversationHistory = [];
-let screenAnalysisHistory = [];
-let currentProfile = null;
-let currentCustomPrompt = null;
-let isInitializingSession = false;
-let _sessionAborted = false;
-let currentSystemPrompt = null;
+// Consolidated session state object
+const _sessionState = {
+    id: null,
+    transcription: '',
+    conversationHistory: [],
+    groqConversationHistory: [],
+    screenAnalysisHistory: [],
+    profile: null,
+    customPrompt: null,
+    systemPrompt: null,
+    isInitializing: false,
+    aborted: false,
+};
+
+function resetSessionState() {
+    _sessionState.id = null;
+    _sessionState.transcription = '';
+    _sessionState.conversationHistory = [];
+    _sessionState.groqConversationHistory = [];
+    _sessionState.screenAnalysisHistory = [];
+    _sessionState.profile = null;
+    _sessionState.customPrompt = null;
+    _sessionState.systemPrompt = null;
+    _sessionState.isInitializing = false;
+    _sessionState.aborted = false;
+}
 
 function formatSpeakerResults(results) {
     let text = '';
@@ -65,7 +80,7 @@ function sendToRenderer(channel, data) {
 
 // Build context message for session restoration
 function buildContextMessage() {
-    const lastTurns = conversationHistory.slice(-20);
+    const lastTurns = _sessionState.conversationHistory.slice(-20);
     const validTurns = lastTurns.filter(turn => turn.transcription?.trim() && turn.ai_response?.trim());
 
     if (validTurns.length === 0) return null;
@@ -77,26 +92,26 @@ function buildContextMessage() {
 
 // Conversation management functions
 function initializeNewSession(profile = null, customPrompt = null) {
-    currentSessionId = Date.now().toString();
-    currentTranscription = '';
-    conversationHistory = [];
-    screenAnalysisHistory = [];
-    groqConversationHistory = [];
-    currentProfile = profile;
-    currentCustomPrompt = customPrompt;
-    console.log('New conversation session started:', currentSessionId, 'profile:', profile);
+    _sessionState.id = Date.now().toString();
+    _sessionState.transcription = '';
+    _sessionState.conversationHistory = [];
+    _sessionState.screenAnalysisHistory = [];
+    _sessionState.groqConversationHistory = [];
+    _sessionState.profile = profile;
+    _sessionState.customPrompt = customPrompt;
+    console.log('New conversation session started:', _sessionState.id, 'profile:', profile);
 
     // Save initial session with profile context
     if (profile) {
         sendToRenderer('save-session-context', {
-            sessionId: currentSessionId,
+            sessionId: _sessionState.id,
             profile: profile,
             customPrompt: customPrompt || '',
         });
     }
 
     // Persist initial session immediately
-    storage.saveSession(currentSessionId, {
+    storage.saveSession(_sessionState.id, {
         profile: profile,
         customPrompt: customPrompt || '',
         conversationHistory: [],
@@ -105,7 +120,7 @@ function initializeNewSession(profile = null, customPrompt = null) {
 }
 
 function saveConversationTurn(transcription, aiResponse) {
-    if (!currentSessionId) {
+    if (!_sessionState.id) {
         initializeNewSession();
     }
 
@@ -115,22 +130,22 @@ function saveConversationTurn(transcription, aiResponse) {
         ai_response: aiResponse.trim(),
     };
 
-    conversationHistory.push(conversationTurn);
+    _sessionState.conversationHistory.push(conversationTurn);
     console.log('Saved conversation turn:', conversationTurn);
 
     // Send to renderer to save in IndexedDB
     sendToRenderer('save-conversation-turn', {
-        sessionId: currentSessionId,
+        sessionId: _sessionState.id,
         turn: conversationTurn,
-        fullHistory: conversationHistory,
+        fullHistory: _sessionState.conversationHistory,
     });
 
     // Also persist directly to ensure data is saved regardless of renderer state
-    storage.saveSession(currentSessionId, { conversationHistory: conversationHistory });
+    storage.saveSession(_sessionState.id, { conversationHistory: _sessionState.conversationHistory });
 }
 
 function saveScreenAnalysis(prompt, response, model) {
-    if (!currentSessionId) {
+    if (!_sessionState.id) {
         initializeNewSession();
     }
 
@@ -141,30 +156,30 @@ function saveScreenAnalysis(prompt, response, model) {
         model: model,
     };
 
-    screenAnalysisHistory.push(analysisEntry);
+    _sessionState.screenAnalysisHistory.push(analysisEntry);
     console.log('Saved screen analysis:', analysisEntry);
 
     // Send to renderer to save
     sendToRenderer('save-screen-analysis', {
-        sessionId: currentSessionId,
+        sessionId: _sessionState.id,
         analysis: analysisEntry,
-        fullHistory: screenAnalysisHistory,
-        profile: currentProfile,
-        customPrompt: currentCustomPrompt,
+        fullHistory: _sessionState.screenAnalysisHistory,
+        profile: _sessionState.profile,
+        customPrompt: _sessionState.customPrompt,
     });
 
     // Also persist directly to ensure data is saved regardless of renderer state
-    storage.saveSession(currentSessionId, {
-        screenAnalysisHistory: screenAnalysisHistory,
-        profile: currentProfile,
-        customPrompt: currentCustomPrompt,
+    storage.saveSession(_sessionState.id, {
+        screenAnalysisHistory: _sessionState.screenAnalysisHistory,
+        profile: _sessionState.profile,
+        customPrompt: _sessionState.customPrompt,
     });
 }
 
 function getCurrentSessionData() {
     return {
-        sessionId: currentSessionId,
-        history: conversationHistory,
+        sessionId: _sessionState.id,
+        history: _sessionState.conversationHistory,
     };
 }
 
@@ -251,13 +266,13 @@ async function sendToGroq(transcription, options = {}) {
 
     console.log(`Sending to Groq (${modelToUse}):`, transcription.substring(0, 100) + '...');
 
-    groqConversationHistory.push({
+    _sessionState.groqConversationHistory.push({
         role: 'user',
         content: transcription.trim(),
     });
 
-    if (groqConversationHistory.length > 20) {
-        groqConversationHistory = groqConversationHistory.slice(-20);
+    if (_sessionState.groqConversationHistory.length > 20) {
+        _sessionState.groqConversationHistory = _sessionState.groqConversationHistory.slice(-20);
     }
 
     try {
@@ -270,7 +285,7 @@ async function sendToGroq(transcription, options = {}) {
                 },
                 body: JSON.stringify({
                     model: modelToUse,
-                    messages: [{ role: 'system', content: currentSystemPrompt || 'You are a helpful assistant.' }, ...groqConversationHistory],
+                    messages: [{ role: 'system', content: _sessionState.systemPrompt || 'You are a helpful assistant.' }, ..._sessionState.groqConversationHistory],
                     stream: true,
                     temperature: 0.7,
                     max_tokens: 1024,
@@ -328,15 +343,15 @@ async function sendToGroq(transcription, options = {}) {
             const cleanedResponse = stripThinkingTags(fullText);
             const modelKey = modelToUse.split('/').pop();
 
-            const systemPromptChars = (currentSystemPrompt || 'You are a helpful assistant.').length;
-            const historyChars = groqConversationHistory.reduce((sum, msg) => sum + (msg.content || '').length, 0);
+            const systemPromptChars = (_sessionState.systemPrompt || 'You are a helpful assistant.').length;
+            const historyChars = _sessionState.groqConversationHistory.reduce((sum, msg) => sum + (msg.content || '').length, 0);
             const inputChars = systemPromptChars + historyChars;
             const outputChars = cleanedResponse.length;
 
             incrementCharUsage('groq', modelKey, inputChars + outputChars);
 
             if (cleanedResponse) {
-                groqConversationHistory.push({
+                _sessionState.groqConversationHistory.push({
                     role: 'assistant',
                     content: cleanedResponse,
                 });
@@ -349,7 +364,7 @@ async function sendToGroq(transcription, options = {}) {
 
             // Notify renderer that a new response is available for typing
             if (cleanedResponse && emitTyping) {
-                sendToRenderer('typing-response-ready', { text: cleanedResponse, sessionId: currentSessionId });
+                sendToRenderer('typing-response-ready', { text: cleanedResponse, sessionId: _sessionState.id });
             }
         });
 
@@ -383,12 +398,12 @@ async function sendToGemma(transcription, options = {}) {
 
     console.log('Sending to Gemma:', transcription.substring(0, 100) + '...');
 
-    groqConversationHistory.push({
+    _sessionState.groqConversationHistory.push({
         role: 'user',
         content: transcription.trim(),
     });
 
-    const trimmedHistory = trimConversationHistoryForGemma(groqConversationHistory, 42000);
+    const trimmedHistory = trimConversationHistoryForGemma(_sessionState.groqConversationHistory, 42000);
 
     const prefs = storage.getPreferences();
 
@@ -401,7 +416,7 @@ async function sendToGemma(transcription, options = {}) {
                 parts: [{ text: msg.content }],
             }));
 
-            const systemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
+            const systemPrompt = _sessionState.systemPrompt || 'You are a helpful assistant.';
             const messagesWithSystem = [
                 { role: 'user', parts: [{ text: systemPrompt }] },
                 { role: 'model', parts: [{ text: 'Understood. I will follow these instructions.' }] },
@@ -428,7 +443,7 @@ async function sendToGemma(transcription, options = {}) {
                 }
             }
 
-            const systemPromptChars = (currentSystemPrompt || 'You are a helpful assistant.').length;
+            const systemPromptChars = (_sessionState.systemPrompt || 'You are a helpful assistant.').length;
             const historyChars = trimmedHistory.reduce((sum, msg) => sum + (msg.content || '').length, 0);
             const inputChars = systemPromptChars + historyChars;
             const outputChars = fullText.length;
@@ -436,13 +451,13 @@ async function sendToGemma(transcription, options = {}) {
             incrementCharUsage('gemini', prefs.modelExtraction || 'gemma-3-27b-it', inputChars + outputChars);
 
             if (fullText.trim()) {
-                groqConversationHistory.push({
+                _sessionState.groqConversationHistory.push({
                     role: 'assistant',
                     content: fullText.trim(),
                 });
 
-                if (groqConversationHistory.length > 40) {
-                    groqConversationHistory = groqConversationHistory.slice(-40);
+                if (_sessionState.groqConversationHistory.length > 40) {
+                    _sessionState.groqConversationHistory = _sessionState.groqConversationHistory.slice(-40);
                 }
 
                 saveConversationTurn(transcription, fullText);
@@ -453,7 +468,7 @@ async function sendToGemma(transcription, options = {}) {
 
             // Notify renderer that a new response is available for typing
             if (fullText.trim() && emitTyping) {
-                sendToRenderer('typing-response-ready', { text: fullText.trim(), sessionId: currentSessionId });
+                sendToRenderer('typing-response-ready', { text: fullText.trim(), sessionId: _sessionState.id });
             }
         });
 
@@ -472,16 +487,16 @@ async function sendToGemma(transcription, options = {}) {
 }
 
 async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'interview', language = 'en-US', isReconnect = false) {
-    if (_sessionAborted) {
-        _sessionAborted = false;
+    if (_sessionState.aborted) {
+        _sessionState.aborted = false;
         return null;
     }
-    if (isInitializingSession) {
+    if (_sessionState.isInitializing) {
         console.log('Session initialization already in progress');
         return false;
     }
 
-    isInitializingSession = true;
+    _sessionState.isInitializing = true;
     if (!isReconnect) {
         sendToRenderer('session-initializing', true);
     }
@@ -507,12 +522,12 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
     const effectiveProfile = (sessionPrefs.debugModeEnabled && profile !== 'debug') ? 'debug' : profile;
 
     const systemPrompt = getSystemPrompt(effectiveProfile, customPrompt, googleSearchEnabled);
-    currentSystemPrompt = systemPrompt; // Store for Groq
+    _sessionState.systemPrompt = systemPrompt; // Store for Groq
 
     // Append cross-session context for AI memory
     const sessionContext = storage.getRecentSessionContext();
     if (sessionContext) {
-        currentSystemPrompt += sessionContext;
+        _sessionState.systemPrompt += sessionContext;
     }
 
     // Initialize new conversation session only on first connect
@@ -532,11 +547,11 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
 
                     // Handle input transcription (what was spoken)
                     if (message.serverContent?.inputTranscription?.results) {
-                        currentTranscription += formatSpeakerResults(message.serverContent.inputTranscription.results);
+                        _sessionState.transcription += formatSpeakerResults(message.serverContent.inputTranscription.results);
                     } else if (message.serverContent?.inputTranscription?.text) {
                         const text = message.serverContent.inputTranscription.text;
                         if (text.trim() !== '') {
-                            currentTranscription += text;
+                            _sessionState.transcription += text;
                         }
                     }
 
@@ -544,21 +559,21 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
                     // if (message.serverContent?.outputTranscription?.text) { ... }
 
                     if (message.serverContent?.generationComplete) {
-                        if (currentTranscription.trim() !== '') {
+                        if (_sessionState.transcription.trim() !== '') {
                             const responseMode = getLiveResponseMode();
                             sendToRenderer('response-turn-start', { mode: responseMode });
 
                             if (responseMode === 'both') {
                                 Promise.allSettled([
-                                    sendToGemma(currentTranscription, { dualMode: true, emitTyping: true }),
-                                    sendToGroq(currentTranscription, { dualMode: true, emitTyping: false }),
+                                    sendToGemma(_sessionState.transcription, { dualMode: true, emitTyping: true }),
+                                    sendToGroq(_sessionState.transcription, { dualMode: true, emitTyping: false }),
                                 ]).catch(() => {});
                             } else if (responseMode === 'groq') {
-                                sendToGroq(currentTranscription, { dualMode: false, emitTyping: true });
+                                sendToGroq(_sessionState.transcription, { dualMode: false, emitTyping: true });
                             } else {
-                                sendToGemma(currentTranscription, { dualMode: false, emitTyping: true });
+                                sendToGemma(_sessionState.transcription, { dualMode: false, emitTyping: true });
                             }
-                            currentTranscription = '';
+                            _sessionState.transcription = '';
                         }
                         messageBuffer = '';
                     }
@@ -608,15 +623,15 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
             },
         });
 
-        isInitializingSession = false;
+        _sessionState.isInitializing = false;
         if (!isReconnect) {
             sendToRenderer('session-initializing', false);
         }
-        sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: currentProfile });
+        sendToRenderer('session-started', { sessionId: _sessionState.id, provider: currentProviderMode, profile: _sessionState.profile });
         return session;
     } catch (error) {
         console.error('Failed to initialize Gemini session:', error);
-        isInitializingSession = false;
+        _sessionState.isInitializing = false;
         if (!isReconnect) {
             sendToRenderer('session-initializing', false);
         }
@@ -630,7 +645,7 @@ async function attemptReconnect() {
 
     // Clear stale buffers
     messageBuffer = '';
-    currentTranscription = '';
+    _sessionState.transcription = '';
     // Don't reset groqConversationHistory to preserve context across reconnects
 
     sendToRenderer('update-status', `Reconnecting... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
@@ -945,7 +960,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             sendToRenderer('session-initializing', true);
             await connectCloud(token, effectiveProfile, userContext);
             sendToRenderer('session-initializing', false);
-            sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: currentProfile });
+            sendToRenderer('session-started', { sessionId: _sessionState.id, provider: currentProviderMode, profile: _sessionState.profile });
             return true;
         } catch (err) {
             console.error('[Cloud] Init error:', err);
@@ -1009,7 +1024,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
         if (!success) {
             currentProviderMode = 'byok';
         } else {
-            sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: effectiveProfile });
+            sendToRenderer('session-started', { sessionId: _sessionState.id, provider: currentProviderMode, profile: effectiveProfile });
         }
         return success;
     });
@@ -1192,13 +1207,14 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
     ipcMain.handle('close-session', async event => {
         try {
-            _sessionAborted = true; // Signal any in-progress initialization to stop
-            isInitializingSession = false;
+            _sessionState.aborted = true; // Signal any in-progress initialization to stop
+            _sessionState.isInitializing = false;
             stopMacOSAudioCapture();
 
             if (currentProviderMode === 'cloud') {
                 closeCloud();
                 currentProviderMode = 'byok';
+                resetSessionState();
                 sendToRenderer('session-stopped');
                 return { success: true };
             }
@@ -1206,6 +1222,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             if (currentProviderMode === 'local') {
                 getLocalAi().closeLocalSession();
                 currentProviderMode = 'byok';
+                resetSessionState();
                 sendToRenderer('session-stopped');
                 return { success: true };
             }
@@ -1220,6 +1237,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 geminiSessionRef.current = null;
             }
 
+            resetSessionState();
             sendToRenderer('session-stopped');
             return { success: true };
         } catch (error) {
@@ -1241,7 +1259,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
     ipcMain.handle('start-new-session', async event => {
         try {
             initializeNewSession();
-            return { success: true, sessionId: currentSessionId };
+            return { success: true, sessionId: _sessionState.id };
         } catch (error) {
             console.error('Error starting new session:', error);
             return { success: false, error: error.message };

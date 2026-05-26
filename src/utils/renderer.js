@@ -1425,6 +1425,10 @@ ipcRenderer.on('typing-aborted', () => {
     _eventBus.dispatchEvent(new CustomEvent('typing-aborted'));
     showToast('Typing aborted');
 });
+ipcRenderer.on('typing-injection-error', (_, detail) => {
+    showToast(`Typing error: ${detail.error} (${detail.backend})`);
+    _eventBus.dispatchEvent(new CustomEvent('typing-injection-error', { detail }));
+});
 ipcRenderer.on('typing-response-ready', (_, data) => {
     _eventBus.dispatchEvent(new CustomEvent('typing-response-ready', { detail: data }));
     // Auto-load the response into TypingManager so it is ready for typing

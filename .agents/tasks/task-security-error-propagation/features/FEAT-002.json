@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Surface typing injection errors upward (instead of swallowing them) and consolidate gemini.js session globals into an explicit state object with a reset function",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "In src/typing/InjectionScheduler.js _scheduleNext method (around line 97), change the empty catch block to emit an 'injection-error' event: this.emit('injection-error', { error: e.message, backend: this._backend?.getName?.() || 'unknown', position: this._queue.getPosition() }); - keep the execution flowing (non-fatal).",
     "In src/typing/TypingManager.js _createScheduler method, after creating the scheduler and setting up the 'complete' and 'injected' listeners, add: this._scheduler.on('injection-error', (detail) => { this.emit('injection-error', detail); });",

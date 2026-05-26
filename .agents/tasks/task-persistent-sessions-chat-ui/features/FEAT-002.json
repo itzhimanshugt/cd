@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "History Redesign + Debug Profile + Version + Instructions + Keybind Input improvements",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/components/views/HistoryView.js: Redesign the session list so each item shows as a card with date/time, profile badge, message count, and first line preview. Clicking opens the session detail as a read-only chat view reusing bubble styling (left-aligned AI, right-aligned user).",
     "In src/utils/prompts.js: Add a 'debug' profile with: intro: 'You are a debugging assistant. Your job is to identify bugs, logical flaws, and exact fixes in code. Do NOT rewrite entire solutions.', formatRequirements: '**FORMAT:** Point to exact problematic lines/blocks. Suggest minimal edits only. Reference line numbers when possible. Focus on: logic errors, edge cases, type mismatches, off-by-one errors, missing null checks.', content: 'Behave like a code reviewer and compiler assistant. Identify the exact issue and the minimal fix. Do not generate full solutions - only point out what is wrong and what specifically needs to change.', outputInstructions: 'Output: 1) The bug location 2) Why it fails 3) The minimal fix (only changed lines). Never rewrite entire functions.'",
@@ -23,5 +23,5 @@
     "Run npx prettier --check src/components/views/HistoryView.js src/components/views/AICustomizeView.js src/components/views/AutoTypeView.js src/components/ui/cd-keybind-input.js src/utils/prompts.js"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 5 files modified successfully. Prettier formatting applied. Bun transpile check passes for all files. The window-is-not-defined error from Lit is expected since this is an Electron browser-only app. No npm/node available in sandbox but bun works as alternative for validation."
 }

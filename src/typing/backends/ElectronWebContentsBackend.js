@@ -58,13 +58,9 @@ class ElectronWebContentsBackend extends BaseBackend {
     async inject(text) {
         if (!text || !this._BrowserWindow) return;
 
-        try {
-            const win = this._BrowserWindow.getFocusedWindow();
-            if (win && win.webContents) {
-                await win.webContents.insertText(text);
-            }
-        } catch (e) {
-            // Electron webContents injection failed
+        const win = this._BrowserWindow.getFocusedWindow();
+        if (win && win.webContents) {
+            await win.webContents.insertText(text);
         }
     }
 
@@ -76,25 +72,21 @@ class ElectronWebContentsBackend extends BaseBackend {
     async injectKey(keyCode) {
         if (!this._BrowserWindow) return;
 
-        try {
-            const win = this._BrowserWindow.getFocusedWindow();
-            if (win && win.webContents) {
-                const char = String.fromCharCode(keyCode);
-                win.webContents.sendInputEvent({
-                    type: 'keyDown',
-                    keyCode: char,
-                });
-                win.webContents.sendInputEvent({
-                    type: 'char',
-                    keyCode: char,
-                });
-                win.webContents.sendInputEvent({
-                    type: 'keyUp',
-                    keyCode: char,
-                });
-            }
-        } catch (e) {
-            // Best effort
+        const win = this._BrowserWindow.getFocusedWindow();
+        if (win && win.webContents) {
+            const char = String.fromCharCode(keyCode);
+            win.webContents.sendInputEvent({
+                type: 'keyDown',
+                keyCode: char,
+            });
+            win.webContents.sendInputEvent({
+                type: 'char',
+                keyCode: char,
+            });
+            win.webContents.sendInputEvent({
+                type: 'keyUp',
+                keyCode: char,
+            });
         }
     }
 }

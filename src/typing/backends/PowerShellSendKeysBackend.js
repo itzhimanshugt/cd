@@ -72,14 +72,10 @@ foreach ($c in $text.ToCharArray()) {
     Start-Sleep -Milliseconds ${this._keyPacing}
 }`;
 
-        try {
-            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
-                windowsHide: true,
-                timeout: 30000,
-            });
-        } catch (e) {
-            // Silently fail if PowerShell is unavailable
-        }
+        await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
+            windowsHide: true,
+            timeout: 30000,
+        });
     }
 
     /**

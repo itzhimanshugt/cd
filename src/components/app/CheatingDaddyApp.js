@@ -341,9 +341,17 @@ export class CheatingDaddyApp extends LitElement {
             padding: 0 var(--space-md);
             background: var(--bg-surface);
             border-bottom: 1px solid var(--border);
-            height: 36px;
+            height: 28px;
             -webkit-app-region: drag;
             gap: var(--space-sm);
+        }
+
+        .session-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #28c840;
+            flex-shrink: 0;
         }
 
         .live-bar-left {
@@ -1219,16 +1227,6 @@ export class CheatingDaddyApp extends LitElement {
     renderLiveBar() {
         if (!this._isLiveMode()) return '';
 
-        const profileLabels = {
-            interview: 'Interview',
-            sales: 'Sales Call',
-            meeting: 'Meeting',
-            presentation: 'Presentation',
-            negotiation: 'Negotiation',
-            exam: 'Exam',
-            custom: 'Custom',
-        };
-
         return html`
             <div class="live-bar">
                 <div class="live-bar-left">
@@ -1260,25 +1258,12 @@ export class CheatingDaddyApp extends LitElement {
                             />
                         </svg>
                     </button>
+                    <span class="session-dot"></span>
+                    <span class="live-bar-text">Active</span>
                 </div>
-                <div class="live-bar-center">${profileLabels[this.selectedProfile] || 'Session'}</div>
+                <div class="live-bar-center">${this._getModelShortName(this._modelSolution)}</div>
                 <div class="live-bar-right">
-                    ${this._debugMode ? html`<span class="live-bar-text" style="color: var(--danger, #f44);">[DEBUG]</span>` : ''}
-                    <span
-                        class="live-bar-text"
-                        title="Solution: ${this._getModelShortName(this._modelSolution)}&#10;Extraction: ${this._getModelShortName(
-                            this._modelExtraction
-                        )}&#10;Debug: ${this._getModelShortName(this._modelDebugging)}"
-                        >S:${this._getModelShortName(this._modelSolution)}
-                        E:${this._getModelShortName(this._modelExtraction)}${this._debugMode
-                            ? html` D:${this._getModelShortName(this._modelDebugging)}`
-                            : ''}</span
-                    >
-                    ${this.statusText ? html`<span class="live-bar-text">${this.statusText}</span>` : ''}
-                    <span class="live-bar-text">${this._aiMode === 'local' ? 'Local' : 'Online'}</span>
                     <span class="live-bar-text">${this.getElapsedTime()}</span>
-                    ${this._isClickThrough ? html`<span class="live-bar-text">[click through]</span>` : ''}
-                    <span class="live-bar-text clickable" @click=${() => this.handleHideToggle()}>[hide]</span>
                 </div>
             </div>
         `;

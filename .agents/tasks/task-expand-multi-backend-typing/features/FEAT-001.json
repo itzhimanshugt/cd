@@ -1,0 +1,20 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Commit all untracked .agents/ task state files that were gitignored/missed in previous commits. These include task-css-opacity-cleanup and task-modular-auto-typing state files.",
+  "status": "in_progress",
+  "steps": [
+    "Run git add .agents/ to stage all untracked .agents/ files",
+    "Commit with message: chore: add all .agents task state files"
+  ],
+  "acceptance_criteria": [
+    "All .agents/ files are committed (no untracked .agents/ files remain in git status)",
+    "Commit message is exactly: chore: add all .agents task state files"
+  ],
+  "verification": [
+    "Run git status and confirm no untracked .agents/ files",
+    "Run git log -1 --oneline and confirm commit message"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

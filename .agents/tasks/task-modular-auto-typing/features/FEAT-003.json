@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Integrate the typing system into the existing app: wire up IPC handlers, register typing hotkeys in window.js, add typing settings to storage.js, expose typing controls to the renderer via cheatingDaddy global, and connect AI response flow (gemini.js) to the typing buffer. Also add a TypingSettingsView component for the UI.",
+  "status": "completed",
+  "steps": [
+    "Update src/storage.js: Add DEFAULT_TYPING_SETTINGS object with fields: enabled (bool), backend ('win32-sendinput'|'clipboard'|'powershell'|'robotjs'), typingSpeed (WPM, default 80), startupDelay (ms, default 200), burstSize (default 3), punctuationDelay (ms, default 150), sentenceDelay (ms, default 300), jitterRange (0-1, default 0.3), holdToTypeKeybind (default 'CapsLock'), abortKeybind (default 'Escape'), fullResponseKeybind (default 'Ctrl+Shift+T'), pasteMode (bool, default false), granularity ('character'|'word'|'sentence'|'paragraph', default 'character'), sentenceBySentence (bool, default false). Add getTypingSettings() and setTypingSettings(patch) functions. Export them.",
+    "Update src/index.js: Import TypingManager from './typing'. Create typingManager instance. Add IPC handlers: 'typing:load-response', 'typing:start', 'typing:pause', 'typing:resume', 'typing:abort', 'typing:set-speed', 'typing:set-backend', 'typing:get-status', 'typing:skip-sentence', 'typing:get-settings', 'typing:set-settings'. Forward typing events to renderer via sendToRenderer().",
+    "Update src/utils/window.js: Add typing-related keybinds to getDefaultKeybinds(): holdToType (toggle), abortTyping, fullResponseType. Register these in updateGlobalShortcuts() - holdToType toggles typing start/pause on the TypingManager, abortTyping calls manager.abort(), fullResponseType loads the last response and starts full typing. Bump KEYBINDS_VERSION.",
+    "Update src/utils/renderer.js: Add typing controls to the cheatingDaddy global object under cheatingDaddy.typing = { start, pause, resume, abort, setSpeed, setBackend, getStatus, skipSentence, loadResponse, getSettings, setSettings }. These wrap ipcRenderer.invoke('typing:*') calls. Add IPC listeners for typing events: 'typing-status-changed', 'typing-progress-changed', 'typing-started', 'typing-paused', 'typing-completed', 'typing-aborted'. Dispatch these on the _eventBus. Show toast notifications for typing state changes.",
+    "Update src/utils/gemini.js: After a complete AI response is received (in sendToGroq and sendToGemma after fullText is assembled), emit an IPC event or call a function that stores the response in a central buffer accessible to the typing system. Add: after saveConversationTurn(), call sendToRenderer('typing-response-ready', { text: cleanedResponse, sessionId }) so the renderer knows a new response is available for typing.",
+    "Create src/components/views/TypingSettingsView.js - A Lit component for configuring typing settings. Sections: Backend Selection (dropdown), Speed Controls (WPM slider, burst size, delays), Behavior (granularity dropdown, hold-to-type toggle, sentence-by-sentence), Keybinds (hold-to-type key, abort key, full-response key). Uses the same unifiedPageStyles as other views. Loads/saves via cheatingDaddy.typing.getSettings()/setSettings().",
+    "Update src/components/views/HotkeysView.js: Add a new HOTKEY_GROUP for 'Typing Controls' with actions: holdToType, abortTyping, fullResponseType.",
+    "Update src/components/index.js to import and register the TypingSettingsView component."
+  ],
+  "acceptance_criteria": [
+    "src/storage.js exports getTypingSettings() and setTypingSettings() with correct defaults",
+    "src/index.js creates TypingManager instance and registers all typing:* IPC handlers",
+    "src/utils/window.js has typing keybinds in defaults and registers them in updateGlobalShortcuts",
+    "src/utils/renderer.js exposes cheatingDaddy.typing API with all control methods",
+    "src/utils/gemini.js emits 'typing-response-ready' event after response completion",
+    "TypingSettingsView.js is a valid Lit component that renders typing configuration UI",
+    "HotkeysView.js includes the Typing Controls group",
+    "All modified files pass `node --check` syntax validation"
+  ],
+  "verification": [
+    "Run `node --check src/storage.js src/index.js src/utils/window.js src/utils/renderer.js src/utils/gemini.js`",
+    "Run `node --check src/components/views/TypingSettingsView.js` (may fail due to ES module import but syntax should be valid)",
+    "Run `node -e \"const s = require('./src/storage'); const ts = s.getTypingSettings(); console.assert(ts.backend === 'win32-sendinput'); console.assert(ts.typingSpeed === 80); console.log('Typing settings OK');\"` ",
+    "Run `node -e \"const s = require('./src/storage'); s.setTypingSettings({typingSpeed: 120}); const ts = s.getTypingSettings(); console.assert(ts.typingSpeed === 120); console.log('Typing settings persist OK');\"` "
+  ],
+  "blocked_reason": null,
+  "findings": "All 8 integration points implemented and verified. node --check passes for all files. Storage functions work correctly (get/set with defaults merging). Prettier formatted storage.js and TypingSettingsView.js. The createWindow and updateGlobalShortcuts signatures were extended with an optional typingManagerRef param (5th arg) to thread the typing manager through to hotkey registration. TypingManager is created before createMainWindow() so it can be passed to the window module. All existing callers updated."
+}

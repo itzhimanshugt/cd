@@ -561,6 +561,8 @@ export class AssistantView extends LitElement {
     }
 
     async handleScreenAnswer() {
+        // This is the same capture flow as Ctrl+Enter (handled by renderer.js handleShortcut).
+        // Both paths call window.captureManualScreenshot() which sends image via IPC.
         if (this._analysisState !== 'idle') return;
         if (window.captureManualScreenshot) {
             this._analysisState = 'capturing';

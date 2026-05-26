@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "History Management (multi-select, bulk actions, pin, rename, delete, continue session) + Session Persistence Fix + Continue Session from History",
+  "status": "in_progress",
+  "steps": [
+    "In src/components/views/HistoryView.js - List view enhancements: Add `_selectedIds` (Set), `_selectAll` (Boolean) state properties. Add checkboxes to each session-card (left side). Add 'Select All' checkbox in header area. Add bulk action bar that appears when _selectedIds.size > 0 showing 'Delete Selected (N)' button. Add per-session actions (visible on hover or always): 'Pin' icon button, 'Delete' icon button, 'Rename' inline edit. Add `_pinnedIds` state property loaded from storage (use a new preference key 'pinnedSessions' array). Pinned sessions sort to top with a pin icon. Implement bulk delete: calls cheatingDaddy.storage.deleteSession for each, then reloads.",
+    "In src/components/views/HistoryView.js - Detail view enhancements: Add action buttons at top of detail view: 'Continue Session' button, 'Export' button (copies JSON to clipboard), 'Delete' button (deletes and returns to list). 'Continue Session' dispatches a custom event 'continue-session' with sessionId on the element, and also dispatches on cheatingDaddy.events so the parent app can handle it.",
+    "In src/storage.js: Add `getSessionMessages(sessionId)` helper that loads a session and returns a flat array of {role:'user'|'ai', content, timestamp} messages from conversationHistory and screenAnalysisHistory combined and sorted by timestamp. Export it.",
+    "In src/components/app/CheatingDaddyApp.js: Add `continueSession(sessionId)` method that: loads session data via cheatingDaddy.storage.getSession(sessionId), stores the conversation in sessionStore or a temporary property (e.g. this._preloadedMessages), then calls handleStart() logic but with the loaded session context. Listen for 'continue-session' event on cheatingDaddy.events in connectedCallback. Also set a flag like `this._continuingSessionId = sessionId` so AssistantView can detect pre-loaded messages.",
+    "In src/components/views/AssistantView.js: In connectedCallback, check if the parent app has preloaded messages (via cheatingDaddy.element()._preloadedMessages or a similar mechanism). If messages exist, render them in the chat bubble UI on the current page. Clear the preloaded flag after consuming.",
+    "Session Persistence verification: In src/utils/gemini.js, the saveConversationTurn function already saves after every complete AI response with actual content, and also persists via storage.saveSession directly. The saveScreenAnalysis similarly saves. The existing code looks correct. Ensure that the 'send-image-content' IPC handler in gemini.js calls saveScreenAnalysis after the full response is streamed - verify this exists by checking the code path."
+  ],
+  "acceptance_criteria": [
+    "History list shows checkboxes for multi-select",
+    "Select All works and bulk Delete removes selected sessions",
+    "Pinned sessions appear at top with pin icon",
+    "Session detail has Continue, Export, Delete buttons",
+    "Continue Session loads conversation into AssistantView and navigates there",
+    "getSessionMessages helper exists and returns properly formatted messages",
+    "Session persistence works (saveConversationTurn called after AI responses)"
+  ],
+  "verification": [
+    "Run `node --check src/storage.js` to validate syntax",
+    "Inspect HistoryView.js for multi-select and action button logic",
+    "Inspect CheatingDaddyApp.js for continueSession method"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

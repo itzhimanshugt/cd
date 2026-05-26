@@ -531,6 +531,22 @@ export class AssistantView extends LitElement {
             window.cheatingDaddy.events.addEventListener('analyze-completed', this._onAnalyzeCompleted);
             window.cheatingDaddy.events.addEventListener('analyze-failed', this._onAnalyzeFailed);
         }
+
+        // Check for preloaded messages from continued session
+        setTimeout(() => {
+            const app = document.querySelector('cheating-daddy-app');
+            if (app && app._preloadedMessages && app._preloadedMessages.length > 0) {
+                const messages = app._preloadedMessages;
+                app._preloadedMessages = null; // Clear after consuming
+
+                // Load messages into current page
+                const updatedPages = [...this._pages];
+                updatedPages[this._currentPage] = [...updatedPages[this._currentPage], ...messages];
+                this._pages = updatedPages;
+                this.requestUpdate();
+                this._scrollToBottom();
+            }
+        }, 100);
     }
 
     disconnectedCallback() {

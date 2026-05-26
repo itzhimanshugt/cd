@@ -75,29 +75,72 @@ export class CheatingDaddyApp extends LitElement {
         }
 
         .traffic-light {
-            width: 12px;
-            height: 12px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             border: none;
             cursor: pointer;
             padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
             transition: opacity 0.15s ease;
+        }
+
+        .traffic-light::after {
+            content: '';
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: block;
         }
 
         .traffic-light:hover {
             opacity: 0.8;
         }
 
-        .traffic-light.close {
+        .traffic-light.close::after {
             background: #ff5f57;
         }
 
-        .traffic-light.minimize {
+        .traffic-light.minimize::after {
             background: #febc2e;
         }
 
-        .traffic-light.maximize {
-            background: #28c840;
+        .window-controls {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            -webkit-app-region: no-drag;
+        }
+
+        .window-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 46px;
+            height: 100%;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: background 0.15s ease;
+            padding: 0;
+        }
+
+        .window-btn:hover {
+            background: var(--bg-hover);
+        }
+
+        .window-btn.close:hover {
+            background: rgba(232, 17, 35, 0.9);
+            color: white;
+        }
+
+        .window-btn svg {
+            width: 10px;
+            height: 10px;
         }
 
         .sidebar {
@@ -489,6 +532,7 @@ export class CheatingDaddyApp extends LitElement {
         _modelDebugging: { state: true },
         sidebarCollapsed: { type: Boolean },
         _flyoutOpen: { state: true },
+        _isMacOS: { state: true },
     };
 
     constructor() {
@@ -522,6 +566,8 @@ export class CheatingDaddyApp extends LitElement {
         this._modelDebugging = 'gemini-2.5-flash';
         this.sidebarCollapsed = false;
         this._flyoutOpen = false;
+        this._isMacOS = (typeof process !== 'undefined' && process.platform === 'darwin') ||
+                        (navigator.platform && navigator.platform.toLowerCase().includes('mac'));
 
         this._loadFromStorage();
         setTimeout(() => this._checkForUpdates(), 10000);
@@ -1323,12 +1369,26 @@ export class CheatingDaddyApp extends LitElement {
         return html`
             <div class="app-shell">
                 <div class="top-drag-bar ${isLive ? 'hidden' : ''}">
-                    <div class="traffic-lights">
-                        <button class="traffic-light close" @click=${() => this.handleClose()} title="Close"></button>
-                        <button class="traffic-light minimize" @click=${() => this._handleMinimize()} title="Minimize"></button>
-                        <button class="traffic-light maximize" title="Maximize"></button>
-                    </div>
-                    <div class="drag-region"></div>
+                    ${this._isMacOS ? html`
+                        <div class="traffic-lights">
+                            <button class="traffic-light close" @click=${() => this.handleClose()} title="Close"></button>
+                            <button class="traffic-light minimize" @click=${() => this._handleMinimize()} title="Minimize"></button>
+                        </div>
+                        <div class="drag-region"></div>
+                    ` : html`
+                        <div class="drag-region"></div>
+                        <div class="window-controls">
+                            <button class="window-btn minimize" @click=${() => this._handleMinimize()} title="Minimize">
+                                <svg viewBox="0 0 10 1" fill="currentColor"><rect width="10" height="1"/></svg>
+                            </button>
+                            <button class="window-btn close" @click=${() => this.handleClose()} title="Close">
+                                <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2">
+                                    <line x1="0" y1="0" x2="10" y2="10"/>
+                                    <line x1="10" y1="0" x2="0" y2="10"/>
+                                </svg>
+                            </button>
+                        </div>
+                    `}
                 </div>
                 ${this.renderSidebar()} ${this._flyoutOpen && this.sessionActive ? this._renderFlyoutSidebar() : ''}
                 <div class="content">

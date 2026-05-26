@@ -836,6 +836,13 @@ export class CheatingDaddyApp extends LitElement {
             this.sessionActive = false;
             this._stopTimer();
             this.currentView = 'main';
+            sessionStore.set({ active: false, connected: false, duration: 0, sessionId: null, isInitializing: false });
+
+            // Clear typing queue
+            if (window.cheatingDaddy && window.cheatingDaddy.typing) {
+                window.cheatingDaddy.typing.abort().catch(err => console.warn('Failed to abort typing on session close:', err));
+            }
+
             this.requestUpdate();
 
             // Clean up in background (fire-and-forget)
@@ -897,6 +904,7 @@ export class CheatingDaddyApp extends LitElement {
         this.currentResponseIndex = -1;
         this.startTime = Date.now();
         this.sessionActive = true;
+        sessionStore.set({ active: true, provider: this._aiMode, profile: this.selectedProfile, isInitializing: true });
         this._aiMode = providerMode;
         this.currentView = 'assistant';
         this.statusText = 'Connecting...';
@@ -923,6 +931,7 @@ export class CheatingDaddyApp extends LitElement {
                 // Show error briefly in status before reverting
                 this.statusText = 'Connection failed. Please check your settings and try again.';
                 this.requestUpdate();
+                sessionStore.set({ active: false, isInitializing: false, connected: false });
                 // Give user a moment to see the error
                 await new Promise(resolve => setTimeout(resolve, 1500));
                 this.sessionActive = false;
@@ -934,11 +943,13 @@ export class CheatingDaddyApp extends LitElement {
 
             // Start capture after provider is ready
             cheatingDaddy.startCapture(this.selectedScreenshotInterval, this.selectedImageQuality, aiHearingEnabled);
+            sessionStore.set({ isInitializing: false, connected: true });
         } catch (error) {
             console.error('Provider initialization failed:', error);
             // Show error message to user
             this.statusText = 'Error: ' + (error.message || 'Connection failed');
             this.requestUpdate();
+            sessionStore.set({ active: false, isInitializing: false, connected: false });
             await new Promise(resolve => setTimeout(resolve, 1500));
             this.sessionActive = false;
             this._stopTimer();

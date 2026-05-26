@@ -1,0 +1,29 @@
+{
+  "project_type": "Electron desktop app with Lit web components (renderer), no build step",
+  "language": "JavaScript (ES modules in renderer, CommonJS in main process)",
+  "build_system": "Electron Forge - no bundler, plain JS loaded via script tags. nodeIntegration: true, contextIsolation: false",
+  "test_framework": "None - no automated tests exist",
+  "build_command": "npm install (validate dependencies resolve)",
+  "test_command": "node -e \"require('./src/storage')\" && node -e \"require('./src/typing')\" (basic module resolution check)",
+  "verification_instructions": "1. Run npm install to verify dependencies. 2. Validate main process modules load: node -e require('./src/storage'). 3. Check new store/service files parse without errors. 4. Verify no syntax errors in Lit components by checking they parse as valid ES modules.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install in /projects/sandbox/cd",
+  "environment_constraints": "INTEGRATIONS_ONLY network - cannot install new npm packages, cannot use @lit/context or signals. Must use bundled lit-core-2.7.4.min.js. No build step - files loaded directly. Renderer uses ES modules (import/export), main process uses CommonJS (require/module.exports).",
+  "contribution_requirements": "Run npx prettier --write . before committing (4-space indent, single quotes, semicolons, 150 print width). No TypeScript currently despite AGENTS.md aspirations - this is plain JS.",
+  "key_patterns": "Renderer components import Lit from '../../assets/lit-core-2.7.4.min.js'. Views extend LitElement with static styles and properties. Main process uses CommonJS require(). IPC bridge: renderer calls cheatingDaddy.storage.* (defined in renderer.js), main handles via ipcMain.handle('storage:*'). Storage reads/writes JSON files synchronously via readJsonFile/writeJsonFile helpers. The typing/ system is well-architected with separate concerns (BackendManager, TypingManager, etc).",
+  "relevant_files": [
+    "src/storage.js",
+    "src/index.js",
+    "src/utils/renderer.js",
+    "src/utils/window.js",
+    "src/utils/gemini.js",
+    "src/components/views/CustomizeView.js",
+    "src/components/views/sharedPageStyles.js",
+    "src/components/app/CheatingDaddyApp.js",
+    "src/components/index.js",
+    "src/index.html",
+    "src/typing/index.js",
+    "src/typing/TypingManager.js"
+  ],
+  "directory_structure": "src/index.js - main process entry. src/index.html - renderer HTML. src/storage.js - sync JSON persistence. src/utils/ - main process utilities (window, gemini, renderer, etc). src/components/ - Lit web components (app/, views/). src/typing/ - modular typing system. src/assets/ - bundled libs (lit-core, marked, highlight). src/preload.js - preload script."
+}

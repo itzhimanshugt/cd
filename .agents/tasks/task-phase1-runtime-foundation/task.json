@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase1-runtime-foundation",
+  "task_description": "Phase 1 Runtime Foundation Refactor - Create reactive store system, service layer, and shared UI components for the Electron + Lit app. Wire CustomizeView as proof-of-concept.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

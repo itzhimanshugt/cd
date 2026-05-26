@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Create the service layer foundation in src/services/ - async StorageService, HotkeyService, and SessionService that run in the main process (CommonJS). These provide cleaner abstractions over the raw storage.js and window.js code.",
+  "status": "pending",
+  "steps": [
+    "Create src/services/StorageService.js - CommonJS module. Class with: constructor() initializes in-memory caches for config/preferences/keybinds/windowState/credentials. async init() loads all data from storage.js into cache. getPreferences()/getConfig()/etc return cached data (sync). updatePreference(key, value) updates cache immediately, schedules debounced flush (200ms) to storage.js writeJsonFile. Same pattern for updateConfig, updateWindowState, etc. Exposes same operations as storage.js but cached + async flush. Uses existing storage.js functions internally (require('../storage')).",
+    "Create src/services/HotkeyService.js - CommonJS module. Class with: constructor(globalShortcut). register(accelerator, callback) - registers and tracks. unregister(accelerator) - unregisters single binding. updateBindings(newKeybinds, handlers) - diffs against current registered set, only changes what changed (not full rebuild). getRegistered() - returns currently registered bindings. Uses Electron globalShortcut internally.",
+    "Create src/services/SessionService.js - CommonJS module. Class extends EventEmitter. Owns geminiSessionRef. Methods: start(params), stop(), isActive(), getStatus(), getSessionId(). Emits 'started', 'stopped', 'error', 'reconnecting'. Tracks reconnection state. Route-independent - lives as singleton in main process.",
+    "Create src/services/index.js - CommonJS barrel export of all services."
+  ],
+  "acceptance_criteria": [
+    "src/services/StorageService.js exports a class that caches storage reads and debounces writes",
+    "src/services/HotkeyService.js exports a class that supports incremental hotkey registration",
+    "src/services/SessionService.js exports a class that manages session lifecycle independently of UI",
+    "All service files use CommonJS (require/module.exports) since they run in main process",
+    "Services use existing storage.js and Electron APIs internally",
+    "Files pass node --check syntax validation"
+  ],
+  "verification": [
+    "Run: node --check src/services/StorageService.js",
+    "Run: node --check src/services/HotkeyService.js",
+    "Run: node --check src/services/SessionService.js",
+    "Run: node --check src/services/index.js",
+    "Run: node -e \"require('./src/services')\" to confirm all services load without error"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

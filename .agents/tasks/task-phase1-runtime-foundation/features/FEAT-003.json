@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Create shared UI components in src/components/ui/ - reusable Lit elements (cd-toggle, cd-slider, cd-select, cd-keybind-input, cd-setting-row) that replace the 5+ different toggle/slider/select implementations across views.",
+  "status": "pending",
+  "steps": [
+    "Create src/components/ui/cd-toggle.js - LitElement. Properties: checked (Boolean), label (String), description (String), disabled (Boolean). Renders a styled toggle switch with label. Fires 'change' event with detail: { checked }. Uses CSS custom properties from the design system (--bg-elevated, --accent, --border, --text-primary, --radius-sm, --transition). Import Lit from '../../assets/lit-core-2.7.4.min.js'. Register as customElements.define('cd-toggle', CdToggle).",
+    "Create src/components/ui/cd-slider.js - LitElement. Properties: value (Number), min (Number), max (Number), step (Number), label (String), showValue (Boolean), unit (String), disabled (Boolean). Renders styled range input with label and optional value display. Fires 'input' event with detail: { value }. Style the thumb/track using --text-primary, --border, --bg-elevated. Register as 'cd-slider'.",
+    "Create src/components/ui/cd-select.js - LitElement. Properties: value (String), options (Array of {value, label}), label (String), disabled (Boolean). Renders a styled <select> wrapper. Fires 'change' event with detail: { value }. Register as 'cd-select'.",
+    "Create src/components/ui/cd-keybind-input.js - LitElement. Properties: value (String), label (String), placeholder (String). On focus, captures the next key combination (Ctrl+Shift+X format). Fires 'change' event with detail: { value: keybindString }. Handles modifier keys, arrow keys, special keys. Uses the same keybind capture logic from CustomizeView.js handleKeybindInput(). Register as 'cd-keybind-input'.",
+    "Create src/components/ui/cd-setting-row.js - LitElement. Properties: label (String), description (String). Renders a consistent row layout with label on left, description below, and a <slot> for the control on right. Uses --text-primary, --text-secondary, --border, --space-sm/md. Register as 'cd-setting-row'.",
+    "Create src/components/ui/index.js - ES module that imports all component files to ensure they are registered: import './cd-toggle.js'; import './cd-slider.js'; etc."
+  ],
+  "acceptance_criteria": [
+    "cd-toggle renders a toggle switch and fires 'change' events",
+    "cd-slider renders a range slider with value display and fires 'input' events",
+    "cd-select renders a dropdown and fires 'change' events",
+    "cd-keybind-input captures key combinations and fires 'change' events",
+    "cd-setting-row provides a labeled layout with slot for controls",
+    "All components use CSS custom properties from the existing design system in index.html",
+    "All components import Lit from '../../assets/lit-core-2.7.4.min.js'",
+    "All components are self-registering (customElements.define in their own file)",
+    "index.js imports all component files"
+  ],
+  "verification": [
+    "Verify all component files are valid ES module syntax (no CommonJS)",
+    "Verify all imports reference the relative path to lit-core-2.7.4.min.js",
+    "Verify each component file calls customElements.define()",
+    "Verify no external package imports (no @lit, no npm modules)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

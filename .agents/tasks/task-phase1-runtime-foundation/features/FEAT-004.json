@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Wire CustomizeView to use the new stores and shared UI components as a proof-of-concept, demonstrating the new architecture works alongside existing code. Also wire CheatingDaddyApp to use session-store for route-independent sessions.",
+  "status": "pending",
+  "steps": [
+    "Add import of src/components/ui/index.js to src/index.html (as a module script tag) so all shared components are registered before views load. Place it after the lit-core script tag but before the component scripts.",
+    "Add import of src/stores/index.js to src/index.html (as a module script tag) so stores are initialized early. Place it right after the ui components import.",
+    "Refactor CustomizeView.js _loadFromStorage() to also subscribe to settingsStore. On store change, update local properties. This makes the view reactive to external changes (e.g., hotkey-driven opacity changes go through store instead of custom events).",
+    "Replace the background transparency slider in CustomizeView.js renderAppearanceSection() with <cd-slider .value=${this.backgroundTransparency} min=0 max=1 step=0.01 label='Background Transparency' unit='%' @input=${handler}></cd-slider>. Keep the handler logic the same but also call settingsStore.set({backgroundTransparency: value}).",
+    "Replace the 'Hotkey Toasts' checkbox in CustomizeView.js with <cd-toggle .checked=${this.hotkeyToastsEnabled} label='Hotkey Toasts' @change=${handler}></cd-toggle>.",
+    "Replace the Google Search checkbox with <cd-toggle .checked=${this.googleSearchEnabled} label='Google Search' @change=${handler}></cd-toggle>.",
+    "In CheatingDaddyApp.js, import sessionStore and subscribe to it. When session state changes (active/provider/profile), update relevant UI without requiring full navigation. This makes sessions survive route changes.",
+    "Ensure all existing functionality continues to work - the stores are additive, existing IPC paths still function. The CustomizeView changes are purely UI component swaps with the same behavior."
+  ],
+  "acceptance_criteria": [
+    "CustomizeView uses at least 2 shared UI components (cd-slider, cd-toggle)",
+    "CustomizeView subscribes to settingsStore and reacts to external state changes",
+    "CheatingDaddyApp imports and subscribes to sessionStore",
+    "Existing functionality is preserved - all IPC handlers still work, views still render",
+    "The stores are loaded via script tags in index.html",
+    "No breaking changes to any other view"
+  ],
+  "verification": [
+    "Verify src/index.html includes script tags for stores and ui components",
+    "Verify CustomizeView.js imports and uses cd-slider and cd-toggle",
+    "Verify CheatingDaddyApp.js imports sessionStore",
+    "Verify no syntax errors in modified files",
+    "Run node --check on all modified main-process files"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

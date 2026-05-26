@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create the lightweight reactive store system in src/stores/ - a custom observable pattern that works in the renderer process with Lit components. Includes base Store class and all domain stores (settings, session, window, typing, ui).",
+  "status": "in_progress",
+  "steps": [
+    "Create src/stores/Store.js - Base reactive store class with: constructor(initialState), get(), set(partial), subscribe(callback), unsubscribe(callback), notify(). Uses simple Set of callbacks. Must be ES module (export class Store). No external dependencies.",
+    "Create src/stores/settings-store.js - Exports singleton settingsStore. Initial state mirrors DEFAULT_PREFERENCES from storage.js. On init, calls cheatingDaddy.storage.getPreferences() to hydrate. Provides set() that calls through to cheatingDaddy.storage.updatePreference() with 200ms debounce. Keys: customPrompt, providerMode, selectedProfile, selectedLanguage, selectedScreenshotInterval, selectedImageQuality, advancedMode, audioMode, fontSize, backgroundTransparency, googleSearchEnabled, hotkeyToastsEnabled, fontWeight, theme, etc.",
+    "Create src/stores/session-store.js - Exports singleton sessionStore. State: { active: false, provider: 'byok', profile: 'interview', connected: false, duration: 0, sessionId: null, isInitializing: false }. Not persisted - runtime only. Survives route navigation.",
+    "Create src/stores/window-store.js - Exports singleton windowStore. State mirrors DEFAULT_WINDOW_STATE: { scale, zoom, opacity, visible, moveStep, x, y }. Hydrates from cheatingDaddy.storage.getWindowState() on init. set() writes through to storage with 200ms debounce.",
+    "Create src/stores/typing-store.js - Exports singleton typingStore. State: { state: 'idle', backend: 'win32-sendinput', speed: 80, progress: 0, queueLength: 0, currentText: '' }. Updated by IPC events from main process (typing-status-changed, typing-progress-changed).",
+    "Create src/stores/ui-store.js - Exports singleton uiStore. State: { currentView: 'main', sidebarCollapsed: false, toasts: [] }. Not persisted. Provides addToast(msg, type, duration) and removeToast(id) helpers.",
+    "Create src/stores/index.js - Barrel export that imports and re-exports all stores: Store, settingsStore, sessionStore, windowStore, typingStore, uiStore."
+  ],
+  "acceptance_criteria": [
+    "src/stores/Store.js exports a Store class with get(), set(), subscribe(), unsubscribe() methods",
+    "Each domain store (settings, session, window, typing, ui) exports a singleton instance",
+    "settingsStore hydrates from storage on init and debounce-writes back on set()",
+    "windowStore hydrates from storage on init and debounce-writes back on set()",
+    "typingStore listens to IPC events to update its state",
+    "uiStore provides addToast/removeToast helpers",
+    "All files use ES module syntax (import/export) and import Lit only if needed from relative path to assets/lit-core-2.7.4.min.js",
+    "No external npm dependencies used",
+    "Files pass JavaScript syntax validation"
+  ],
+  "verification": [
+    "Run: node --check src/stores/Store.js (should pass - pure JS class, no imports)",
+    "Verify all store files are valid ES module syntax by checking with a simple parse script",
+    "Confirm no references to @lit/context, npm packages, or node_modules imports in store files"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

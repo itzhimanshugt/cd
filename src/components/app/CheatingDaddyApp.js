@@ -7,6 +7,7 @@ import { OnboardingView } from '../views/OnboardingView.js';
 import { AICustomizeView } from '../views/AICustomizeView.js';
 import { ApiKeysView } from '../views/ApiKeysView.js';
 import { HotkeysView } from '../views/HotkeysView.js';
+import { AutoTypeView } from '../views/AutoTypeView.js';
 import { ModelSettingsView } from '../views/ModelSettingsView.js';
 
 export class CheatingDaddyApp extends LitElement {
@@ -869,6 +870,9 @@ export class CheatingDaddyApp extends LitElement {
             case 'hotkeys':
                 return html`<hotkeys-view></hotkeys-view>`;
 
+            case 'auto-type':
+                return html`<auto-type-view></auto-type-view>`;
+
             case 'models':
                 return html`<model-settings-view></model-settings-view>`;
 
@@ -968,6 +972,16 @@ export class CheatingDaddyApp extends LitElement {
                     <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
                         <rect x="2" y="6" width="20" height="12" rx="2" />
                         <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8M6 10v.01" />
+                    </g>
+                </svg>`,
+            },
+            {
+                id: 'auto-type',
+                label: 'Auto Type',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path d="M4 20h16" />
+                        <path d="M7 16V8l5 6 5-6v8" />
                     </g>
                 </svg>`,
             },

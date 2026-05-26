@@ -170,12 +170,11 @@ function getCurrentSessionData() {
 
 async function getEnabledTools() {
     const tools = [];
-
-    // Check if Google Search is enabled (default: true)
-    const googleSearchEnabled = await getStoredSetting('googleSearchEnabled', 'true');
+    const prefs = storage.getPreferences();
+    const googleSearchEnabled = prefs.googleSearchEnabled !== false;
     console.log('Google Search enabled:', googleSearchEnabled);
 
-    if (googleSearchEnabled === 'true') {
+    if (googleSearchEnabled) {
         tools.push({ googleSearch: {} });
         console.log('Added Google Search tool');
     } else {
@@ -183,39 +182,6 @@ async function getEnabledTools() {
     }
 
     return tools;
-}
-
-async function getStoredSetting(key, defaultValue) {
-    try {
-        const windows = BrowserWindow.getAllWindows();
-        if (windows.length > 0) {
-            // Wait a bit for the renderer to be ready
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            // Try to get setting from renderer process localStorage
-            const value = await windows[0].webContents.executeJavaScript(`
-                (function() {
-                    try {
-                        if (typeof localStorage === 'undefined') {
-                            console.log('localStorage not available yet for ${key}');
-                            return '${defaultValue}';
-                        }
-                        const stored = localStorage.getItem('${key}');
-                        console.log('Retrieved setting ${key}:', stored);
-                        return stored || '${defaultValue}';
-                    } catch (e) {
-                        console.error('Error accessing localStorage for ${key}:', e);
-                        return '${defaultValue}';
-                    }
-                })()
-            `);
-            return value;
-        }
-    } catch (error) {
-        console.error('Error getting stored setting for', key, ':', error.message);
-    }
-    console.log('Using default value for', key, ':', defaultValue);
-    return defaultValue;
 }
 
 // helper to check if groq has been configured
@@ -1245,7 +1211,6 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 module.exports = {
     initializeGeminiSession,
     getEnabledTools,
-    getStoredSetting,
     sendToRenderer,
     initializeNewSession,
     saveConversationTurn,

@@ -50,6 +50,7 @@ if (!gotTheLock) {
         // Trigger screen recording permission prompt on macOS if not already granted
         if (process.platform === 'darwin') {
             const { desktopCapturer } = require('electron');
+            // Intentional: just triggers permission prompt
             desktopCapturer.getSources({ types: ['screen'] }).catch(() => {});
         }
 
@@ -80,6 +81,7 @@ if (!gotTheLock) {
                 .then(sources => {
                     console.log(`Screen capture pre-warmed: ${sources.length} source(s)`);
                 })
+                // Intentional: just triggers permission prompt
                 .catch(() => {});
         }, 5000);
 
@@ -98,10 +100,22 @@ if (!gotTheLock) {
     });
 
     app.on('before-quit', () => {
-        storageService.flush();
-        storage.flushAll();
-        stopMacOSAudioCapture();
-        apiKeys.stopBackgroundValidation();
+        try {
+            if (storageService) storageService.flush();
+            storage.flushAll();
+        } catch (error) {
+            console.error('Error flushing storage on quit:', error);
+        }
+        try {
+            stopMacOSAudioCapture();
+        } catch (error) {
+            console.error('Error stopping audio on quit:', error);
+        }
+        try {
+            apiKeys.stopBackgroundValidation();
+        } catch (error) {
+            console.error('Error stopping validation on quit:', error);
+        }
     });
 
     app.on('activate', () => {

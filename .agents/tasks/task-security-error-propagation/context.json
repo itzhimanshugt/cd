@@ -1,0 +1,25 @@
+{
+  "project_type": "Electron desktop app with Lit web components",
+  "language": "JavaScript (Node.js + browser)",
+  "build_system": "npm with electron-forge",
+  "test_framework": "No formal test suite found - manual verification via app launch",
+  "build_command": "npx electron-forge make (heavy) or npm start for dev",
+  "test_command": "No automated tests - validate via AST/syntax check: node --check src/index.js",
+  "verification_instructions": "Run node --check on all modified files to verify no syntax errors. Check that the app entry point loads without crashing.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install (requires network)",
+  "environment_constraints": "INTEGRATIONS_ONLY network - cannot npm install. Use AST validation (node --check) and manual code review for verification.",
+  "contribution_requirements": "Commit directly on refactor/ux-session-complete branch. No new npm packages.",
+  "key_patterns": "IPC handlers in src/index.js use ipcMain.handle with try/catch returning {success, data/error}. Main-to-renderer communication via sendToRenderer() (BrowserWindow.webContents.send). Renderer uses global cheatingDaddy object and _eventBus (EventTarget). Typing pipeline: TypingManager -> InjectionScheduler -> backend.inject(). Storage uses JSON files with in-memory caching in storage.js.",
+  "relevant_files": [
+    "src/utils/window.js",
+    "src/index.js",
+    "src/typing/InjectionScheduler.js",
+    "src/typing/TypingManager.js",
+    "src/utils/renderer.js",
+    "src/utils/gemini.js",
+    "src/storage.js",
+    "src/services/StorageService.js"
+  ],
+  "directory_structure": "src/index.js (main process entry), src/utils/window.js (window creation + hotkeys), src/utils/renderer.js (renderer bridge + global APIs), src/utils/gemini.js (AI session management), src/typing/ (typing pipeline), src/storage.js (JSON file persistence), src/services/StorageService.js (cache wrapper)"
+}

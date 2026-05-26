@@ -1392,6 +1392,10 @@ ipcRenderer.on('api-keys:all-failed', (_, payload) => {
 
 // ============ TYPING EVENT LISTENERS ============
 
+ipcRenderer.on('shortcut-triggered', (_, key) => {
+    cheatingDaddy.handleShortcut(key);
+});
+
 ipcRenderer.on('typing-status-changed', (_, status) => {
     _eventBus.dispatchEvent(new CustomEvent('typing-status-changed', { detail: status }));
     showToast(`Typing: ${status.state}`);

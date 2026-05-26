@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Fix hotkey dispatch security (eliminate executeJavaScript string interpolation) and add IPC payload validation to critical handlers in index.js",
+  "status": "in_progress",
+  "steps": [
+    "In src/utils/window.js line 307, replace the executeJavaScript call in the nextStep handler with: mainWindow.webContents.send('shortcut-triggered', key); - remove the .catch(() => {}) since send() is synchronous.",
+    "In src/utils/renderer.js, add an ipcRenderer.on('shortcut-triggered') listener near the other IPC listeners (around line 1393). The listener should call cheatingDaddy.handleShortcut(key) where key is the second argument.",
+    "In src/index.js, add validation helper functions at the top of the file (after the require statements and before the main logic): validateString(val, maxLen=10000), validateNumber(val, min=-Infinity, max=Infinity), validateObject(val).",
+    "Add validation to these IPC handlers in setupStorageIpcHandlers: 'storage:set-config' - validate config is object, 'storage:update-preference' - validate key is string, 'storage:set-keybinds' - validate keybinds is object.",
+    "Add validation to these IPC handlers in setupTypingIpcHandlers: 'typing:set-speed' - validate wpm is number between 1 and 1000, 'typing:set-backend' - validate name is string, 'typing:set-settings' - validate patch is object.",
+    "Add validation to the 'api-keys:add' handler in setupApiKeysIpcHandlers: validate provider, key, and label are all strings.",
+    "Return { success: false, error: 'Invalid input' } immediately when validation fails."
+  ],
+  "acceptance_criteria": [
+    "No executeJavaScript calls remain in window.js",
+    "The shortcut-triggered IPC message is sent from main and received in renderer, calling handleShortcut",
+    "All specified IPC handlers validate their inputs before processing",
+    "Invalid inputs return { success: false, error: 'Invalid input' } without calling the underlying storage/typing functions",
+    "node --check passes on all modified files"
+  ],
+  "verification": [
+    "Run: node --check /projects/sandbox/cd/src/utils/window.js",
+    "Run: node --check /projects/sandbox/cd/src/index.js",
+    "Run: node --check /projects/sandbox/cd/src/utils/renderer.js",
+    "Grep to confirm no executeJavaScript usage remains in window.js"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

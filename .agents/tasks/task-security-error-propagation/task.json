@@ -1,0 +1,7 @@
+{
+  "task_id": "task-security-error-propagation",
+  "task_description": "Fix hotkey dispatch security (eliminate executeJavaScript injection risk), add IPC payload validation, surface typing injection errors, consolidate session state, and harden storage",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

@@ -1,3 +1,13 @@
+/**
+ * StorageService - Write-coalescing cache layer on top of storage.js.
+ *
+ * Batches frequent writes (window state, preferences, etc.) via debounced
+ * flushes to reduce disk I/O. storage.js remains the authoritative persistence
+ * layer; StorageService reads from it on init and writes back through it on flush.
+ *
+ * Use storage.js directly for one-off reads/writes.
+ * Use StorageService when a component writes the same domain repeatedly in rapid succession.
+ */
 const storage = require('../storage');
 
 class StorageService {

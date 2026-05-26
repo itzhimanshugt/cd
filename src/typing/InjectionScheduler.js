@@ -152,7 +152,11 @@ class InjectionScheduler extends EventEmitter {
             try {
                 await this._backend.inject(chunk);
             } catch (e) {
-                // Backend injection errors are non-fatal
+                this.emit('injection-error', {
+                    error: e.message,
+                    backend: this._backend?.getName?.() || 'unknown',
+                    position: this._queue.getPosition()
+                });
             }
             this._queue.advance(chunk.length);
             this.emit('injected', { text: chunk, position: this._queue.getPosition() });

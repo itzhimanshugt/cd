@@ -75,6 +75,7 @@ if (!gotTheLock) {
         typingManager.on('typing-paused', () => sendToRenderer('typing-paused'));
         typingManager.on('typing-completed', () => sendToRenderer('typing-completed'));
         typingManager.on('typing-aborted', () => sendToRenderer('typing-aborted'));
+        typingManager.on('injection-error', (detail) => sendToRenderer('typing-injection-error', detail));
 
         setupGeminiIpcHandlers(geminiSessionRef);
         setupStorageIpcHandlers();

@@ -309,6 +309,10 @@ class TypingManager extends EventEmitter {
         this._scheduler.on('injected', ({ position }) => {
             this.emit('progress-changed', this._queue.getProgress());
         });
+
+        this._scheduler.on('injection-error', (detail) => {
+            this.emit('injection-error', detail);
+        });
     }
 
     /**

@@ -27,6 +27,8 @@ let hiddenVideo = null;
 let offscreenCanvas = null;
 let offscreenContext = null;
 let currentImageQuality = 'medium'; // Store current image quality for manual screenshots
+let _analysisInProgress = false;
+let _analysisInProgressTimeout = null;
 
 const isLinux = process.platform === 'linux';
 const isMacOS = process.platform === 'darwin';
@@ -863,9 +865,21 @@ async function captureManualScreenshot(imageQuality = null) {
                 if (result.success) {
                     console.log(`Image response completed from ${result.model}`);
                     // Response already displayed via streaming events (new-response/update-response)
+                    _analysisInProgress = false;
+                    if (_analysisInProgressTimeout) {
+                        clearTimeout(_analysisInProgressTimeout);
+                        _analysisInProgressTimeout = null;
+                    }
+                    _eventBus.dispatchEvent(new CustomEvent('analyze-completed'));
                 } else {
                     console.error('Failed to get image response:', result.error);
                     cheatingDaddy.addNewResponse(`Error: ${result.error}`);
+                    _analysisInProgress = false;
+                    if (_analysisInProgressTimeout) {
+                        clearTimeout(_analysisInProgressTimeout);
+                        _analysisInProgressTimeout = null;
+                    }
+                    _eventBus.dispatchEvent(new CustomEvent('analyze-failed'));
                 }
             };
             reader.readAsDataURL(blob);
@@ -994,8 +1008,17 @@ function handleShortcut(shortcutKey) {
 
         if (appEl.sessionActive) {
             // Session running — trigger manual screenshot/analysis
+            if (_analysisInProgress) return;
+            _analysisInProgress = true;
             captureManualScreenshot();
             _eventBus.dispatchEvent(new CustomEvent('analyze-triggered'));
+            // Safety timeout to reset guard after 30s
+            if (_analysisInProgressTimeout) clearTimeout(_analysisInProgressTimeout);
+            _analysisInProgressTimeout = setTimeout(() => {
+                _analysisInProgress = false;
+                _analysisInProgressTimeout = null;
+                _eventBus.dispatchEvent(new CustomEvent('analyze-failed'));
+            }, 30000);
         } else {
             // No session — start one via button click for full animation
             const mainView = appEl.shadowRoot.querySelector('main-view');

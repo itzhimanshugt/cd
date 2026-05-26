@@ -401,7 +401,7 @@ export class AssistantView extends LitElement {
         liveResponses: { type: Object },
         onSendText: { type: Function },
         shouldAnimateResponse: { type: Boolean },
-        isAnalyzing: { type: Boolean, state: true },
+        _analysisState: { type: String, state: true },
         _pages: { state: true },
         _currentPage: { state: true },
     };
@@ -414,7 +414,8 @@ export class AssistantView extends LitElement {
         this.responseMode = 'both';
         this.liveResponses = { gemini: '', groq: '' };
         this.onSendText = () => {};
-        this.isAnalyzing = false;
+        this._analysisState = 'idle';
+        this._analysisTimeout = null;
         this._animFrame = null;
         this._pages = [[]];
         this._currentPage = 0;
@@ -510,26 +511,47 @@ export class AssistantView extends LitElement {
         // Listen for analyze triggered via hotkey (so animation plays)
         if (window.cheatingDaddy && window.cheatingDaddy.events) {
             this._onAnalyzeTriggered = () => {
-                if (!this.isAnalyzing) {
-                    this.isAnalyzing = true;
-                    this._responseCountWhenStarted = this.responses.length;
-                    this.requestUpdate();
-                }
+                if (this._analysisState !== 'idle') return;
+                this._analysisState = 'capturing';
+                this._responseCountWhenStarted = this.responses.length;
+                this._startAnalysisTimeout();
+                this.requestUpdate();
+            };
+            this._onAnalyzeCompleted = () => {
+                this._analysisState = 'idle';
+                this._clearAnalysisTimeout();
+                this.requestUpdate();
+            };
+            this._onAnalyzeFailed = () => {
+                this._analysisState = 'idle';
+                this._clearAnalysisTimeout();
+                this.requestUpdate();
             };
             window.cheatingDaddy.events.addEventListener('analyze-triggered', this._onAnalyzeTriggered);
+            window.cheatingDaddy.events.addEventListener('analyze-completed', this._onAnalyzeCompleted);
+            window.cheatingDaddy.events.addEventListener('analyze-failed', this._onAnalyzeFailed);
         }
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this._stopWaveformAnimation();
+        this._clearAnalysisTimeout();
 
         if (this._pageKeyHandler) {
             window.removeEventListener('keydown', this._pageKeyHandler);
         }
 
-        if (window.cheatingDaddy && window.cheatingDaddy.events && this._onAnalyzeTriggered) {
-            window.cheatingDaddy.events.removeEventListener('analyze-triggered', this._onAnalyzeTriggered);
+        if (window.cheatingDaddy && window.cheatingDaddy.events) {
+            if (this._onAnalyzeTriggered) {
+                window.cheatingDaddy.events.removeEventListener('analyze-triggered', this._onAnalyzeTriggered);
+            }
+            if (this._onAnalyzeCompleted) {
+                window.cheatingDaddy.events.removeEventListener('analyze-completed', this._onAnalyzeCompleted);
+            }
+            if (this._onAnalyzeFailed) {
+                window.cheatingDaddy.events.removeEventListener('analyze-failed', this._onAnalyzeFailed);
+            }
         }
 
         if (window.require) {
@@ -564,11 +586,28 @@ export class AssistantView extends LitElement {
     }
 
     async handleScreenAnswer() {
-        if (this.isAnalyzing) return;
+        if (this._analysisState !== 'idle') return;
         if (window.captureManualScreenshot) {
-            this.isAnalyzing = true;
+            this._analysisState = 'capturing';
             this._responseCountWhenStarted = this.responses.length;
+            this._startAnalysisTimeout();
             window.captureManualScreenshot();
+        }
+    }
+
+    _startAnalysisTimeout() {
+        this._clearAnalysisTimeout();
+        this._analysisTimeout = setTimeout(() => {
+            this._analysisState = 'idle';
+            this._analysisTimeout = null;
+            this.requestUpdate();
+        }, 30000);
+    }
+
+    _clearAnalysisTimeout() {
+        if (this._analysisTimeout) {
+            clearTimeout(this._analysisTimeout);
+            this._analysisTimeout = null;
         }
     }
 
@@ -730,10 +769,15 @@ export class AssistantView extends LitElement {
     updated(changedProperties) {
         super.updated(changedProperties);
 
-        if (changedProperties.has('isAnalyzing')) {
-            if (this.isAnalyzing) {
+        if (changedProperties.has('_analysisState')) {
+            const isActive = this._analysisState === 'capturing' || this._analysisState === 'processing';
+            const wasActive = (() => {
+                const prev = changedProperties.get('_analysisState');
+                return prev === 'capturing' || prev === 'processing';
+            })();
+            if (isActive && !wasActive) {
                 this._startWaveformAnimation();
-            } else {
+            } else if (!isActive && wasActive) {
                 this._stopWaveformAnimation();
             }
         }
@@ -771,8 +815,9 @@ export class AssistantView extends LitElement {
             }
             this._lastResponseCount = this.responses.length;
 
-            if (this.isAnalyzing && this.responses.length > this._responseCountWhenStarted) {
-                this.isAnalyzing = false;
+            if ((this._analysisState === 'capturing' || this._analysisState === 'processing') && this.responses.length > this._responseCountWhenStarted) {
+                this._analysisState = 'idle';
+                this._clearAnalysisTimeout();
             }
         }
 
@@ -781,6 +826,8 @@ export class AssistantView extends LitElement {
             this._pages = [[]];
             this._currentPage = 0;
             this._lastResponseCount = 0;
+            this._analysisState = 'idle';
+            this._clearAnalysisTimeout();
         }
     }
 
@@ -819,7 +866,7 @@ export class AssistantView extends LitElement {
                 <div class="input-bar-inner">
                     <input type="text" id="textInput" placeholder="Follow up..." @keydown=${this.handleTextKeydown} />
                 </div>
-                <button class="analyze-btn ${this.isAnalyzing ? 'analyzing' : ''}" @click=${this.handleScreenAnswer}>
+                <button class="analyze-btn ${this._analysisState === 'capturing' || this._analysisState === 'processing' ? 'analyzing' : ''}" @click=${this.handleScreenAnswer}>
                     <canvas class="analyze-canvas"></canvas>
                     <span class="analyze-btn-content">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">

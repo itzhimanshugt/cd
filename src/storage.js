@@ -4,6 +4,60 @@ const os = require('os');
 
 const CONFIG_VERSION = 1;
 
+// ============ IN-MEMORY CACHE ============
+const _cache = {};
+const _dirty = new Set();
+let _flushTimer = null;
+const FLUSH_DELAY = 300;
+
+function _scheduleDirtyFlush() {
+    if (_flushTimer) clearTimeout(_flushTimer);
+    _flushTimer = setTimeout(() => {
+        _flushDirtyEntries();
+    }, FLUSH_DELAY);
+}
+
+function _flushDirtyEntries() {
+    if (_flushTimer) {
+        clearTimeout(_flushTimer);
+        _flushTimer = null;
+    }
+    for (const key of _dirty) {
+        const entry = _cache[key];
+        if (entry) {
+            writeJsonFile(entry.path, entry.data);
+        }
+    }
+    _dirty.clear();
+}
+
+function _cacheRead(key, filePath, defaultValue) {
+    if (_cache[key]) return _cache[key].data;
+    const data = readJsonFile(filePath, defaultValue);
+    _cache[key] = { path: filePath, data };
+    return data;
+}
+
+function _cacheWrite(key, filePath, data) {
+    _cache[key] = { path: filePath, data };
+    _dirty.add(key);
+    _scheduleDirtyFlush();
+}
+
+function flushAll() {
+    _flushDirtyEntries();
+}
+
+function initializeCache() {
+    // Pre-populate cache with all known storage files
+    _cache.config = { path: getConfigPath(), data: readJsonFile(getConfigPath(), DEFAULT_CONFIG) };
+    _cache.credentials = { path: getCredentialsPath(), data: readJsonFile(getCredentialsPath(), DEFAULT_CREDENTIALS) };
+    _cache.preferences = { path: getPreferencesPath(), data: readJsonFile(getPreferencesPath(), DEFAULT_PREFERENCES) };
+    _cache.keybinds = { path: getKeybindsPath(), data: readJsonFile(getKeybindsPath(), DEFAULT_KEYBINDS) };
+    _cache.windowState = { path: getWindowStatePath(), data: readJsonFile(getWindowStatePath(), {}) };
+    _cache.typingSettings = { path: getTypingSettingsPath(), data: readJsonFile(getTypingSettingsPath(), {}) };
+}
+
 // Default values
 const DEFAULT_CONFIG = {
     configVersion: CONFIG_VERSION,
@@ -253,36 +307,40 @@ function initializeStorage() {
             fs.mkdirSync(historyDir, { recursive: true });
         }
     }
+    initializeCache();
 }
 
 // ============ CONFIG ============
 
 function getConfig() {
-    return readJsonFile(getConfigPath(), DEFAULT_CONFIG);
+    return _cacheRead('config', getConfigPath(), DEFAULT_CONFIG);
 }
 
 function setConfig(config) {
     const current = getConfig();
     const updated = { ...current, ...config, configVersion: CONFIG_VERSION };
-    return writeJsonFile(getConfigPath(), updated);
+    _cacheWrite('config', getConfigPath(), updated);
+    return true;
 }
 
 function updateConfig(key, value) {
     const config = getConfig();
     config[key] = value;
-    return writeJsonFile(getConfigPath(), config);
+    _cacheWrite('config', getConfigPath(), config);
+    return true;
 }
 
 // ============ CREDENTIALS ============
 
 function getCredentials() {
-    return readJsonFile(getCredentialsPath(), DEFAULT_CREDENTIALS);
+    return _cacheRead('credentials', getCredentialsPath(), DEFAULT_CREDENTIALS);
 }
 
 function setCredentials(credentials) {
     const current = getCredentials();
     const updated = { ...current, ...credentials };
-    return writeJsonFile(getCredentialsPath(), updated);
+    _cacheWrite('credentials', getCredentialsPath(), updated);
+    return true;
 }
 
 function getApiKey() {
@@ -390,7 +448,8 @@ function _readCredentialsMigrated() {
 }
 
 function _saveCredentials(credentials) {
-    return writeJsonFile(getCredentialsPath(), credentials);
+    _cacheWrite('credentials', getCredentialsPath(), credentials);
+    return true;
 }
 
 function _syncLegacyMirror(credentials, provider) {
@@ -514,30 +573,33 @@ function sanitizeProviderKeyEntry(entry) {
 // ============ PREFERENCES ============
 
 function getPreferences() {
-    const saved = readJsonFile(getPreferencesPath(), {});
+    const saved = _cacheRead('preferences', getPreferencesPath(), {});
     return { ...DEFAULT_PREFERENCES, ...saved };
 }
 
 function setPreferences(preferences) {
     const current = getPreferences();
     const updated = { ...current, ...preferences };
-    return writeJsonFile(getPreferencesPath(), updated);
+    _cacheWrite('preferences', getPreferencesPath(), updated);
+    return true;
 }
 
 function updatePreference(key, value) {
     const preferences = getPreferences();
     preferences[key] = value;
-    return writeJsonFile(getPreferencesPath(), preferences);
+    _cacheWrite('preferences', getPreferencesPath(), preferences);
+    return true;
 }
 
 // ============ KEYBINDS ============
 
 function getKeybinds() {
-    return readJsonFile(getKeybindsPath(), DEFAULT_KEYBINDS);
+    return _cacheRead('keybinds', getKeybindsPath(), DEFAULT_KEYBINDS);
 }
 
 function setKeybinds(keybinds) {
-    return writeJsonFile(getKeybindsPath(), keybinds);
+    _cacheWrite('keybinds', getKeybindsPath(), keybinds);
+    return true;
 }
 
 // ============ WINDOW STATE ============
@@ -547,19 +609,21 @@ function getWindowStatePath() {
 }
 
 function getWindowState() {
-    return { ...DEFAULT_WINDOW_STATE, ...readJsonFile(getWindowStatePath(), {}) };
+    return { ...DEFAULT_WINDOW_STATE, ..._cacheRead('windowState', getWindowStatePath(), {}) };
 }
 
 function setWindowState(state) {
     const current = getWindowState();
     const updated = { ...current, ...state };
-    return writeJsonFile(getWindowStatePath(), updated);
+    _cacheWrite('windowState', getWindowStatePath(), updated);
+    return true;
 }
 
 function updateWindowState(key, value) {
     const state = getWindowState();
     state[key] = value;
-    return writeJsonFile(getWindowStatePath(), state);
+    _cacheWrite('windowState', getWindowStatePath(), state);
+    return true;
 }
 
 // ============ TYPING SETTINGS ============
@@ -569,13 +633,14 @@ function getTypingSettingsPath() {
 }
 
 function getTypingSettings() {
-    return { ...DEFAULT_TYPING_SETTINGS, ...readJsonFile(getTypingSettingsPath(), {}) };
+    return { ...DEFAULT_TYPING_SETTINGS, ..._cacheRead('typingSettings', getTypingSettingsPath(), {}) };
 }
 
 function setTypingSettings(patch) {
     const current = getTypingSettings();
     const updated = { ...current, ...patch };
-    return writeJsonFile(getTypingSettingsPath(), updated);
+    _cacheWrite('typingSettings', getTypingSettingsPath(), updated);
+    return true;
 }
 
 // ============ LIMITS (Rate Limiting) ============
@@ -884,6 +949,7 @@ module.exports = {
     // Initialization
     initializeStorage,
     getConfigDir,
+    flushAll,
 
     // Config
     getConfig,

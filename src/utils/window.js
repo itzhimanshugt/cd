@@ -2,6 +2,9 @@ const { BrowserWindow, globalShortcut, ipcMain, screen, app } = require('electro
 const path = require('node:path');
 const storage = require('../storage');
 const screenshot = require('./screenshot');
+const { HotkeyService } = require('../services/HotkeyService');
+
+const hotkeyService = new HotkeyService();
 
 let mouseEventsIgnored = false;
 let _programmaticMove = false;
@@ -151,6 +154,8 @@ function createWindow(sendToRenderer, geminiSessionRef, typingManagerRef) {
             mainWindow.webContents.setZoomFactor(z);
         } catch (_) {}
 
+        hotkeyService.init(globalShortcut);
+
         setTimeout(() => {
             const defaultKB = getDefaultKeybinds();
             const saved = storage.getKeybinds();
@@ -201,162 +206,146 @@ function createWindow(sendToRenderer, geminiSessionRef, typingManagerRef) {
 // ──────────────────────────────────────────────────────────────
 
 function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef) {
-    globalShortcut.unregisterAll();
-
     const winState = () => storage.getWindowState();
 
-    function tryRegister(action, kb, handler) {
-        if (!kb) return;
-        if (action.startsWith('_')) return;
-        try {
-            const success = globalShortcut.register(kb, handler);
-            if (!success) {
-                console.warn(`Shortcut ${action} (${kb}) failed to register`);
-            }
-        } catch (e) {
-            console.error(`Failed to register ${action} (${kb}):`, e.message);
-        }
-    }
+    // Build handlers map for all actions
+    const handlers = {};
 
     // ── Emergency Quit — always registered, no guards ──
-    tryRegister('emergencyQuit', keybinds.emergencyQuit, () => {
+    handlers.emergencyQuit = () => {
         try {
             const { stopMacOSAudioCapture } = require('./gemini');
             stopMacOSAudioCapture();
         } catch (_) {}
         app.exit(0);
-    });
+    };
 
     // ── Movement ──
-    const moveActions = {
-        moveUp: () => safeMove(mainWindow, 0, -Math.max(10, winState().moveStep)),
-        moveDown: () => safeMove(mainWindow, 0, +Math.max(10, winState().moveStep)),
-        moveLeft: () => safeMove(mainWindow, -Math.max(10, winState().moveStep), 0),
-        moveRight: () => safeMove(mainWindow, +Math.max(10, winState().moveStep), 0),
-    };
-    for (const [action, fn] of Object.entries(moveActions)) {
-        if (winState().moveEnabled !== false) tryRegister(action, keybinds[action], fn);
+    if (winState().moveEnabled !== false) {
+        handlers.moveUp = () => safeMove(mainWindow, 0, -Math.max(10, winState().moveStep));
+        handlers.moveDown = () => safeMove(mainWindow, 0, +Math.max(10, winState().moveStep));
+        handlers.moveLeft = () => safeMove(mainWindow, -Math.max(10, winState().moveStep), 0);
+        handlers.moveRight = () => safeMove(mainWindow, +Math.max(10, winState().moveStep), 0);
     }
 
     // ── Visibility ──
-    tryRegister('toggleVisibility', keybinds.toggleVisibility, () => {
+    handlers.toggleVisibility = () => {
         if (mainWindow.isVisible()) {
             mainWindow.hide();
         } else {
             mainWindow.showInactive();
         }
         storage.updateWindowState('visible', mainWindow.isVisible());
-    });
+    };
 
-    tryRegister('toggleClickThrough', keybinds.toggleClickThrough, () => {
+    handlers.toggleClickThrough = () => {
         mouseEventsIgnored = !mouseEventsIgnored;
         mainWindow.setIgnoreMouseEvents(mouseEventsIgnored, { forward: true });
         mainWindow.webContents.send('click-through-toggled', mouseEventsIgnored);
-    });
+    };
 
     // ── Scale (window size — grows/shrinks from centre) ──
     if (winState().scaleEnabled !== false) {
-        tryRegister('scaleUp', keybinds.scaleUp, () => {
+        handlers.scaleUp = () => {
             const step = Math.max(HARD_LIMITS.scaleStepMin, winState().scaleStep ?? 0.1);
             applyScale(mainWindow, step, winState().scaleMax ?? 1.5);
-        });
-        tryRegister('scaleDown', keybinds.scaleDown, () => {
+        };
+        handlers.scaleDown = () => {
             const step = Math.max(HARD_LIMITS.scaleStepMin, winState().scaleStep ?? 0.1);
             applyScale(mainWindow, -step, winState().scaleMin ?? 0.3);
-        });
+        };
     }
 
     // ── Zoom (content) ──
     if (winState().zoomEnabled !== false) {
-        tryRegister('zoomIn', keybinds.zoomIn, () => {
+        handlers.zoomIn = () => {
             const step = Math.max(HARD_LIMITS.zoomStepMin, winState().zoomStep ?? 0.1);
             applyZoom(mainWindow, step, winState().zoomMax ?? 2.0);
-        });
-        tryRegister('zoomOut', keybinds.zoomOut, () => {
+        };
+        handlers.zoomOut = () => {
             const step = Math.max(HARD_LIMITS.zoomStepMin, winState().zoomStep ?? 0.1);
             applyZoom(mainWindow, -step, winState().zoomMin ?? 0.5);
-        });
-        tryRegister('zoomReset', keybinds.zoomReset, () => {
+        };
+        handlers.zoomReset = () => {
             mainWindow.webContents.setZoomFactor(1.0);
             storage.updateWindowState('zoom', 1.0);
             sendToRenderer('zoom-changed', 1.0);
-        });
+        };
     }
 
     // ── Font Opacity (Ctrl+[ / Ctrl+]) ──
-    tryRegister('fontOpacityUp', keybinds.fontOpacityUp, () => {
+    handlers.fontOpacityUp = () => {
         sendToRenderer('font-opacity-change', 0.1);
-    });
-    tryRegister('fontOpacityDown', keybinds.fontOpacityDown, () => {
+    };
+    handlers.fontOpacityDown = () => {
         sendToRenderer('font-opacity-change', -0.1);
-    });
+    };
 
     // ── Background Opacity (Ctrl+Shift+[ / Ctrl+Shift+]) ──
-    tryRegister('bgOpacityUp', keybinds.bgOpacityUp, () => {
+    handlers.bgOpacityUp = () => {
         sendToRenderer('bg-opacity-change', 0.05);
-    });
-    tryRegister('bgOpacityDown', keybinds.bgOpacityDown, () => {
+    };
+    handlers.bgOpacityDown = () => {
         sendToRenderer('bg-opacity-change', -0.05);
-    });
+    };
 
     // ── Session ──
     if (winState().sessionEnabled !== false) {
-        tryRegister('nextStep', keybinds.nextStep, () => {
+        handlers.nextStep = () => {
             const isMac = process.platform === 'darwin';
             const key = isMac ? 'cmd+enter' : 'ctrl+enter';
             mainWindow.webContents.executeJavaScript(`cheatingDaddy.handleShortcut('${key}');`).catch(() => {});
-        });
-        tryRegister('previousResponse', keybinds.previousResponse, () => sendToRenderer('navigate-previous-response'));
-        tryRegister('nextResponse', keybinds.nextResponse, () => sendToRenderer('navigate-next-response'));
-        tryRegister('scrollUp', keybinds.scrollUp, () => sendToRenderer('scroll-response-up'));
-        tryRegister('scrollDown', keybinds.scrollDown, () => sendToRenderer('scroll-response-down'));
+        };
+        handlers.previousResponse = () => sendToRenderer('navigate-previous-response');
+        handlers.nextResponse = () => sendToRenderer('navigate-next-response');
+        handlers.scrollUp = () => sendToRenderer('scroll-response-up');
+        handlers.scrollDown = () => sendToRenderer('scroll-response-down');
     }
 
     // ── Voice ──
     if (winState().voiceToggleEnabled !== false) {
-        tryRegister('toggleVoice', keybinds.toggleVoice, () => {
+        handlers.toggleVoice = () => {
             const enabled = !(winState().voiceEnabled ?? true);
             storage.updateWindowState('voiceEnabled', enabled);
             sendToRenderer('voice-toggled', enabled);
-        });
+        };
     }
 
     // ── Dev / Reload ──
     if (winState().reloadEnabled !== false) {
-        tryRegister('reloadApp', keybinds.reloadApp, () => {
+        handlers.reloadApp = () => {
             mainWindow.webContents.reload();
-        });
-        // devRefresh: full app restart
-        tryRegister('devRefresh', keybinds.devRefresh, () => {
+        };
+        handlers.devRefresh = () => {
             app.relaunch();
             app.exit(0);
-        });
+        };
     }
 
     // ── Global Controls ──
-    tryRegister('themeToggle', keybinds.themeToggle, () => {
+    handlers.themeToggle = () => {
         sendToRenderer('theme-toggled');
-    });
+    };
 
-    tryRegister('fontSizeUp', keybinds.fontSizeUp, () => {
+    handlers.fontSizeUp = () => {
         const prefs = storage.getPreferences();
         let fontSize = parseInt(prefs.fontSize, 10);
         if (isNaN(fontSize)) fontSize = 20;
         const newSize = Math.min(48, fontSize + 1);
         storage.updatePreference('fontSize', newSize);
         sendToRenderer('font-size-changed', newSize);
-    });
+    };
 
-    tryRegister('fontSizeDown', keybinds.fontSizeDown, () => {
+    handlers.fontSizeDown = () => {
         const prefs = storage.getPreferences();
         let fontSize = parseInt(prefs.fontSize, 10);
         if (isNaN(fontSize)) fontSize = 20;
         const newSize = Math.max(8, fontSize - 1);
         storage.updatePreference('fontSize', newSize);
         sendToRenderer('font-size-changed', newSize);
-    });
+    };
 
-    tryRegister('aiModeToggle', keybinds.aiModeToggle, () => {
+    handlers.aiModeToggle = () => {
         if (geminiSessionRef && geminiSessionRef.current) {
             sendToRenderer('ai-mode-toggle-blocked');
             return;
@@ -366,17 +355,17 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         const newMode = current === 'byok' ? 'local' : 'byok';
         storage.updatePreference('providerMode', newMode);
         sendToRenderer('ai-mode-toggled', newMode);
-    });
+    };
 
     // ── Model Management ──
-    tryRegister('debugToggle', keybinds.debugToggle, () => {
+    handlers.debugToggle = () => {
         const prefs = storage.getPreferences();
         const enabled = !prefs.debugModeEnabled;
         storage.updatePreference('debugModeEnabled', enabled);
         sendToRenderer('debug-mode-toggled', enabled);
-    });
+    };
 
-    tryRegister('cycleSolutionModel', keybinds.cycleSolutionModel, () => {
+    handlers.cycleSolutionModel = () => {
         const prefs = storage.getPreferences();
         const models = storage.GEMINI_MODELS;
         const current = prefs.modelSolution || models[0].id;
@@ -384,9 +373,9 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         const next = models[(idx + 1) % models.length].id;
         storage.updatePreference('modelSolution', next);
         sendToRenderer('model-changed', { task: 'solution', model: next });
-    });
+    };
 
-    tryRegister('cycleExtractionModel', keybinds.cycleExtractionModel, () => {
+    handlers.cycleExtractionModel = () => {
         const prefs = storage.getPreferences();
         const models = storage.GEMINI_MODELS;
         const current = prefs.modelExtraction || models[0].id;
@@ -394,11 +383,11 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         const next = models[(idx + 1) % models.length].id;
         storage.updatePreference('modelExtraction', next);
         sendToRenderer('model-changed', { task: 'extraction', model: next });
-    });
+    };
 
     // ── Typing Controls ──
     if (typingManagerRef) {
-        tryRegister('holdToType', keybinds.holdToType, () => {
+        handlers.holdToType = () => {
             const status = typingManagerRef.getStatus();
             if (status.state === 'typing') {
                 typingManagerRef.pause();
@@ -417,12 +406,12 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
                 }
             }
             sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
-        });
-        tryRegister('abortTyping', keybinds.abortTyping, () => {
+        };
+        handlers.abortTyping = () => {
             typingManagerRef.abort();
             sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
-        });
-        tryRegister('fullResponseType', keybinds.fullResponseType, () => {
+        };
+        handlers.fullResponseType = () => {
             const lastResponse = typingManagerRef.getLastResponse();
             if (!lastResponse) {
                 sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
@@ -431,11 +420,11 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             typingManagerRef.loadResponse(lastResponse);
             typingManagerRef.start();
             sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
-        });
+        };
     }
 
     // ── Debug Screenshot (save + copy to clipboard) ──
-    tryRegister('debugScreenshot', keybinds.debugScreenshot, () => {
+    handlers.debugScreenshot = () => {
         Promise.all([screenshot.captureScreenshot(mainWindow), screenshot.copyScreenshotToClipboard(mainWindow)]).then(([saveResult, copyResult]) => {
             if (saveResult.success && copyResult.success) {
                 sendToRenderer('debug-screenshot-captured', saveResult.path);
@@ -449,7 +438,29 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
                 sendToRenderer('toast', { message: 'Screenshot capture failed', type: 'error' });
             }
         });
-    });
+    };
+
+    // Use differential updates via HotkeyService
+    if (hotkeyService._registry.size === 0) {
+        // First call: full rebuild
+        hotkeyService.rebuildAll(keybinds, handlers);
+    } else {
+        // Subsequent calls: differential update
+        for (const [action, accelerator] of Object.entries(keybinds)) {
+            if (action.startsWith('_')) continue;
+            if (!accelerator) continue;
+            const handler = handlers[action];
+            if (handler) {
+                hotkeyService.updateBinding(action, accelerator, handler);
+            }
+        }
+        // Unregister actions no longer in keybinds or without handlers
+        for (const [action] of hotkeyService._registry) {
+            if (!handlers[action]) {
+                hotkeyService.unregister(action);
+            }
+        }
+    }
 
     // Summary log: show which accelerators were registered (helps debug failures)
     try {

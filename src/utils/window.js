@@ -402,7 +402,16 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             } else if (status.state === 'paused') {
                 typingManagerRef.resume();
             } else if (status.state === 'idle' || status.state === 'completed') {
-                typingManagerRef.start();
+                const lastResponse = typingManagerRef.getLastResponse();
+                if (!lastResponse) {
+                    sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+                    return;
+                }
+                try {
+                    typingManagerRef.start();
+                } catch (e) {
+                    // No response loaded
+                }
             }
             sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
         });
@@ -411,6 +420,12 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
         });
         tryRegister('fullResponseType', keybinds.fullResponseType, () => {
+            const lastResponse = typingManagerRef.getLastResponse();
+            if (!lastResponse) {
+                sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+                return;
+            }
+            typingManagerRef.loadResponse(lastResponse);
             typingManagerRef.start();
             sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
         });

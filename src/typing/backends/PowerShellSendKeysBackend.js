@@ -1,11 +1,15 @@
 'use strict';
 
 const BaseBackend = require('./BaseBackend');
-const { execSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Fallback Windows backend using PowerShell [System.Windows.Forms.SendKeys]::SendWait().
  * Simpler but less reliable than the SendInput backend.
+ * Uses async execution and Base64-encoded text to prevent command injection.
  */
 class PowerShellSendKeysBackend extends BaseBackend {
     /**
@@ -37,26 +41,31 @@ class PowerShellSendKeysBackend extends BaseBackend {
     }
 
     /**
-     * Injects text using SendKeys. Escapes special SendKeys characters.
+     * Injects text using SendKeys. Text is Base64-encoded to prevent injection.
+     * SendKeys special characters are escaped after decoding.
      * @param {string} text - Text to inject
+     * @returns {Promise<void>}
      */
-    inject(text) {
+    async inject(text) {
         if (!text) return;
 
-        // Escape SendKeys special characters: +^%~(){}[]
-        const escaped = this._escapeSendKeys(text);
+        // Encode text as Base64 for safe transmission to PowerShell
+        const base64Text = Buffer.from(text, 'utf16le').toString('base64');
 
         const script = `
 Add-Type -AssemblyName System.Windows.Forms
 Start-Sleep -Milliseconds ${this._startupDelay}
-$text = '${escaped.replace(/'/g, "''")}'
+$bytes = [Convert]::FromBase64String('${base64Text}')
+$text = [System.Text.Encoding]::Unicode.GetString($bytes)
 foreach ($c in $text.ToCharArray()) {
-    [System.Windows.Forms.SendKeys]::SendWait([string]$c)
+    $escaped = $c.ToString()
+    if ('+^%~(){}[]'.Contains($c)) { $escaped = '{' + $c + '}' }
+    [System.Windows.Forms.SendKeys]::SendWait($escaped)
     Start-Sleep -Milliseconds ${this._keyPacing}
 }`;
 
         try {
-            execSync(`powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`, {
+            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
                 windowsHide: true,
                 timeout: 30000,
             });
@@ -68,24 +77,13 @@ foreach ($c in $text.ToCharArray()) {
     /**
      * Injects a single key code using SendKeys notation.
      * @param {number} keyCode - Virtual key code
+     * @returns {Promise<void>}
      */
-    injectKey(keyCode) {
+    async injectKey(keyCode) {
         const char = String.fromCharCode(keyCode);
         if (char) {
-            this.inject(char);
+            await this.inject(char);
         }
-    }
-
-    /**
-     * Escapes characters that have special meaning in SendKeys.
-     * @private
-     * @param {string} text - Raw text
-     * @returns {string} Escaped text safe for SendKeys
-     */
-    _escapeSendKeys(text) {
-        // SendKeys special chars: + ^ % ~ ( ) { } [ ]
-        // They need to be wrapped in braces: {+} {^} {%} {~} {(} {)} {{} {}} {[} {]}
-        return text.replace(/([+^%~(){}[\]])/g, '{$1}');
     }
 }
 

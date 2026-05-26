@@ -1,11 +1,16 @@
 'use strict';
 
 const BaseBackend = require('./BaseBackend');
-const { execSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Primary Windows backend using user32.dll SendInput via PowerShell P/Invoke.
- * Sends individual characters as Unicode scan-code keystrokes.
+ * Sends characters as Unicode scan-code keystrokes.
+ * Uses async execution to avoid blocking the Electron main thread.
+ * Text is passed via Base64 encoding to prevent command injection.
  */
 class Win32SendInputBackend extends BaseBackend {
     /**
@@ -35,13 +40,16 @@ class Win32SendInputBackend extends BaseBackend {
     }
 
     /**
-     * Injects text one character at a time using SendInput Unicode keystrokes.
+     * Injects text using SendInput Unicode keystrokes.
+     * Text is passed via Base64-encoded command to avoid command injection.
      * @param {string} text - Text to inject
+     * @returns {Promise<void>}
      */
-    inject(text) {
+    async inject(text) {
         if (!text) return;
 
-        const escaped = text.replace(/'/g, "''").replace(/`/g, '``');
+        // Encode text as Base64 for safe transmission to PowerShell
+        const base64Text = Buffer.from(text, 'utf16le').toString('base64');
 
         const script = `
 Add-Type -TypeDefinition @"
@@ -81,14 +89,15 @@ public class SendInputHelper {
     }
 }
 "@ -ErrorAction SilentlyContinue
-$text = '${escaped}'
+$bytes = [Convert]::FromBase64String('${base64Text}')
+$text = [System.Text.Encoding]::Unicode.GetString($bytes)
 foreach ($c in $text.ToCharArray()) {
     [SendInputHelper]::SendChar($c)
     Start-Sleep -Milliseconds ${this._interKeyDelay}
 }`;
 
         try {
-            execSync(`powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`, {
+            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
                 windowsHide: true,
                 timeout: 30000,
             });
@@ -100,8 +109,9 @@ foreach ($c in $text.ToCharArray()) {
     /**
      * Injects a single virtual key code.
      * @param {number} keyCode - Virtual key code
+     * @returns {Promise<void>}
      */
-    injectKey(keyCode) {
+    async injectKey(keyCode) {
         const script = `
 Add-Type -TypeDefinition @"
 using System;
@@ -141,7 +151,7 @@ public class KeyHelper {
 [KeyHelper]::SendKey(${keyCode})`;
 
         try {
-            execSync(`powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`, {
+            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
                 windowsHide: true,
                 timeout: 10000,
             });

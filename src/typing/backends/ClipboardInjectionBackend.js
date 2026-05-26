@@ -63,8 +63,9 @@ class ClipboardInjectionBackend extends BaseBackend {
     /**
      * Injects text via clipboard paste (Ctrl+V / Cmd+V).
      * @param {string} text - Text to inject
+     * @returns {Promise<void>}
      */
-    inject(text) {
+    async inject(text) {
         if (!text || !this._clipboard) return;
 
         // Save current clipboard content
@@ -80,9 +81,11 @@ class ClipboardInjectionBackend extends BaseBackend {
             this._clipboard.writeText(text);
 
             // Simulate paste keystroke
-            this._simulatePaste();
+            await this._simulatePaste();
         } finally {
-            // Restore clipboard after a short delay to allow paste to complete
+            // Restore clipboard after a delay to allow paste to complete.
+            // 300ms provides a reasonable margin for slower target applications
+            // to process the Ctrl+V event before the clipboard content changes.
             setTimeout(() => {
                 try {
                     if (this._clipboard) {
@@ -91,56 +94,61 @@ class ClipboardInjectionBackend extends BaseBackend {
                 } catch (e) {
                     // Best effort restore
                 }
-            }, 100);
+            }, 300);
         }
     }
 
     /**
      * Injects a chunk of text based on the current chunk mode.
      * @param {string} text - Text to inject as a chunk
+     * @returns {Promise<void>}
      */
-    injectChunk(text) {
-        this.inject(text);
+    async injectChunk(text) {
+        await this.inject(text);
     }
 
     /**
      * Injects a single key code - not supported by clipboard backend.
      * Falls back to inject with the character representation.
      * @param {number} keyCode - Virtual key code
+     * @returns {Promise<void>}
      */
-    injectKey(keyCode) {
+    async injectKey(keyCode) {
         // Clipboard backend cannot send individual key codes
         // Convert to character if possible
         const char = String.fromCharCode(keyCode);
         if (char) {
-            this.inject(char);
+            await this.inject(char);
         }
     }
 
     /**
      * Simulates a Ctrl+V (or Cmd+V on macOS) paste keystroke.
-     * Uses PowerShell on Windows or AppleScript on macOS.
+     * Uses async child_process on Windows or AppleScript on macOS.
      * @private
+     * @returns {Promise<void>}
      */
-    _simulatePaste() {
+    async _simulatePaste() {
         try {
-            const { execSync } = require('child_process');
+            const { execFile } = require('child_process');
+            const { promisify } = require('util');
+            const execFileAsync = promisify(execFile);
 
             if (process.platform === 'win32') {
                 const script = `
 Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.SendKeys]::SendWait("^v")`;
-                execSync(`powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`, {
+                await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
                     windowsHide: true,
                     timeout: 5000,
                 });
             } else if (process.platform === 'darwin') {
-                execSync('osascript -e \'tell application "System Events" to keystroke "v" using command down\'', {
+                await execFileAsync('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], {
                     timeout: 5000,
                 });
             } else {
                 // Linux: use xdotool if available
-                execSync('xdotool key ctrl+v', { timeout: 5000 });
+                await execFileAsync('xdotool', ['key', 'ctrl+v'], { timeout: 5000 });
             }
         } catch (e) {
             // Paste simulation failed - non-fatal

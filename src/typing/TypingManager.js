@@ -252,6 +252,11 @@ class TypingManager extends EventEmitter {
             ClipboardInjection: backends.ClipboardInjectionBackend,
             PowerShellSendKeys: backends.PowerShellSendKeysBackend,
             RobotJS: backends.RobotJSBackend,
+            // Kebab-case aliases (used by settings UI and storage)
+            'win32-sendinput': backends.Win32SendInputBackend,
+            clipboard: backends.ClipboardInjectionBackend,
+            powershell: backends.PowerShellSendKeysBackend,
+            robotjs: backends.RobotJSBackend,
         };
         return map[name] || null;
     }

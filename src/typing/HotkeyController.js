@@ -5,6 +5,13 @@
  * Integrates with Electron's globalShortcut module for hotkey registration.
  * Uses try/catch around require('electron') since globalShortcut is only
  * available in the main process.
+ *
+ * NOTE: This class is provided as an alternative to the inline hotkey
+ * registration in window.js. The main app currently uses the inline approach
+ * (window.js updateGlobalShortcuts) for typing hotkeys since they are
+ * registered alongside all other app shortcuts. This class can be used by
+ * external integrations or if typing hotkeys need independent lifecycle
+ * management separate from the main window shortcuts.
  */
 class HotkeyController {
     constructor() {

@@ -1388,6 +1388,8 @@ ipcRenderer.on('typing-aborted', () => {
 });
 ipcRenderer.on('typing-response-ready', (_, data) => {
     _eventBus.dispatchEvent(new CustomEvent('typing-response-ready', { detail: data }));
+    // Auto-load the response into TypingManager so it is ready for typing
+    ipcRenderer.invoke('typing:auto-load', data.text).catch(() => {});
 });
 
 // ============ GLOBAL EVENT BUS ============

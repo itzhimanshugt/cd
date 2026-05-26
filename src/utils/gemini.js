@@ -15,13 +15,9 @@ function getLocalAi() {
     return _localai;
 }
 
-// Provider mode: 'byok', 'cloud', or 'local'
-let currentProviderMode = 'byok';
-
-// Groq conversation history for context - now part of _sessionState
-
 // Consolidated session state object
 const _sessionState = {
+    providerMode: 'byok', // 'byok', 'cloud', or 'local'
     id: null,
     transcription: '',
     conversationHistory: [],
@@ -35,6 +31,7 @@ const _sessionState = {
 };
 
 function resetSessionState() {
+    _sessionState.providerMode = 'byok';
     _sessionState.id = null;
     _sessionState.transcription = '';
     _sessionState.conversationHistory = [];
@@ -627,7 +624,7 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
         if (!isReconnect) {
             sendToRenderer('session-initializing', false);
         }
-        sendToRenderer('session-started', { sessionId: _sessionState.id, provider: currentProviderMode, profile: _sessionState.profile });
+        sendToRenderer('session-started', { sessionId: _sessionState.id, provider: _sessionState.providerMode, profile: _sessionState.profile });
         return session;
     } catch (error) {
         console.error('Failed to initialize Gemini session:', error);
@@ -784,9 +781,9 @@ async function startMacOSAudioCapture(geminiSessionRef) {
 
             const monoChunk = CHANNELS === 2 ? convertStereoToMono(chunk) : chunk;
 
-            if (currentProviderMode === 'cloud') {
+            if (_sessionState.providerMode === 'cloud') {
                 sendCloudAudio(monoChunk);
-            } else if (currentProviderMode === 'local') {
+            } else if (_sessionState.providerMode === 'local') {
                 getLocalAi().processLocalAudio(monoChunk);
             } else {
                 const base64Data = monoChunk.toString('base64');
@@ -950,7 +947,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
     ipcMain.handle('initialize-cloud', async (event, token, profile, userContext) => {
         try {
-            currentProviderMode = 'cloud';
+            _sessionState.providerMode = 'cloud';
             const prefs = storage.getPreferences();
             const effectiveProfile = (prefs.debugModeEnabled && profile !== 'debug') ? 'debug' : profile;
             initializeNewSession(effectiveProfile, userContext);
@@ -960,18 +957,18 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             sendToRenderer('session-initializing', true);
             await connectCloud(token, effectiveProfile, userContext);
             sendToRenderer('session-initializing', false);
-            sendToRenderer('session-started', { sessionId: _sessionState.id, provider: currentProviderMode, profile: _sessionState.profile });
+            sendToRenderer('session-started', { sessionId: _sessionState.id, provider: _sessionState.providerMode, profile: _sessionState.profile });
             return true;
         } catch (err) {
             console.error('[Cloud] Init error:', err);
-            currentProviderMode = 'byok';
+            _sessionState.providerMode = 'byok';
             sendToRenderer('session-initializing', false);
             return false;
         }
     });
 
     ipcMain.handle('initialize-gemini', async (event, apiKey, customPrompt, profile = 'interview', language = 'en-US') => {
-        currentProviderMode = 'byok';
+        _sessionState.providerMode = 'byok';
 
         // Prefer the pool; fall back to any apiKey the renderer passed (for back-compat).
         const readyKeys = storage.listReadyProviderKeys('gemini');
@@ -1016,21 +1013,21 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
     });
 
     ipcMain.handle('initialize-local', async (event, ollamaHost, ollamaModel, whisperModel, profile, customPrompt) => {
-        currentProviderMode = 'local';
+        _sessionState.providerMode = 'local';
         // Apply debug profile override if debug mode is enabled
         const prefs = storage.getPreferences();
         const effectiveProfile = (prefs.debugModeEnabled && profile !== 'debug') ? 'debug' : profile;
         const success = await getLocalAi().initializeLocalSession(ollamaHost, ollamaModel, whisperModel, effectiveProfile, customPrompt);
         if (!success) {
-            currentProviderMode = 'byok';
+            _sessionState.providerMode = 'byok';
         } else {
-            sendToRenderer('session-started', { sessionId: _sessionState.id, provider: currentProviderMode, profile: effectiveProfile });
+            sendToRenderer('session-started', { sessionId: _sessionState.id, provider: _sessionState.providerMode, profile: effectiveProfile });
         }
         return success;
     });
 
     ipcMain.handle('send-audio-content', async (event, { data, mimeType }) => {
-        if (currentProviderMode === 'cloud') {
+        if (_sessionState.providerMode === 'cloud') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
                 sendCloudAudio(pcmBuffer);
@@ -1040,7 +1037,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return { success: false, error: error.message };
             }
         }
-        if (currentProviderMode === 'local') {
+        if (_sessionState.providerMode === 'local') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
                 getLocalAi().processLocalAudio(pcmBuffer);
@@ -1065,7 +1062,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
     // Handle microphone audio on a separate channel
     ipcMain.handle('send-mic-audio-content', async (event, { data, mimeType }) => {
-        if (currentProviderMode === 'cloud') {
+        if (_sessionState.providerMode === 'cloud') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
                 sendCloudAudio(pcmBuffer);
@@ -1075,7 +1072,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return { success: false, error: error.message };
             }
         }
-        if (currentProviderMode === 'local') {
+        if (_sessionState.providerMode === 'local') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
                 getLocalAi().processLocalAudio(pcmBuffer);
@@ -1114,7 +1111,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
             process.stdout.write('!');
 
-            if (currentProviderMode === 'cloud') {
+            if (_sessionState.providerMode === 'cloud') {
                 const sent = sendCloudImage(data);
                 if (!sent) {
                     return { success: false, error: 'Cloud connection not active' };
@@ -1122,7 +1119,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return { success: true, model: 'cloud' };
             }
 
-            if (currentProviderMode === 'local') {
+            if (_sessionState.providerMode === 'local') {
                 const result = await getLocalAi().sendLocalImage(data, prompt);
                 return result;
             }
@@ -1141,7 +1138,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             return { success: false, error: 'Invalid text message' };
         }
 
-        if (currentProviderMode === 'cloud') {
+        if (_sessionState.providerMode === 'cloud') {
             try {
                 console.log('Sending text to cloud:', text);
                 sendCloudText(text.trim());
@@ -1152,7 +1149,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             }
         }
 
-        if (currentProviderMode === 'local') {
+        if (_sessionState.providerMode === 'local') {
             try {
                 console.log('Sending text to local Ollama:', text);
                 return await getLocalAi().sendLocalText(text.trim());
@@ -1211,17 +1208,15 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             _sessionState.isInitializing = false;
             stopMacOSAudioCapture();
 
-            if (currentProviderMode === 'cloud') {
+            if (_sessionState.providerMode === 'cloud') {
                 closeCloud();
-                currentProviderMode = 'byok';
                 resetSessionState();
                 sendToRenderer('session-stopped');
                 return { success: true };
             }
 
-            if (currentProviderMode === 'local') {
+            if (_sessionState.providerMode === 'local') {
                 getLocalAi().closeLocalSession();
-                currentProviderMode = 'byok';
                 resetSessionState();
                 sendToRenderer('session-stopped');
                 return { success: true };

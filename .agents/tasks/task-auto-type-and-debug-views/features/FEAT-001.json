@@ -1,0 +1,36 @@
+{
+    "id": "FEAT-001",
+    "type": "feat",
+    "description": "Create the dedicated Auto Type sidebar view (AutoTypeView.js) exposing ALL typing system settings, status, backend selection, failover chain, health, speed/timing, mode, keybinds, and target/focus controls in the UI. Add it to the sidebar navigation in CheatingDaddyApp.js.",
+    "status": "in_progress",
+    "steps": [
+        "Create src/components/views/AutoTypeView.js as a Lit web component that imports from ../../assets/lit-core-2.7.4.min.js and uses unifiedPageStyles from ./sharedPageStyles.js",
+        "Section 1 - Live Status Panel: Show current state (Idle/Typing/Paused/Aborted), active backend name, queue progress (X/Y characters typed), and current WPM. Subscribe to typing events via window.cheatingDaddy.events for real-time updates.",
+        "Section 2 - Backend Selection: Dropdown with all 12 backends (win32-sendinput, virtual-keyboard, powershell-addtype, clipboard, powershell, autohotkey, batch-paste, hybrid-typing, nutjs, robotjs, ui-automation, electron-webcontents). Green/grey availability dot per backend. Test button that calls typing:set-backend then typing:start with a test string.",
+        "Section 3 - Fallback Chain: Reorderable list with up/down buttons (same pattern as TypingSettingsView.js failover-list). Shows the current failoverChain from settings.",
+        "Section 4 - Backend Health: Grid showing backend name, available (yes/no dot), error count, last error. Data from typing:get-status backendHealth field.",
+        "Section 5 - Typing Speed & Timing: WPM speed slider (10-300), Startup delay (ms) input (0-2000), Inter-key delay (ms, computed from WPM but overridable), Punctuation delay (ms) input (0-1000), Sentence delay (ms) input (0-2000), Chunk/burst size input (1-10), Jitter/randomization slider (0-100%, maps to 0-1.0 jitterRange).",
+        "Section 6 - Typing Mode: Granularity select (character/word/sentence/paragraph), Typo simulation toggle, Backspace simulation toggle, Adaptive speed toggle, Hold-to-type mode toggle, Paste mode toggle, Sentence-by-sentence toggle.",
+        "Section 7 - Keybinds: Display current hold-to-type key (holdToTypeKeybind), Pause/resume key (holdToType from keybinds), Abort key (abortKeybind), Full-response trigger key (fullResponseKeybind). Editable with input fields that save to typing settings.",
+        "Section 8 - Target/Focus: Target lock toggle, Auto-refocus toggle, Clipboard restore toggle, Auto-focus delay (ms) input.",
+        "Add import for AutoTypeView in CheatingDaddyApp.js at the top with other view imports.",
+        "Add 'auto-type' sidebar item to the items array in renderSidebar() with id: 'auto-type', label: 'Auto Type', and a keyboard/typing SVG icon.",
+        "Add case 'auto-type' to renderCurrentView() switch statement: return html`<auto-type-view></auto-type-view>`",
+        "Register the custom element at the bottom of AutoTypeView.js: customElements.define('auto-type-view', AutoTypeView)"
+    ],
+    "acceptance_criteria": [
+        "AutoTypeView.js exists and exports the AutoTypeView class",
+        "CheatingDaddyApp.js imports AutoTypeView.js",
+        "Sidebar has an Auto Type nav item between existing items",
+        "renderCurrentView has an auto-type case that renders <auto-type-view>",
+        "All 8 sections are present in the render method",
+        "Component subscribes to typing events for live status updates",
+        "Settings changes call window.cheatingDaddy.typing.setSettings()"
+    ],
+    "verification": [
+        "Run: node -e \"require('/projects/sandbox/cd/src/storage.js')\" to confirm storage.js still loads without errors",
+        "Run: npx prettier --check src/components/views/AutoTypeView.js src/components/app/CheatingDaddyApp.js to verify code style"
+    ],
+    "blocked_reason": null,
+    "findings": ""
+}

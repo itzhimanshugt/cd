@@ -1,0 +1,37 @@
+{
+    "id": "FEAT-002",
+    "type": "feat",
+    "description": "Create the dedicated Developer/Debugging sidebar view (DebugView.js) with screenshot system, structured logger, runtime state inspector, performance metrics, and debug snapshot export. Create supporting utilities (screenshot.js, logger.js), add IPC handlers, add debug API to renderer, and wire into the sidebar.",
+    "status": "pending",
+    "steps": [
+        "Create src/utils/screenshot.js with: captureScreenshot(mainWindow) using webContents.capturePage() saving PNG to screenshots dir with timestamped filenames (screenshot-YYYY-MM-DD-HHmmss.png), copyScreenshotToClipboard(mainWindow) using nativeImage and clipboard, openScreenshotsFolder() using shell.openPath. Use storage.getConfigDir() + '/screenshots' as the directory.",
+        "Create src/utils/logger.js with: Singleton Logger class, levels TRACE(0) DEBUG(1) INFO(2) WARN(3) ERROR(4), categories array (startup, rendering, movement, opacity, theme, hotkeys, typing, providers, session, IPC, storage, capture, performance), log entry format {timestamp, level, category, message, data?}, in-memory ring buffer (500 entries), file logging with rolling files (5MB max, 5 files max) in storage.getConfigDir() + '/logs', .child(category) method returning scoped logger, getEntries(filters) method for querying logs.",
+        "Add IPC handlers in src/index.js for debug operations: debug:capture-screenshot (calls screenshot.captureScreenshot), debug:copy-screenshot (calls screenshot.copyScreenshotToClipboard), debug:open-screenshots (calls screenshot.openScreenshotsFolder), debug:get-logs (returns logger entries with optional level/category filters), debug:clear-logs (clears the ring buffer), debug:export-logs (writes all logs to a JSON file and returns path), debug:set-log-level (sets minimum log level), debug:get-runtime-state (returns hotkeys, provider info, session state, window bounds, scale, zoom, typing state, memory usage), debug:get-performance (returns uptime, memoryUsage, cpuUsage, electron versions), debug:export-snapshot (gathers all state, logs, settings into one JSON file).",
+        "Add screenshot hotkey in src/utils/window.js: Add 'debugScreenshot' to getDefaultKeybinds() with default 'Alt+S'. Register it in updateGlobalShortcuts to call screenshot.captureScreenshot(mainWindow). Bump KEYBINDS_VERSION to 7.",
+        "Add renderer API bridge in src/utils/renderer.js: Add a cheatingDaddy.debug object with methods: captureScreenshot(), copyScreenshot(), openScreenshots(), getLogs(filters), clearLogs(), exportLogs(), setLogLevel(level), getRuntimeState(), getPerformance(), exportSnapshot(). Each method calls the corresponding IPC handler. Also add IPC listener for debug events.",
+        "Create src/components/views/DebugView.js as a Lit web component with sections: (1) Screenshot System - Capture button, Copy to Clipboard button, Open Folder button; (2) Log Viewer - filterable by level and category, searchable, auto-refresh toggle, entries displayed in a scrollable list with timestamps and colored level badges; (3) Runtime State Inspector - expandable sections showing hotkeys, provider info, session state, window bounds/scale/zoom, typing state, memory usage with auto-refresh option; (4) Performance Metrics - uptime, memory usage (heapUsed/heapTotal/rss), CPU usage, Electron/Chrome/Node versions; (5) Debug Snapshot Export - single button to export all debug state to JSON file.",
+        "Add import for DebugView in CheatingDaddyApp.js with other view imports.",
+        "Add 'debug' sidebar item to the items array in renderSidebar() with id: 'debug', label: 'Developer', and a terminal/bug SVG icon. Place it at the end of the list.",
+        "Add case 'debug' to renderCurrentView() switch statement: return html`<debug-view></debug-view>`",
+        "Register the custom element at the bottom of DebugView.js: customElements.define('debug-view', DebugView)",
+        "Ensure storage.js exports getConfigDir (already exported, verify it is accessible from new modules)"
+    ],
+    "acceptance_criteria": [
+        "src/utils/screenshot.js exists with captureScreenshot, copyScreenshotToClipboard, openScreenshotsFolder functions",
+        "src/utils/logger.js exists with Logger singleton, levels, categories, ring buffer, file logging, child() method",
+        "src/index.js has all debug: IPC handlers registered",
+        "src/utils/window.js has debugScreenshot in getDefaultKeybinds and registered in updateGlobalShortcuts, KEYBINDS_VERSION bumped to 7",
+        "src/utils/renderer.js has cheatingDaddy.debug object with all debug API methods",
+        "src/components/views/DebugView.js exists with all 5 sections rendered",
+        "CheatingDaddyApp.js imports DebugView and has it in sidebar and renderCurrentView",
+        "All new files use correct import paths and patterns consistent with the codebase"
+    ],
+    "verification": [
+        "Run: node -e \"require('/projects/sandbox/cd/src/storage.js')\" to confirm storage.js still loads",
+        "Run: node -e \"require('/projects/sandbox/cd/src/utils/logger.js')\" to confirm logger.js loads without errors",
+        "Run: node -e \"require('/projects/sandbox/cd/src/utils/screenshot.js')\" to confirm screenshot.js loads without errors",
+        "Run: npx prettier --check src/components/views/DebugView.js src/utils/logger.js src/utils/screenshot.js src/index.js src/utils/window.js src/utils/renderer.js"
+    ],
+    "blocked_reason": null,
+    "findings": ""
+}

@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Fix broken integration: wire session-store IPC events, wire testBackend IPC handler, fix session persistence data flow, wire StorageService cache into before-quit handler",
+  "status": "completed",
+  "steps": [
+    "1. In src/index.js: After session starts (inside setupGeminiIpcHandlers responses), emit 'session-started' and 'session-stopped' IPC events to the renderer so that session-store.js can react. The session-store already listens for these events but the main process never sends them. Add sendToRenderer('session-started', { sessionId, provider, profile }) after successful session init in gemini.js and sendToRenderer('session-stopped') when close-session is called.",
+    "2. In src/utils/gemini.js: In the initializeGeminiSession function, after successful session creation (before return session), call sendToRenderer('session-started', { sessionId: currentSessionId, provider: currentProviderMode, profile: currentProfile }). In the 'close-session' IPC handler, before returning, call sendToRenderer('session-stopped').",
+    "3. In src/utils/renderer.js: Add a 'typing:test-backend' method to the typingControls object: async testBackend(backendName) { return ipcRenderer.invoke('typing:test-backend', backendName); }. This is called by AutoTypeView._onTestBackend().",
+    "4. In src/index.js setupTypingIpcHandlers(): Add handler for 'typing:test-backend' that calls typingManager.loadResponse('Hello World') then typingManager.start().",
+    "5. In src/index.js: Wire StorageService into the before-quit handler. Import StorageService, instantiate it after storage.initializeStorage(), call storageService.init(). In 'before-quit' event, call storageService.flush() before storage.flushAll().",
+    "6. Verify session persistence: In src/utils/gemini.js saveConversationTurn(), confirm it saves both transcription and ai_response fields (it does - confirmed). The issue is that conversationHistory may be empty if screen analysis is the primary flow. In saveScreenAnalysis(), the response is saved. Fix: ensure HistoryView reads both conversationHistory AND screenAnalysisHistory. Check HistoryView.collectConversation() - it only reads conversationHistory. Add screenAnalysisHistory entries as AI messages.",
+    "7. In src/components/views/HistoryView.js collectConversation(): Also include screenAnalysisHistory entries as 'ai' type messages so they show in the conversation tab instead of only in the 'screen' tab."
+  ],
+  "acceptance_criteria": [
+    "session-store receives 'session-started' and 'session-stopped' events from main process",
+    "AutoTypeView Test button calls typing:test-backend IPC which types 'Hello World'",
+    "StorageService.flush() is called on before-quit",
+    "HistoryView shows screen analysis responses in conversation tab when no transcription data exists",
+    "No JavaScript syntax errors in modified files (validated with node -c)"
+  ],
+  "verification": [
+    "Run node -c on all modified files to check syntax",
+    "Grep for the new IPC handlers to confirm they exist",
+    "Grep for sendToRenderer('session-started') in gemini.js"
+  ],
+  "blocked_reason": null,
+  "findings": "All 4 sub-tasks implemented successfully. node -c not available but bun build --no-bundle validated syntax for all 4 files. session-started emitted from initializeGeminiSession, initialize-cloud, and initialize-local. session-stopped emitted from all 3 paths in close-session. StorageService wired with module-level variable for before-quit access."
+}

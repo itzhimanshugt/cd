@@ -9,6 +9,6 @@
     "docker_build": "skipped",
     "summary": "All 8 modified files pass node --check. No executeJavaScript remains. 3 features committed successfully."
   },
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
   "blocked_reason": null
 }

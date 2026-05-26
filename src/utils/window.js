@@ -4,22 +4,6 @@ const storage = require('../storage');
 const screenshot = require('./screenshot');
 
 let mouseEventsIgnored = false;
-
-// Summary log: show which accelerators were registered (helps debug failures)
-try {
-    const summary = {};
-    for (const [k, v] of Object.entries(keybinds || {})) {
-        if (k === '_version' || !v) continue;
-        try {
-            summary[k] = { accelerator: v, registered: globalShortcut.isRegistered(v) };
-        } catch (e) {
-            summary[k] = { accelerator: v, registered: false, error: e.message };
-        }
-    }
-    console.log('Global shortcuts registration summary:', summary);
-} catch (e) {
-    // non-fatal
-}
 let _programmaticMove = false;
 
 const KEYBINDS_VERSION = 7; // Bumped: add debug screenshot hotkey
@@ -95,7 +79,7 @@ function getDefaultKeybinds() {
         abortTyping: isMac ? 'Cmd+Shift+X' : 'Ctrl+Shift+X',
         fullResponseType: isMac ? 'Cmd+Shift+G' : 'Ctrl+Shift+G',
         // ── Debug Screenshot ──
-        debugScreenshot: 'Alt+S',
+        debugScreenshot: 'Ctrl+Alt+S',
     };
 }
 
@@ -458,6 +442,22 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             }
         });
     });
+
+    // Summary log: show which accelerators were registered (helps debug failures)
+    try {
+        const summary = {};
+        for (const [k, v] of Object.entries(keybinds || {})) {
+            if (k === '_version' || !v) continue;
+            try {
+                summary[k] = { accelerator: v, registered: globalShortcut.isRegistered(v) };
+            } catch (e) {
+                summary[k] = { accelerator: v, registered: false, error: e.message };
+            }
+        }
+        console.log('Global shortcuts registration summary:', summary);
+    } catch (e) {
+        // non-fatal
+    }
 }
 
 // ──────────────────────────────────────────────────────────────

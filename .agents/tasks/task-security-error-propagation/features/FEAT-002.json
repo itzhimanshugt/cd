@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Surface typing injection errors upward (instead of swallowing them) and consolidate gemini.js session globals into an explicit state object with a reset function",
+  "status": "pending",
+  "steps": [
+    "In src/typing/InjectionScheduler.js _scheduleNext method (around line 97), change the empty catch block to emit an 'injection-error' event: this.emit('injection-error', { error: e.message, backend: this._backend?.getName?.() || 'unknown', position: this._queue.getPosition() }); - keep the execution flowing (non-fatal).",
+    "In src/typing/TypingManager.js _createScheduler method, after creating the scheduler and setting up the 'complete' and 'injected' listeners, add: this._scheduler.on('injection-error', (detail) => { this.emit('injection-error', detail); });",
+    "In src/index.js where typing events are forwarded to renderer (after the typingManager event listeners around line 62), add: typingManager.on('injection-error', (detail) => sendToRenderer('typing-injection-error', detail));",
+    "In src/utils/renderer.js near the typing event listeners section (around line 1393), add a listener: ipcRenderer.on('typing-injection-error', (_, detail) => { showToast(`Typing error: ${detail.error} (${detail.backend})`); _eventBus.dispatchEvent(new CustomEvent('typing-injection-error', { detail })); });",
+    "In src/utils/gemini.js, group the scattered module-level session variables (currentSessionId, currentTranscription, conversationHistory, groqConversationHistory, screenAnalysisHistory, currentProfile, currentCustomPrompt, currentSystemPrompt) into a single _sessionState object.",
+    "Add a resetSessionState() function that resets all fields in _sessionState to their initial values (null, empty string, empty array as appropriate).",
+    "Update all existing references to these variables throughout gemini.js to use _sessionState.xxx instead.",
+    "Call resetSessionState() at the end of the closeSession/stopSession logic (wherever the session is torn down)."
+  ],
+  "acceptance_criteria": [
+    "InjectionScheduler emits 'injection-error' events instead of swallowing errors silently",
+    "TypingManager forwards injection-error events",
+    "Main process sends typing-injection-error to renderer when injection errors occur",
+    "Renderer shows a toast and dispatches an event bus event on injection error",
+    "gemini.js session variables are consolidated into _sessionState object",
+    "resetSessionState() exists and is called on session close",
+    "node --check passes on all modified files"
+  ],
+  "verification": [
+    "Run: node --check /projects/sandbox/cd/src/typing/InjectionScheduler.js",
+    "Run: node --check /projects/sandbox/cd/src/typing/TypingManager.js",
+    "Run: node --check /projects/sandbox/cd/src/index.js",
+    "Run: node --check /projects/sandbox/cd/src/utils/renderer.js",
+    "Run: node --check /projects/sandbox/cd/src/utils/gemini.js"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -306,7 +306,7 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         handlers.nextStep = () => {
             const isMac = process.platform === 'darwin';
             const key = isMac ? 'cmd+enter' : 'ctrl+enter';
-            mainWindow.webContents.executeJavaScript(`cheatingDaddy.handleShortcut('${key}');`).catch(() => {});
+            mainWindow.webContents.send('shortcut-triggered', key);
         };
         handlers.previousResponse = () => sendToRenderer('navigate-previous-response');
         handlers.nextResponse = () => sendToRenderer('navigate-next-response');

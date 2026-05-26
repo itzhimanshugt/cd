@@ -23,6 +23,17 @@ let typingManager = null;
 let typingTargetLock = null;
 let storageService = null;
 
+// ── IPC Payload Validation ──
+function validateString(val, maxLen = 10000) {
+    return typeof val === 'string' && val.length <= maxLen;
+}
+function validateNumber(val, min = -Infinity, max = Infinity) {
+    return typeof val === 'number' && !isNaN(val) && val >= min && val <= max;
+}
+function validateObject(val) {
+    return val !== null && typeof val === 'object' && !Array.isArray(val);
+}
+
 function createMainWindow() {
     mainWindow = createWindow(sendToRenderer, geminiSessionRef, typingManager);
     return mainWindow;
@@ -140,6 +151,7 @@ function setupStorageIpcHandlers() {
 
     ipcMain.handle('storage:set-config', async (event, config) => {
         try {
+            if (!validateObject(config)) return { success: false, error: 'Invalid input' };
             storage.setConfig(config);
             return { success: true };
         } catch (error) {
@@ -238,6 +250,7 @@ function setupStorageIpcHandlers() {
 
     ipcMain.handle('storage:update-preference', async (event, key, value) => {
         try {
+            if (!validateString(key)) return { success: false, error: 'Invalid input' };
             storage.updatePreference(key, value);
             return { success: true };
         } catch (error) {
@@ -258,6 +271,7 @@ function setupStorageIpcHandlers() {
 
     ipcMain.handle('storage:set-keybinds', async (event, keybinds) => {
         try {
+            if (!validateObject(keybinds)) return { success: false, error: 'Invalid input' };
             storage.setKeybinds(keybinds);
             return { success: true };
         } catch (error) {
@@ -382,6 +396,7 @@ function setupApiKeysIpcHandlers() {
     // Add a key to a provider pool; fire-and-forget validation is triggered internally
     ipcMain.handle('api-keys:add', async (event, provider, key, label) => {
         try {
+            if (!validateString(provider) || !validateString(key) || !validateString(label || '')) return { success: false, error: 'Invalid input' };
             const result = await apiKeys.addKey(provider, key, label);
             if (!result.ok) {
                 return { success: false, error: result.error };
@@ -556,6 +571,7 @@ function setupTypingIpcHandlers() {
 
     ipcMain.handle('typing:set-speed', async (event, wpm) => {
         try {
+            if (!validateNumber(wpm, 1, 1000)) return { success: false, error: 'Invalid input' };
             typingManager.setSpeed(wpm);
             return { success: true };
         } catch (error) {
@@ -566,6 +582,7 @@ function setupTypingIpcHandlers() {
 
     ipcMain.handle('typing:set-backend', async (event, name) => {
         try {
+            if (!validateString(name)) return { success: false, error: 'Invalid input' };
             typingManager.setBackend(name);
             return { success: true };
         } catch (error) {
@@ -604,6 +621,7 @@ function setupTypingIpcHandlers() {
 
     ipcMain.handle('typing:set-settings', async (event, patch) => {
         try {
+            if (!validateObject(patch)) return { success: false, error: 'Invalid input' };
             storage.setTypingSettings(patch);
             // Reconfigure typing manager with updated settings
             const settings = storage.getTypingSettings();

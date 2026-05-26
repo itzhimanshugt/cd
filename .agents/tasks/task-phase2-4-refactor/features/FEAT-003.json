@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Phase 4 Native Power stubs and architecture documentation",
+  "status": "completed",
+  "steps": [
+    "ITEM 14-15 - Create src/native/index.js barrel export and src/native/NativeHelper.js stub class. NativeHelper.js: class NativeHelper with static methods isAvailable() returning false, sendInput(text) throwing Error('Native module not available - compile Rust/C++ addon for native input'), captureScreen() throwing same, getActiveWindow() throwing same. Add JSDoc comment at top explaining this is a placeholder for future Rust/C++ native addons that will provide low-latency input injection and window management. src/native/index.js: module.exports = { NativeHelper: require('./NativeHelper').NativeHelper };",
+    "ITEM 16 - Create docs/ARCHITECTURE.md documenting: 1) Project overview (Electron + Lit, JavaScript, Electron Forge). 2) Directory structure (src/components, src/services, src/stores, src/utils, src/typing, src/native). 3) Architecture patterns - stores (reactive state with subscribe/getState/setState), services (StorageService, HotkeyService, SessionService), shared UI components (cd-toggle, cd-slider, cd-select, cd-keybind-input, cd-setting-row). 4) IPC bridge pattern (renderer uses ipcRenderer.invoke, main registers ipcMain.handle, events flow via ipcRenderer.on). 5) Session lifecycle (provider init -> capture start -> streaming responses -> session close). 6) Typing system (TypingManager with 12 backends, BackendManager, failover chain, hold-to-type). 7) Event bus (window.cheatingDaddy.events EventTarget for cross-component state sync). 8) What's implemented vs planned (Phase 1 done: stores/services/shared UI. Phase 2 done: performance. Phase 3 done: UX polish. Phase 4 partial: native stubs only, actual native addons are future work)."
+  ],
+  "acceptance_criteria": [
+    "src/native/NativeHelper.js exists with isAvailable(), sendInput(), captureScreen(), getActiveWindow() methods",
+    "src/native/index.js exports NativeHelper",
+    "docs/ARCHITECTURE.md exists with sections covering stores, services, IPC, session lifecycle, typing system",
+    "NativeHelper.isAvailable() returns false",
+    "All new files pass node --check (CommonJS)"
+  ],
+  "verification": [
+    "Run: node --check /projects/sandbox/cd/src/native/NativeHelper.js",
+    "Run: node --check /projects/sandbox/cd/src/native/index.js",
+    "Run: node -e \"const { NativeHelper } = require('/projects/sandbox/cd/src/native'); console.log(NativeHelper.isAvailable())\" should print false",
+    "Run: test -f /projects/sandbox/cd/docs/ARCHITECTURE.md && echo 'exists'"
+  ],
+  "blocked_reason": null,
+  "findings": "All verification checks pass. NativeHelper.isAvailable() returns false, throwing methods work correctly. Files formatted with 4-space indentation per project prettier config."
+}

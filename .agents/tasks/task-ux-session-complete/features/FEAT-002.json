@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Model Management - Auto Mode + Free Tier Labeling: Add 'auto' model option, tier labels to GEMINI_MODELS, getAutoModel() function in storage.js, and visual grouping/badges in ModelSettingsView.js",
+  "status": "completed",
+  "steps": [
+    "In src/storage.js: Update GEMINI_MODELS array to add tier info and an 'auto' option as first entry: { id: 'auto', name: 'Auto (Smart Select)', shortName: 'Auto', tier: 'free', auto: true }, then add tier:'free' to gemini-2.5-flash and gemini-2.5-flash-lite and gemma-3-27b-it, tier:'paid' to gemini-2.5-pro, tier:'limited' to gemini-2.0-flash and gemini-2.0-flash-lite. Add a `getAutoModel(context)` function that picks a model based on simple heuristic: if context.task === 'debugging' return 'gemini-2.5-flash', if task is 'extraction' return 'gemini-2.5-flash-lite', default 'gemini-2.5-flash'. Export getAutoModel.",
+    "In src/components/views/ModelSettingsView.js: Update `_renderModelSelect` to show grouped options with optgroup headers 'Free Tier' and 'Paid / Limited'. Show tier badge text next to model names for paid/limited models like '(Paid)' or '(Limited)'. Add a warning message below dropdowns when a paid model is selected (check if any of the three selected models has tier 'paid'). The 'Auto' option should appear first before any group.",
+    "Update the _getModelShortName helper and the CheatingDaddyApp._getModelShortName to handle the 'auto' model ID returning 'Auto'."
+  ],
+  "acceptance_criteria": [
+    "GEMINI_MODELS includes 'auto' as first entry with tier:'free' and auto:true",
+    "All models have a 'tier' field",
+    "getAutoModel function exists and is exported from storage.js",
+    "ModelSettingsView shows grouped options with tier badges",
+    "Warning text appears when a paid model is selected"
+  ],
+  "verification": [
+    "Run `node --check src/storage.js` to validate syntax",
+    "Inspect ModelSettingsView.js for correct optgroup rendering logic"
+  ],
+  "blocked_reason": null,
+  "findings": "Used bun for syntax validation since node is not available in the sandbox. All storage.js exports verified working via bun -e require test. ModelSettingsView uses optgroup for tier grouping."
+}

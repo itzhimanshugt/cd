@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Analysis State Machine + Ctrl+Enter Fix: Add proper state machine to prevent analyze button getting stuck in animation, add timeout, prevent overlapping calls, and centralize the analyze trigger in renderer.js",
+  "status": "completed",
+  "steps": [
+    "In src/components/views/AssistantView.js: Replace boolean `isAnalyzing` with `_analysisState` property that can be 'idle', 'capturing', 'processing', 'completed', or 'failed'. The analyze button animation should ONLY run when state is 'capturing' or 'processing'. Update `handleScreenAnswer()` to set state to 'capturing' and ignore if state is not 'idle'. Add a 30-second timeout via `_analysisTimeout` that auto-resets to 'idle' (with failed flash) if no response arrives. In `updated()`, when a new response comes in and state was capturing/processing, transition to 'idle'. In `connectedCallback`, listen for 'analyze-triggered' and 'analyze-completed' and 'analyze-failed' events on cheatingDaddy.events. In `disconnectedCallback` and on session end, clear timeout and reset to 'idle'. Keep CSS class `analyzing` for backward compat - apply it when state is 'capturing' or 'processing'.",
+    "In src/utils/renderer.js: In the `handleShortcut` function for 'ctrl+enter'/'cmd+enter', add a module-level `_analysisInProgress` boolean guard. Set it true before calling `captureManualScreenshot()`, and reset it on response (listen for 'new-response' IPC or after captureManualScreenshot completes). Also reset after 30s timeout. Emit 'analyze-triggered' event at start, 'analyze-completed' on success, 'analyze-failed' on error via _eventBus. This ensures AssistantView can react to state changes from hotkey triggers.",
+    "Wire the events: When captureManualScreenshot's blob reader.onloadend gets result.success, dispatch 'analyze-completed'. On failure, dispatch 'analyze-failed'. Reset _analysisInProgress in both cases."
+  ],
+  "acceptance_criteria": [
+    "The analyze button animation only plays during 'capturing'/'processing' states",
+    "Pressing Ctrl+Enter while analysis is in progress does not trigger another analysis",
+    "After 30 seconds with no response, the animation stops and state resets to idle",
+    "When a response arrives, the animation stops immediately",
+    "No stale analyzing state persists after session end"
+  ],
+  "verification": [
+    "Run `node --check src/storage.js` to validate main-process syntax",
+    "Visually inspect AssistantView.js and renderer.js for correct state machine logic and event wiring"
+  ],
+  "blocked_reason": null,
+  "findings": "Implemented successfully. Both files parse cleanly via bun build. The state machine replaces the boolean isAnalyzing with a 5-state string (_analysisState). Events analyze-triggered/analyze-completed/analyze-failed coordinate between renderer.js hotkey handler and AssistantView component. 30s timeout prevents stuck states in both layers."
+}

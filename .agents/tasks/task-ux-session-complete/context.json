@@ -1,0 +1,25 @@
+{
+  "project_type": "Electron desktop app with Lit web components (no React/build step)",
+  "language": "JavaScript (vanilla ES modules in renderer, CommonJS in main process)",
+  "build_system": "No build step - Lit bundled as lit-core-2.7.4.min.js, loaded directly",
+  "test_framework": "None - no test infrastructure exists",
+  "build_command": "N/A - no build step",
+  "test_command": "N/A - no tests",
+  "verification_instructions": "Verify syntax correctness via node --check on main-process files. Renderer files use ES module imports from bundled Lit so cannot be node-checked directly - verify no obvious syntax errors by inspection.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install (optional since no build). App runs via electron .",
+  "environment_constraints": "No npm available in sandbox for package install. No Electron runtime. Validate via AST/syntax checks only. No network access for package registries.",
+  "contribution_requirements": "No npm packages allowed. Use existing CSS vars. Don't break typing system, stores, or services.",
+  "key_patterns": "Lit components extend LitElement, use static styles/properties, import from ../../assets/lit-core-2.7.4.min.js. Main process uses CommonJS (require/module.exports). IPC communication between main/renderer via ipcRenderer.invoke and ipcRenderer.on. Global cheatingDaddy object in renderer. Event bus at window.cheatingDaddy.events (_eventBus). Storage uses JSON files in OS config dir with in-memory cache.",
+  "relevant_files": [
+    "src/components/views/AssistantView.js",
+    "src/components/views/ModelSettingsView.js",
+    "src/components/views/HistoryView.js",
+    "src/components/app/CheatingDaddyApp.js",
+    "src/utils/renderer.js",
+    "src/utils/gemini.js",
+    "src/storage.js",
+    "src/stores/session-store.js"
+  ],
+  "directory_structure": "src/components/app/ - main app shell. src/components/views/ - page views. src/utils/ - renderer utilities, gemini API, prompts. src/stores/ - state stores. src/storage.js - main process storage module. src/typing/ - typing backend system. src/native/ - native modules."
+}

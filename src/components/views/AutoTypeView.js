@@ -629,15 +629,24 @@ export class AutoTypeView extends LitElement {
                         <div class="surface-subtitle">Control focus behavior during typing injection. Global hotkeys are configured in Hotkeys, not here.</div>
                         <div class="form-grid">
                             <div class="toggle-row">
-                                <span class="toggle-label">Target Lock</span>
+                                <div>
+                                    <span class="toggle-label">Target Lock</span>
+                                    <div class="form-help">Keep typing directed at the focused window when typing started</div>
+                                </div>
                                 <cd-toggle .checked=${s.targetLock || false} @toggle-change=${this._toggleTargetLock}></cd-toggle>
                             </div>
                             <div class="toggle-row">
-                                <span class="toggle-label">Auto-Refocus</span>
+                                <div>
+                                    <span class="toggle-label">Auto-Refocus</span>
+                                    <div class="form-help">Re-focus target window if focus is lost during typing</div>
+                                </div>
                                 <cd-toggle .checked=${s.autoRefocus || false} @toggle-change=${this._toggleAutoRefocus}></cd-toggle>
                             </div>
                             <div class="toggle-row">
-                                <span class="toggle-label">Clipboard Restore</span>
+                                <div>
+                                    <span class="toggle-label">Clipboard Restore</span>
+                                    <div class="form-help">Restore clipboard contents after clipboard-based injection</div>
+                                </div>
                                 <cd-toggle .checked=${s.clipboardRestore || false} @toggle-change=${this._toggleClipboardRestore}></cd-toggle>
                             </div>
                             <div class="form-group">

@@ -1,5 +1,24 @@
 import { html, css, LitElement } from '../../assets/lit-core-2.7.4.min.js';
 
+// Configure marked exactly once. Previously this ran on every render of every
+// streamed token, which on a long response produced thousands of redundant
+// option-set calls and serialised renders.
+let _markedConfigured = false;
+function ensureMarkedConfigured() {
+    if (_markedConfigured) return;
+    if (typeof window === 'undefined' || !window.marked) return;
+    try {
+        window.marked.setOptions({
+            breaks: true,
+            gfm: true,
+            sanitize: false,
+        });
+        _markedConfigured = true;
+    } catch (_) {
+        // marked may not be loaded yet; we'll retry next render
+    }
+}
+
 export class AssistantView extends LitElement {
     static styles = css`
         :host {
@@ -37,10 +56,6 @@ export class AssistantView extends LitElement {
             cursor: pointer;
         }
 
-        .response-container [data-word] {
-            display: inline-block;
-        }
-
         /* ── Markdown ── */
 
         .response-container h1,
@@ -54,12 +69,22 @@ export class AssistantView extends LitElement {
             font-weight: var(--font-weight-semibold);
         }
 
-        .response-container h1 { font-size: 1.5em; }
-        .response-container h2 { font-size: 1.3em; }
-        .response-container h3 { font-size: 1.15em; }
-        .response-container h4 { font-size: 1.05em; }
+        .response-container h1 {
+            font-size: 1.5em;
+        }
+        .response-container h2 {
+            font-size: 1.3em;
+        }
+        .response-container h3 {
+            font-size: 1.15em;
+        }
+        .response-container h4 {
+            font-size: 1.05em;
+        }
         .response-container h5,
-        .response-container h6 { font-size: 1em; }
+        .response-container h6 {
+            font-size: 1em;
+        }
 
         .response-container p {
             margin: 0.6em 0;
@@ -263,7 +288,9 @@ export class AssistantView extends LitElement {
             display: flex;
             align-items: center;
             gap: 4px;
-            transition: border-color 0.4s ease, background var(--transition);
+            transition:
+                border-color 0.4s ease,
+                background var(--transition);
             flex-shrink: 0;
             overflow: hidden;
         }
@@ -320,6 +347,8 @@ export class AssistantView extends LitElement {
     }
 
     getProfileNames() {
+        // Mirrors src/utils/profiles.js (kept inline so the renderer doesn't
+        // need to import a Node module). Update both if you add a profile.
         return {
             interview: 'Job Interview',
             sales: 'Sales Call',
@@ -338,50 +367,22 @@ export class AssistantView extends LitElement {
     }
 
     renderMarkdown(content) {
-        if (typeof window !== 'undefined' && window.marked) {
-            try {
-                window.marked.setOptions({
-                    breaks: true,
-                    gfm: true,
-                    sanitize: false,
-                });
-                let rendered = window.marked.parse(content);
-                rendered = this.wrapWordsInSpans(rendered);
-                return rendered;
-            } catch (error) {
-                console.warn('Error parsing markdown:', error);
-                return content;
-            }
+        if (typeof window === 'undefined' || !window.marked) return content;
+        try {
+            ensureMarkedConfigured();
+            return window.marked.parse(content);
+        } catch (error) {
+            console.warn('Error parsing markdown:', error);
+            return content;
         }
-        return content;
     }
 
+    // Kept for backwards compatibility with any external caller, but no longer
+    // used in the render path. The previous per-render DOMParser pass was a
+    // major hot-path cost for streaming responses and produced no observable
+    // visual difference (no animation referenced [data-word]).
     wrapWordsInSpans(html) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const tagsToSkip = ['PRE'];
-
-        function wrap(node) {
-            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() && !tagsToSkip.includes(node.parentNode.tagName)) {
-                const words = node.textContent.split(/(\s+)/);
-                const frag = document.createDocumentFragment();
-                words.forEach(word => {
-                    if (word.trim()) {
-                        const span = document.createElement('span');
-                        span.setAttribute('data-word', '');
-                        span.textContent = word;
-                        frag.appendChild(span);
-                    } else {
-                        frag.appendChild(document.createTextNode(word));
-                    }
-                });
-                node.parentNode.replaceChild(frag, node);
-            } else if (node.nodeType === Node.ELEMENT_NODE && !tagsToSkip.includes(node.tagName)) {
-                Array.from(node.childNodes).forEach(wrap);
-            }
-        }
-        Array.from(doc.body.childNodes).forEach(wrap);
-        return doc.body.innerHTML;
+        return html;
     }
 
     navigateToPreviousResponse() {
@@ -440,11 +441,27 @@ export class AssistantView extends LitElement {
             ipcRenderer.on('scroll-response-up', this.handleScrollUp);
             ipcRenderer.on('scroll-response-down', this.handleScrollDown);
         }
+
+        // Pause the waveform animation while the window is hidden to keep
+        // CPU/GPU usage at zero when the user can't see it. Resume on return.
+        this._onVisibility = () => {
+            if (document.hidden) {
+                this._stopWaveformAnimation();
+            } else if (this.isAnalyzing) {
+                this._startWaveformAnimation();
+            }
+        };
+        document.addEventListener('visibilitychange', this._onVisibility);
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this._stopWaveformAnimation();
+
+        if (this._onVisibility) {
+            document.removeEventListener('visibilitychange', this._onVisibility);
+            this._onVisibility = null;
+        }
 
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
@@ -506,7 +523,7 @@ export class AssistantView extends LitElement {
         const perimeter = 2 * straightLen + 2 * arcLen;
 
         // Given a distance along the perimeter, return {x, y, nx, ny} (position + inward normal)
-        const pointOnPerimeter = (d) => {
+        const pointOnPerimeter = d => {
             d = ((d % perimeter) + perimeter) % perimeter;
             // Top straight: left to right
             if (d < straightLen) {
@@ -545,7 +562,7 @@ export class AssistantView extends LitElement {
             seeds.push({ pos: Math.random(), drift: Math.random(), depthSeed: Math.random() });
         }
 
-        const draw = (now) => {
+        const draw = now => {
             const elapsed = (now - startTime) / 1000;
             const fade = Math.min(1, elapsed / FADE_IN);
 
@@ -670,36 +687,58 @@ export class AssistantView extends LitElement {
         return html`
             <div class="response-container" id="responseContainer"></div>
 
-            ${hasMultipleResponses ? html`
-                <div class="response-nav">
-                    <button class="nav-btn" @click=${this.navigateToPreviousResponse} ?disabled=${this.currentResponseIndex <= 0} title="Previous response">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                    <span class="response-counter">${this.currentResponseIndex + 1} of ${this.responses.length}</span>
-                    <button class="nav-btn" @click=${this.navigateToNextResponse} ?disabled=${this.currentResponseIndex >= this.responses.length - 1} title="Next response">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-            ` : ''}
+            ${hasMultipleResponses
+                ? html`
+                      <div class="response-nav">
+                          <button
+                              class="nav-btn"
+                              @click=${this.navigateToPreviousResponse}
+                              ?disabled=${this.currentResponseIndex <= 0}
+                              title="Previous response"
+                          >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                  <path
+                                      fill-rule="evenodd"
+                                      d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"
+                                      clip-rule="evenodd"
+                                  />
+                              </svg>
+                          </button>
+                          <span class="response-counter">${this.currentResponseIndex + 1} of ${this.responses.length}</span>
+                          <button
+                              class="nav-btn"
+                              @click=${this.navigateToNextResponse}
+                              ?disabled=${this.currentResponseIndex >= this.responses.length - 1}
+                              title="Next response"
+                          >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                  <path
+                                      fill-rule="evenodd"
+                                      d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"
+                                      clip-rule="evenodd"
+                                  />
+                              </svg>
+                          </button>
+                      </div>
+                  `
+                : ''}
 
             <div class="input-bar">
                 <div class="input-bar-inner">
-                    <input
-                        type="text"
-                        id="textInput"
-                        placeholder="Type a message..."
-                        @keydown=${this.handleTextKeydown}
-                    />
+                    <input type="text" id="textInput" placeholder="Type a message..." @keydown=${this.handleTextKeydown} />
                 </div>
                 <button class="analyze-btn ${this.isAnalyzing ? 'analyzing' : ''}" @click=${this.handleScreenAnswer}>
                     <canvas class="analyze-canvas"></canvas>
                     <span class="analyze-btn-content">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
-                            <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 3v7h6l-8 11v-7H5z" />
+                            <path
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M13 3v7h6l-8 11v-7H5z"
+                            />
                         </svg>
                         Analyze Screen
                     </span>

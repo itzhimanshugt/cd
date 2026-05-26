@@ -8,12 +8,12 @@ const CONFIG_VERSION = 1;
 const DEFAULT_CONFIG = {
     configVersion: CONFIG_VERSION,
     onboarded: false,
-    layout: 'normal'
+    layout: 'normal',
 };
 
 const DEFAULT_CREDENTIALS = {
     apiKey: '',
-    groqApiKey: ''
+    groqApiKey: '',
 };
 
 const DEFAULT_PREFERENCES = {
@@ -36,7 +36,7 @@ const DEFAULT_PREFERENCES = {
 const DEFAULT_KEYBINDS = null; // null means use system defaults
 
 const DEFAULT_LIMITS = {
-    data: [] // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'qwen3-32b': { chars, limit }, 'gpt-oss-120b': { chars, limit }, 'gpt-oss-20b': { chars, limit } }, gemini: { 'gemma-3-27b-it': { chars } } }
+    data: [], // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'qwen3-32b': { chars, limit }, 'gpt-oss-120b': { chars, limit }, 'gpt-oss-20b': { chars, limit } }, gemini: { 'gemma-3-27b-it': { chars } } }
 };
 
 // Get the config directory path based on OS
@@ -249,94 +249,101 @@ function getTodayDateString() {
     return now.toISOString().split('T')[0]; // YYYY-MM-DD
 }
 
-function getTodayLimits() {
-    const limits = getLimits();
-    const today = getTodayDateString();
-
-    // Find today's entry
-    const todayEntry = limits.data.find(entry => entry.date === today);
-
-    if (todayEntry) {
-        // ensure new fields exist
-        if(!todayEntry.groq) {
-            todayEntry.groq = {
-                'qwen3-32b': { chars: 0, limit: 1500000 },
-                'gpt-oss-120b': { chars: 0, limit: 600000 },
-                'gpt-oss-20b': { chars: 0, limit: 600000 },
-                'kimi-k2-instruct': { chars: 0, limit: 600000 }
-            };
-        }
-        if(!todayEntry.gemini) {
-            todayEntry.gemini = {
-                'gemma-3-27b-it': { chars: 0 }
-            };
-        }
-        setLimits(limits);
-        return todayEntry;
-    }
-
-    // No entry for today - clean old entries and create new one
-    limits.data = limits.data.filter(entry => entry.date === today);
-    const newEntry = {
-        date: today,
+// Build a fresh, fully-populated entry for today. Single source of schema truth.
+function buildEmptyTodayEntry() {
+    return {
+        date: getTodayDateString(),
         flash: { count: 0 },
         flashLite: { count: 0 },
         groq: {
             'qwen3-32b': { chars: 0, limit: 1500000 },
             'gpt-oss-120b': { chars: 0, limit: 600000 },
             'gpt-oss-20b': { chars: 0, limit: 600000 },
-            'kimi-k2-instruct': { chars: 0, limit: 600000 }
+            'kimi-k2-instruct': { chars: 0, limit: 600000 },
         },
         gemini: {
-            'gemma-3-27b-it': { chars: 0 }
-        }
+            'gemma-3-27b-it': { chars: 0 },
+        },
     };
-    limits.data.push(newEntry);
-    setLimits(limits);
-
-    return newEntry;
 }
 
-function incrementLimitCount(model) {
+// Patch any missing fields on an existing today-entry so old config files
+// upgrade transparently. Returns true if anything was added.
+function ensureTodayEntrySchema(entry) {
+    let mutated = false;
+    if (!entry.flash) {
+        entry.flash = { count: 0 };
+        mutated = true;
+    }
+    if (!entry.flashLite) {
+        entry.flashLite = { count: 0 };
+        mutated = true;
+    }
+    if (!entry.groq) {
+        entry.groq = buildEmptyTodayEntry().groq;
+        mutated = true;
+    }
+    if (!entry.gemini) {
+        entry.gemini = buildEmptyTodayEntry().gemini;
+        mutated = true;
+    }
+    return mutated;
+}
+
+function getTodayLimits() {
     const limits = getLimits();
     const today = getTodayDateString();
 
-    // Find or create today's entry
-    let todayEntry = limits.data.find(entry => entry.date === today);
+    // Drop any rows that are not for today (was previously only happening on
+    // the "no entry" path — old days could pile up otherwise).
+    const beforeLen = limits.data.length;
+    limits.data = limits.data.filter(entry => entry.date === today);
+    let mutated = limits.data.length !== beforeLen;
+
+    let todayEntry = limits.data[0];
 
     if (!todayEntry) {
-        // Clean old entries and create new one
-        limits.data = [];
-        todayEntry = {
-            date: today,
-            flash: { count: 0 },
-            flashLite: { count: 0 }
-        };
+        todayEntry = buildEmptyTodayEntry();
         limits.data.push(todayEntry);
-    } else {
-        // Clean old entries, keep only today
-        limits.data = limits.data.filter(entry => entry.date === today);
+        mutated = true;
+    } else if (ensureTodayEntrySchema(todayEntry)) {
+        mutated = true;
     }
 
-    // Increment the appropriate model count
-    if (model === 'gemini-2.5-flash') {
-        todayEntry.flash.count++;
-    } else if (model === 'gemini-2.5-flash-lite') {
-        todayEntry.flashLite.count++;
-    }
+    // Only write back when something actually changed — saves a disk write
+    // on every read in the hot path.
+    if (mutated) setLimits(limits);
 
-    setLimits(limits);
     return todayEntry;
 }
 
-function incrementCharUsage(provider, model, charCount) {
-    getTodayLimits();
-
+function incrementLimitCount(model) {
+    // Reuse getTodayLimits so the schema is always populated and old days
+    // are pruned exactly the same way.
+    const todayEntry = getTodayLimits();
     const limits = getLimits();
-    const today = getTodayDateString();
-    const todayEntry = limits.data.find(entry => entry.date === today);
+    const target = limits.data.find(e => e.date === todayEntry.date) || todayEntry;
 
-    if(todayEntry[provider] && todayEntry[provider][model]) {
+    if (model === 'gemini-2.5-flash') {
+        target.flash.count++;
+    } else if (model === 'gemini-2.5-flash-lite') {
+        target.flashLite.count++;
+    }
+
+    setLimits(limits);
+    return target;
+}
+
+function incrementCharUsage(provider, model, charCount) {
+    if (!provider || !model || !charCount) return null;
+
+    // Ensure schema is populated, then load once.
+    getTodayLimits();
+    const limits = getLimits();
+    const todayEntry = limits.data.find(entry => entry.date === getTodayDateString());
+    if (!todayEntry) return null;
+
+    if (todayEntry[provider] && todayEntry[provider][model]) {
         todayEntry[provider][model].chars += charCount;
         setLimits(limits);
     }
@@ -400,7 +407,7 @@ function saveSession(sessionId, data) {
         customPrompt: data.customPrompt || existingSession?.customPrompt || null,
         // Conversation data
         conversationHistory: data.conversationHistory || existingSession?.conversationHistory || [],
-        screenAnalysisHistory: data.screenAnalysisHistory || existingSession?.screenAnalysisHistory || []
+        screenAnalysisHistory: data.screenAnalysisHistory || existingSession?.screenAnalysisHistory || [],
     };
     return writeJsonFile(sessionPath, sessionData);
 }
@@ -417,7 +424,8 @@ function getAllSessions() {
             return [];
         }
 
-        const files = fs.readdirSync(historyDir)
+        const files = fs
+            .readdirSync(historyDir)
             .filter(f => f.endsWith('.json'))
             .sort((a, b) => {
                 // Sort by timestamp descending (newest first)
@@ -426,22 +434,24 @@ function getAllSessions() {
                 return tsB - tsA;
             });
 
-        return files.map(file => {
-            const sessionId = file.replace('.json', '');
-            const data = readJsonFile(path.join(historyDir, file), null);
-            if (data) {
-                return {
-                    sessionId,
-                    createdAt: data.createdAt,
-                    lastUpdated: data.lastUpdated,
-                    messageCount: data.conversationHistory?.length || 0,
-                    screenAnalysisCount: data.screenAnalysisHistory?.length || 0,
-                    profile: data.profile || null,
-                    customPrompt: data.customPrompt || null
-                };
-            }
-            return null;
-        }).filter(Boolean);
+        return files
+            .map(file => {
+                const sessionId = file.replace('.json', '');
+                const data = readJsonFile(path.join(historyDir, file), null);
+                if (data) {
+                    return {
+                        sessionId,
+                        createdAt: data.createdAt,
+                        lastUpdated: data.lastUpdated,
+                        messageCount: data.conversationHistory?.length || 0,
+                        screenAnalysisCount: data.screenAnalysisHistory?.length || 0,
+                        profile: data.profile || null,
+                        customPrompt: data.customPrompt || null,
+                    };
+                }
+                return null;
+            })
+            .filter(Boolean);
     } catch (error) {
         console.error('Error reading sessions:', error.message);
         return [];
@@ -528,5 +538,5 @@ module.exports = {
     deleteAllSessions,
 
     // Clear all
-    clearAllData
+    clearAllData,
 };

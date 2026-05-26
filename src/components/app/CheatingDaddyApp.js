@@ -8,6 +8,26 @@ import { OnboardingView } from '../views/OnboardingView.js';
 import { AICustomizeView } from '../views/AICustomizeView.js';
 import { FeedbackView } from '../views/FeedbackView.js';
 
+// Statuses that mark a response cycle as complete. Using a Set turns the
+// hot per-status check into an O(1) lookup instead of three .includes calls.
+const TERMINAL_STATUS_KEYWORDS = ['Ready', 'Listening', 'Error'];
+function isTerminalStatus(text) {
+    if (!text) return false;
+    for (let i = 0; i < TERMINAL_STATUS_KEYWORDS.length; i++) {
+        if (text.indexOf(TERMINAL_STATUS_KEYWORDS[i]) !== -1) return true;
+    }
+    return false;
+}
+
+const PROFILE_LABELS = {
+    interview: 'Interview',
+    sales: 'Sales Call',
+    meeting: 'Meeting',
+    presentation: 'Presentation',
+    negotiation: 'Negotiation',
+    exam: 'Exam',
+};
+
 export class CheatingDaddyApp extends LitElement {
     static styles = css`
         * {
@@ -81,15 +101,15 @@ export class CheatingDaddyApp extends LitElement {
         }
 
         .traffic-light.close {
-            background: #FF5F57;
+            background: #ff5f57;
         }
 
         .traffic-light.minimize {
-            background: #FEBC2E;
+            background: #febc2e;
         }
 
         .traffic-light.maximize {
-            background: #28C840;
+            background: #28c840;
         }
 
         .sidebar {
@@ -100,7 +120,10 @@ export class CheatingDaddyApp extends LitElement {
             display: flex;
             flex-direction: column;
             padding: 42px 0 var(--space-md) 0;
-            transition: width var(--transition), min-width var(--transition), opacity var(--transition);
+            transition:
+                width var(--transition),
+                min-width var(--transition),
+                opacity var(--transition);
         }
 
         .sidebar.hidden {
@@ -144,7 +167,9 @@ export class CheatingDaddyApp extends LitElement {
             font-size: var(--font-size-sm);
             font-weight: var(--font-weight-medium);
             cursor: pointer;
-            transition: color var(--transition), background var(--transition);
+            transition:
+                color var(--transition),
+                background var(--transition);
             border: none;
             background: none;
             width: 100%;
@@ -187,8 +212,9 @@ export class CheatingDaddyApp extends LitElement {
             font-weight: var(--font-weight-medium);
             cursor: pointer;
             text-align: left;
-            transition: background var(--transition), border-color var(--transition);
-            animation: update-wobble 5s ease-in-out infinite;
+            transition:
+                background var(--transition),
+                border-color var(--transition);
         }
 
         .update-btn:hover {
@@ -196,12 +222,10 @@ export class CheatingDaddyApp extends LitElement {
             border-color: rgba(239, 68, 68, 0.35);
         }
 
-        @keyframes update-wobble {
-            0%, 90%, 100% { transform: rotate(0deg); }
-            92% { transform: rotate(-2deg); }
-            94% { transform: rotate(2deg); }
-            96% { transform: rotate(-1.5deg); }
-            98% { transform: rotate(1.5deg); }
+        .update-btn:focus-visible,
+        .nav-item:focus-visible {
+            outline: 2px solid var(--accent, #6366f1);
+            outline-offset: 2px;
         }
 
         .update-btn svg {
@@ -303,6 +327,75 @@ export class CheatingDaddyApp extends LitElement {
             color: var(--text-primary);
         }
 
+        .live-bar-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            background: var(--bg-elevated, rgba(255, 255, 255, 0.04));
+            border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+            cursor: pointer;
+            transition:
+                color var(--transition),
+                background var(--transition),
+                border-color var(--transition);
+            white-space: nowrap;
+        }
+
+        .live-bar-chip:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+        }
+
+        .live-bar-chip:focus-visible {
+            outline: 2px solid var(--accent, #6366f1);
+            outline-offset: 2px;
+        }
+
+        .live-bar-chip.active {
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.08);
+            border-color: rgba(251, 191, 36, 0.25);
+        }
+
+        .live-bar-chip svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .live-bar-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #34d399;
+            box-shadow: 0 0 6px rgba(52, 211, 153, 0.7);
+        }
+
+        .live-bar-dot.connecting {
+            background: #fbbf24;
+            box-shadow: 0 0 6px rgba(251, 191, 36, 0.7);
+            animation: live-bar-pulse 1.4s ease-in-out infinite;
+        }
+
+        .live-bar-dot.error {
+            background: #ef4444;
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+        }
+
+        @keyframes live-bar-pulse {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.4;
+            }
+        }
+
         /* Content inner */
         .content-inner {
             flex: 1;
@@ -398,32 +491,47 @@ export class CheatingDaddyApp extends LitElement {
     async _checkForUpdates() {
         try {
             this._localVersion = await cheatingDaddy.getVersion();
-            this.requestUpdate();
+            // Single requestUpdate after both localVersion and remote are known.
 
             const res = await fetch('https://raw.githubusercontent.com/sohzm/cheating-daddy/refs/heads/master/package.json');
-            if (!res.ok) return;
-            const remote = await res.json();
-            const remoteVersion = remote.version;
-
-            const toNum = v => v.split('.').map(Number);
-            const [rMaj, rMin, rPatch] = toNum(remoteVersion);
-            const [lMaj, lMin, lPatch] = toNum(this._localVersion);
-
-            if (rMaj > lMaj || (rMaj === lMaj && rMin > lMin) || (rMaj === lMaj && rMin === lMin && rPatch > lPatch)) {
-                this._updateAvailable = true;
+            if (!res.ok) {
                 this.requestUpdate();
+                return;
             }
-        } catch (e) {
-            // silently ignore
+            const remote = await res.json();
+            const remoteVersion = (remote && remote.version) || '';
+
+            if (this._compareSemver(remoteVersion, this._localVersion) > 0) {
+                this._updateAvailable = true;
+            }
+            this.requestUpdate();
+        } catch (_) {
+            // Silent: offline / blocked / parse failures should never crash the UI
+            this.requestUpdate();
         }
+    }
+
+    // Returns >0 if a > b, <0 if a < b, 0 if equal. Tolerates missing parts
+    // (e.g. "1.2" vs "1.2.0") and non-numeric chunks.
+    _compareSemver(a, b) {
+        const norm = v =>
+            String(v || '0')
+                .split('.')
+                .map(p => parseInt(p, 10) || 0);
+        const av = norm(a);
+        const bv = norm(b);
+        const len = Math.max(av.length, bv.length);
+        for (let i = 0; i < len; i++) {
+            const x = av[i] || 0;
+            const y = bv[i] || 0;
+            if (x !== y) return x - y;
+        }
+        return 0;
     }
 
     async _loadFromStorage() {
         try {
-            const [config, prefs] = await Promise.all([
-                cheatingDaddy.storage.getConfig(),
-                cheatingDaddy.storage.getPreferences()
-            ]);
+            const [config, prefs] = await Promise.all([cheatingDaddy.storage.getConfig(), cheatingDaddy.storage.getPreferences()]);
 
             this.currentView = config.onboarded ? 'main' : 'onboarding';
             this.selectedProfile = prefs.selectedProfile || 'interview';
@@ -446,26 +554,75 @@ export class CheatingDaddyApp extends LitElement {
 
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
-            ipcRenderer.on('new-response', (_, response) => this.addNewResponse(response));
-            ipcRenderer.on('update-response', (_, response) => this.updateCurrentResponse(response));
-            ipcRenderer.on('update-status', (_, status) => this.setStatus(status));
-            ipcRenderer.on('click-through-toggled', (_, isEnabled) => { this._isClickThrough = isEnabled; });
-            ipcRenderer.on('reconnect-failed', (_, data) => this.addNewResponse(data.message));
-            ipcRenderer.on('whisper-downloading', (_, downloading) => { this._whisperDownloading = downloading; });
+            // Hold listener refs so we can remove _exactly_ those, instead of nuking
+            // every listener for the channel (which was racing with renderer.js).
+            this._ipcListeners = {
+                'new-response': (_, response) => this.addNewResponse(response),
+                'update-response': (_, response) => this.updateCurrentResponse(response),
+                'update-status': (_, status) => this.setStatus(status),
+                'click-through-toggled': (_, isEnabled) => {
+                    this._isClickThrough = !!isEnabled;
+                },
+                'reconnect-failed': (_, data) => this.addNewResponse(data.message),
+                'whisper-downloading': (_, downloading) => {
+                    this._whisperDownloading = !!downloading;
+                },
+            };
+
+            for (const [channel, fn] of Object.entries(this._ipcListeners)) {
+                ipcRenderer.on(channel, fn);
+            }
+
+            // Re-query click-through state on connection — recovers from
+            // hot-reloads where the renderer drifts out of sync with main.
+            try {
+                ipcRenderer.invoke('get-click-through-state').then(state => {
+                    this._isClickThrough = !!state;
+                });
+            } catch (_) {}
         }
+
+        // Pause the elapsed-time interval whenever the window is hidden — saves
+        // a wakeup per second and keeps the displayed time consistent (it is
+        // re-computed from startTime on the next visibility-change anyway).
+        this._onVisibilityChange = () => {
+            if (document.hidden) {
+                this._stopTimer();
+            } else if (this.sessionActive) {
+                this._startTimer();
+                this.requestUpdate();
+            }
+        };
+        document.addEventListener('visibilitychange', this._onVisibilityChange);
+
+        // Esc closes the assistant view (matches macOS app conventions). Only
+        // active in assistant mode, doesn't steal Escape elsewhere.
+        this._onKeyDown = e => {
+            if (e.key === 'Escape' && this.currentView === 'assistant' && this.sessionActive) {
+                e.preventDefault();
+                this.handleClose();
+            }
+        };
+        window.addEventListener('keydown', this._onKeyDown);
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this._stopTimer();
-        if (window.require) {
+        if (window.require && this._ipcListeners) {
             const { ipcRenderer } = window.require('electron');
-            ipcRenderer.removeAllListeners('new-response');
-            ipcRenderer.removeAllListeners('update-response');
-            ipcRenderer.removeAllListeners('update-status');
-            ipcRenderer.removeAllListeners('click-through-toggled');
-            ipcRenderer.removeAllListeners('reconnect-failed');
-            ipcRenderer.removeAllListeners('whisper-downloading');
+            for (const [channel, fn] of Object.entries(this._ipcListeners)) {
+                ipcRenderer.removeListener(channel, fn);
+            }
+            this._ipcListeners = null;
+        }
+        if (this._onVisibilityChange) {
+            document.removeEventListener('visibilitychange', this._onVisibilityChange);
+            this._onVisibilityChange = null;
+        }
+        if (this._onKeyDown) {
+            window.removeEventListener('keydown', this._onKeyDown);
+            this._onKeyDown = null;
         }
     }
 
@@ -500,7 +657,7 @@ export class CheatingDaddyApp extends LitElement {
 
     setStatus(text) {
         this.statusText = text;
-        if (text.includes('Ready') || text.includes('Listening') || text.includes('Error')) {
+        if (isTerminalStatus(text)) {
             this._currentResponseIsComplete = true;
         }
     }
@@ -567,7 +724,7 @@ export class CheatingDaddyApp extends LitElement {
 
     async handleStart() {
         const prefs = await cheatingDaddy.storage.getPreferences();
-        const providerMode = prefs.providerMode === 'cloud' ? 'byok' : (prefs.providerMode || 'byok');
+        const providerMode = prefs.providerMode === 'cloud' ? 'byok' : prefs.providerMode || 'byok';
 
         // ── Validate credentials BEFORE transitioning (fast, no network) ──
         if (providerMode === 'cloud') {
@@ -727,10 +884,7 @@ export class CheatingDaddyApp extends LitElement {
         switch (this.currentView) {
             case 'onboarding':
                 return html`
-                    <onboarding-view
-                        .onComplete=${() => this.handleOnboardingComplete()}
-                        .onClose=${() => this.handleClose()}
-                    ></onboarding-view>
+                    <onboarding-view .onComplete=${() => this.handleOnboardingComplete()} .onClose=${() => this.handleClose()}></onboarding-view>
                 `;
 
             case 'main':
@@ -801,12 +955,76 @@ export class CheatingDaddyApp extends LitElement {
 
     renderSidebar() {
         const items = [
-            { id: 'main', label: 'Home', icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m19 8.71l-5.333-4.148a2.666 2.666 0 0 0-3.274 0L5.059 8.71a2.67 2.67 0 0 0-1.029 2.105v7.2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.2c0-.823-.38-1.6-1.03-2.105"/><path d="M16 15c-2.21 1.333-5.792 1.333-8 0"/></g></svg>` },
-            { id: 'ai-customize', label: 'AI Customization', icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 3v7h6l-8 11v-7H5z" /></svg>` },
-            { id: 'history', label: 'History', icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M10 20.777a9 9 0 0 1-2.48-.969M14 3.223a9.003 9.003 0 0 1 0 17.554m-9.421-3.684a9 9 0 0 1-1.227-2.592M3.124 10.5c.16-.95.468-1.85.9-2.675l.169-.305m2.714-2.941A9 9 0 0 1 10 3.223"/><path d="M12 8v4l3 3"/></g></svg>` },
-            { id: 'customize', label: 'Settings', icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M19.875 6.27A2.23 2.23 0 0 1 21 8.218v7.284c0 .809-.443 1.555-1.158 1.948l-6.75 4.27a2.27 2.27 0 0 1-2.184 0l-6.75-4.27A2.23 2.23 0 0 1 3 15.502V8.217c0-.809.443-1.554 1.158-1.947l6.75-3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98z"/><path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0"/></g></svg>` },
-            { id: 'feedback', label: 'Feedback', icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3zM9.5 9h.01m4.99 0h.01"/><path d="M9.5 13a3.5 3.5 0 0 0 5 0"/></g></svg>` },
-            { id: 'help', label: 'Help', icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9-9 9s-9-1.8-9-9s1.8-9 9-9m0 13v.01"/><path d="M12 13a2 2 0 0 0 .914-3.782a1.98 1.98 0 0 0-2.414.483"/></g></svg>` },
+            {
+                id: 'main',
+                label: 'Home',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path
+                            d="m19 8.71l-5.333-4.148a2.666 2.666 0 0 0-3.274 0L5.059 8.71a2.67 2.67 0 0 0-1.029 2.105v7.2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.2c0-.823-.38-1.6-1.03-2.105"
+                        />
+                        <path d="M16 15c-2.21 1.333-5.792 1.333-8 0" />
+                    </g>
+                </svg>`,
+            },
+            {
+                id: 'ai-customize',
+                label: 'AI Customization',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <path
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M13 3v7h6l-8 11v-7H5z"
+                    />
+                </svg>`,
+            },
+            {
+                id: 'history',
+                label: 'History',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path
+                            d="M10 20.777a9 9 0 0 1-2.48-.969M14 3.223a9.003 9.003 0 0 1 0 17.554m-9.421-3.684a9 9 0 0 1-1.227-2.592M3.124 10.5c.16-.95.468-1.85.9-2.675l.169-.305m2.714-2.941A9 9 0 0 1 10 3.223"
+                        />
+                        <path d="M12 8v4l3 3" />
+                    </g>
+                </svg>`,
+            },
+            {
+                id: 'customize',
+                label: 'Settings',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path
+                            d="M19.875 6.27A2.23 2.23 0 0 1 21 8.218v7.284c0 .809-.443 1.555-1.158 1.948l-6.75 4.27a2.27 2.27 0 0 1-2.184 0l-6.75-4.27A2.23 2.23 0 0 1 3 15.502V8.217c0-.809.443-1.554 1.158-1.947l6.75-3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98z"
+                        />
+                        <path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0" />
+                    </g>
+                </svg>`,
+            },
+            {
+                id: 'feedback',
+                label: 'Feedback',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3zM9.5 9h.01m4.99 0h.01" />
+                        <path d="M9.5 13a3.5 3.5 0 0 0 5 0" />
+                    </g>
+                </svg>`,
+            },
+            {
+                id: 'help',
+                label: 'Help',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9-9 9s-9-1.8-9-9s1.8-9 9-9m0 13v.01" />
+                        <path d="M12 13a2 2 0 0 0 .914-3.782a1.98 1.98 0 0 0-2.414.483" />
+                    </g>
+                </svg>`,
+            },
         ];
 
         return html`
@@ -815,26 +1033,36 @@ export class CheatingDaddyApp extends LitElement {
                     <h1>Cheating Daddy</h1>
                 </div>
                 <nav class="sidebar-nav">
-                    ${items.map(item => html`
-                        <button
-                            class="nav-item ${this.currentView === item.id ? 'active' : ''}"
-                            @click=${() => this.navigate(item.id)}
-                            title=${item.label}
-                        >
-                            ${item.icon}
-                            ${item.label}
-                        </button>
-                    `)}
+                    ${items.map(
+                        item => html`
+                            <button
+                                class="nav-item ${this.currentView === item.id ? 'active' : ''}"
+                                @click=${() => this.navigate(item.id)}
+                                title=${item.label}
+                            >
+                                ${item.icon} ${item.label}
+                            </button>
+                        `
+                    )}
                 </nav>
                 <div class="sidebar-footer">
-                    ${this._updateAvailable ? html`
-                        <button class="update-btn" @click=${() => this.handleExternalLinkClick('https://cheatingdaddy.com/download')}>
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 11l5 5l5-5m-5-7v12" /></svg>
-                            Update available
-                        </button>
-                    ` : html`
-                        <div class="version-text">v${this._localVersion}</div>
-                    `}
+                    ${this._updateAvailable
+                        ? html`
+                              <button class="update-btn" @click=${() => this.handleExternalLinkClick('https://cheatingdaddy.com/download')}>
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                      <path
+                                          fill="none"
+                                          stroke="currentColor"
+                                          stroke-linecap="round"
+                                          stroke-linejoin="round"
+                                          stroke-width="2"
+                                          d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 11l5 5l5-5m-5-7v12"
+                                      />
+                                  </svg>
+                                  Update available
+                              </button>
+                          `
+                        : html` <div class="version-text">v${this._localVersion}</div> `}
                 </div>
             </div>
         `;
@@ -843,32 +1071,62 @@ export class CheatingDaddyApp extends LitElement {
     renderLiveBar() {
         if (!this._isLiveMode()) return '';
 
-        const profileLabels = {
-            interview: 'Interview',
-            sales: 'Sales Call',
-            meeting: 'Meeting',
-            presentation: 'Presentation',
-            negotiation: 'Negotiation',
-            exam: 'Exam',
-        };
+        // Connection-state dot: connecting (yellow pulse), error (red), live (green)
+        let dotClass = '';
+        if (this.statusText && this.statusText.toLowerCase().indexOf('error') !== -1) dotClass = 'error';
+        else if (this.statusText && /connect|init|loading/i.test(this.statusText)) dotClass = 'connecting';
 
         return html`
             <div class="live-bar">
                 <div class="live-bar-left">
-                    <button class="live-bar-back" @click=${() => this.handleClose()} title="End session">
+                    <button class="live-bar-back" @click=${() => this.handleClose()} title="End session (Esc)">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" />
+                            <path
+                                fill-rule="evenodd"
+                                d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z"
+                                clip-rule="evenodd"
+                            />
                         </svg>
                     </button>
+                    <span class="live-bar-dot ${dotClass}" aria-hidden="true"></span>
                 </div>
-                <div class="live-bar-center">
-                    ${profileLabels[this.selectedProfile] || 'Session'}
-                </div>
+                <div class="live-bar-center">${PROFILE_LABELS[this.selectedProfile] || 'Session'}</div>
                 <div class="live-bar-right">
                     ${this.statusText ? html`<span class="live-bar-text">${this.statusText}</span>` : ''}
                     <span class="live-bar-text">${this.getElapsedTime()}</span>
-                    ${this._isClickThrough ? html`<span class="live-bar-text">[click through]</span>` : ''}
-                    <span class="live-bar-text clickable" @click=${() => this.handleHideToggle()}>[hide]</span>
+                    ${this._isClickThrough
+                        ? html`<span class="live-bar-chip active" title="Click-through is on — clicks pass through the window">
+                              <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  stroke-width="2"
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  aria-hidden="true"
+                              >
+                                  <path d="m3 3 7.07 17 2.51-7.39L20 10.07Z" />
+                              </svg>
+                              Click-through
+                          </span>`
+                        : ''}
+                    <button class="live-bar-chip" @click=${() => this.handleHideToggle()} title="Hide window (toggle)">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                        >
+                            <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                            <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                            <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                            <line x1="2" y1="2" x2="22" y2="22" />
+                        </svg>
+                        Hide
+                    </button>
                 </div>
             </div>
         `;
@@ -877,11 +1135,7 @@ export class CheatingDaddyApp extends LitElement {
     render() {
         // Onboarding is fullscreen, no sidebar
         if (this.currentView === 'onboarding') {
-            return html`
-                <div class="fullscreen">
-                    ${this.renderCurrentView()}
-                </div>
-            `;
+            return html` <div class="fullscreen">${this.renderCurrentView()}</div> `;
         }
 
         const isLive = this._isLiveMode();
@@ -899,9 +1153,7 @@ export class CheatingDaddyApp extends LitElement {
                 ${this.renderSidebar()}
                 <div class="content">
                     ${isLive ? this.renderLiveBar() : ''}
-                    <div class="content-inner ${isLive ? 'live' : ''}">
-                        ${this.renderCurrentView()}
-                    </div>
+                    <div class="content-inner ${isLive ? 'live' : ''}">${this.renderCurrentView()}</div>
                 </div>
             </div>
         `;

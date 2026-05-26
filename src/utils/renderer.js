@@ -1470,6 +1470,9 @@ const cheatingDaddy = {
         async copyScreenshot() {
             return ipcRenderer.invoke('debug:copy-screenshot');
         },
+        async captureAndCopy() {
+            return ipcRenderer.invoke('debug:capture-and-copy');
+        },
         async openScreenshots() {
             return ipcRenderer.invoke('debug:open-screenshots');
         },

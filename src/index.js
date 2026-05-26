@@ -585,6 +585,20 @@ function setupDebugIpcHandlers() {
         return screenshot.copyScreenshotToClipboard(mainWindow);
     });
 
+    ipcMain.handle('debug:capture-and-copy', async () => {
+        const [saveResult, copyResult] = await Promise.all([
+            screenshot.captureScreenshot(mainWindow),
+            screenshot.copyScreenshotToClipboard(mainWindow),
+        ]);
+        return {
+            success: saveResult.success || copyResult.success,
+            saved: saveResult.success,
+            copied: copyResult.success,
+            path: saveResult.path || null,
+            error: !saveResult.success && !copyResult.success ? 'Both operations failed' : null,
+        };
+    });
+
     ipcMain.handle('debug:open-screenshots', async () => {
         return screenshot.openScreenshotsFolder();
     });

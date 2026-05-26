@@ -434,11 +434,19 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         });
     }
 
-    // ── Debug Screenshot ──
+    // ── Debug Screenshot (save + copy to clipboard) ──
     tryRegister('debugScreenshot', keybinds.debugScreenshot, () => {
-        screenshot.captureScreenshot(mainWindow).then(result => {
-            if (result.success) {
-                sendToRenderer('debug-screenshot-captured', result.path);
+        Promise.all([screenshot.captureScreenshot(mainWindow), screenshot.copyScreenshotToClipboard(mainWindow)]).then(([saveResult, copyResult]) => {
+            if (saveResult.success && copyResult.success) {
+                sendToRenderer('debug-screenshot-captured', saveResult.path);
+                sendToRenderer('toast', { message: 'Screenshot saved and copied to clipboard', type: 'success' });
+            } else if (saveResult.success) {
+                sendToRenderer('debug-screenshot-captured', saveResult.path);
+                sendToRenderer('toast', { message: 'Screenshot saved (clipboard copy failed)', type: 'warning' });
+            } else if (copyResult.success) {
+                sendToRenderer('toast', { message: 'Screenshot copied to clipboard (file save failed)', type: 'warning' });
+            } else {
+                sendToRenderer('toast', { message: 'Screenshot capture failed', type: 'error' });
             }
         });
     });

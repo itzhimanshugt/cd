@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "History Redesign + Debug Profile + Version + Instructions + Keybind Input improvements",
+  "status": "in_progress",
+  "steps": [
+    "In src/components/views/HistoryView.js: Redesign the session list so each item shows as a card with date/time, profile badge, message count, and first line preview. Clicking opens the session detail as a read-only chat view reusing bubble styling (left-aligned AI, right-aligned user).",
+    "In src/utils/prompts.js: Add a 'debug' profile with: intro: 'You are a debugging assistant. Your job is to identify bugs, logical flaws, and exact fixes in code. Do NOT rewrite entire solutions.', formatRequirements: '**FORMAT:** Point to exact problematic lines/blocks. Suggest minimal edits only. Reference line numbers when possible. Focus on: logic errors, edge cases, type mismatches, off-by-one errors, missing null checks.', content: 'Behave like a code reviewer and compiler assistant. Identify the exact issue and the minimal fix. Do not generate full solutions - only point out what is wrong and what specifically needs to change.', outputInstructions: 'Output: 1) The bug location 2) Why it fails 3) The minimal fix (only changed lines). Never rewrite entire functions.'",
+    "In src/components/views/AICustomizeView.js: Add profile descriptions below the profile selector - show a brief explanation of each profile's behavior (e.g. 'Helps you ace job interviews with ready-to-speak answers'). Add 'debug' to the profile list. Add a clear note: 'Custom instructions persist across all sessions and are layered on top of your selected profile'. Ensure the prompt preview section is visible and working.",
+    "In src/components/views/AutoTypeView.js: Replace the plain text <input> elements for keybind fields (holdToTypeKeybind, abortKeybind, fullResponseKeybind) with <cd-keybind-input> component. Wire up the keybind-change event to update settings.",
+    "In src/components/ui/cd-keybind-input.js: Add a mousedown event listener alongside the existing keydown. If event.button >= 3 (mouse button 4, 5, etc), capture as 'Mouse4', 'Mouse5' etc. Prevent default on mousedown to avoid context menu."
+  ],
+  "acceptance_criteria": [
+    "History view shows cards with date/time, profile badge, message count, first line preview",
+    "Session detail shows read-only chat view with bubbles",
+    "prompts.js contains a debug profile with the specified content",
+    "AICustomizeView shows profile descriptions and includes debug profile option",
+    "AICustomizeView shows note about custom instructions persistence",
+    "AutoTypeView uses cd-keybind-input component for keybind fields",
+    "cd-keybind-input captures mouse button 4/5 as Mouse4/Mouse5"
+  ],
+  "verification": [
+    "Run npx prettier --check src/components/views/HistoryView.js src/components/views/AICustomizeView.js src/components/views/AutoTypeView.js src/components/ui/cd-keybind-input.js src/utils/prompts.js"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -72,6 +72,7 @@ export class HistoryView extends LitElement {
                 display: flex;
                 flex-direction: column;
                 gap: 2px;
+                overflow: hidden;
             }
 
             .session-profile {
@@ -82,6 +83,26 @@ export class HistoryView extends LitElement {
             .session-date {
                 color: var(--text-muted);
                 font-size: var(--font-size-xs);
+            }
+
+            .session-preview {
+                color: var(--text-muted);
+                font-size: var(--font-size-xs);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 240px;
+            }
+
+            .session-profile-badge {
+                display: inline-block;
+                font-size: 10px;
+                padding: 1px 6px;
+                border-radius: 10px;
+                background: var(--accent);
+                color: var(--bg-app);
+                font-weight: var(--font-weight-medium);
+                white-space: nowrap;
             }
 
             .session-badge {
@@ -338,6 +359,7 @@ export class HistoryView extends LitElement {
             presentation: 'Presentation',
             negotiation: 'Negotiation',
             exam: 'Exam Assistant',
+            debug: 'Debug / Code Review',
         };
     }
 
@@ -347,6 +369,21 @@ export class HistoryView extends LitElement {
             return names[session.profile] || session.profile;
         }
         return 'Session';
+    }
+
+    _getFirstMessagePreview(session) {
+        const history = session.conversationHistory || [];
+        for (const turn of history) {
+            if (turn.transcription) {
+                const text = turn.transcription.trim();
+                return text.length > 60 ? text.substring(0, 60) + '...' : text;
+            }
+            if (turn.ai_response) {
+                const text = turn.ai_response.trim();
+                return text.length > 60 ? text.substring(0, 60) + '...' : text;
+            }
+        }
+        return '';
     }
 
     getSessionPreview(session) {
@@ -469,10 +506,17 @@ export class HistoryView extends LitElement {
                               session => html`
                                   <button class="session-card" @click=${() => this.openSession(session.sessionId)}>
                                       <div class="session-left">
-                                          <span class="session-profile">${this._getProfileLabel(session)}</span>
+                                          <span class="session-profile">
+                                              ${session.profile
+                                                  ? html`<span class="session-profile-badge">${this._getProfileLabel(session)}</span>`
+                                                  : 'Session'}
+                                          </span>
                                           <span class="session-date"
                                               >${this.formatDate(session.createdAt)} · ${this.formatTime(session.createdAt)}</span
                                           >
+                                          ${this._getFirstMessagePreview(session)
+                                              ? html`<span class="session-preview">${this._getFirstMessagePreview(session)}</span>`
+                                              : ''}
                                       </div>
                                       ${session.messageCount > 0 ? html`<span class="session-badge">${session.messageCount}</span>` : ''}
                                   </button>

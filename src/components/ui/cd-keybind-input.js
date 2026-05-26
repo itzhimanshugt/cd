@@ -114,6 +114,30 @@ export class CdKeybindInput extends LitElement {
         e.target.blur();
     }
 
+    _handleMousedown(e) {
+        if (e.button >= 3) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const buttonName = `Mouse${e.button + 1}`;
+            this.value = buttonName;
+
+            this.dispatchEvent(
+                new CustomEvent('keybind-change', {
+                    detail: { value: buttonName },
+                    bubbles: true,
+                    composed: true,
+                })
+            );
+
+            e.target.blur();
+        }
+    }
+
+    _handleContextmenu(e) {
+        e.preventDefault();
+    }
+
     render() {
         return html`
             ${this.label ? html`<span class="keybind-label">${this.label}</span>` : ''}
@@ -125,6 +149,8 @@ export class CdKeybindInput extends LitElement {
                 @focus=${this._handleFocus}
                 @blur=${this._handleBlur}
                 @keydown=${this._handleKeydown}
+                @mousedown=${this._handleMousedown}
+                @contextmenu=${this._handleContextmenu}
             />
         `;
     }

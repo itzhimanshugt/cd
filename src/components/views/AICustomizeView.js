@@ -89,7 +89,9 @@ export class AICustomizeView extends LitElement {
                 padding: 4px 10px;
                 font-size: var(--font-size-xs);
                 cursor: pointer;
-                transition: background 0.2s, color 0.2s;
+                transition:
+                    background 0.2s,
+                    color 0.2s;
             }
             .copy-btn:hover {
                 background: var(--accent);
@@ -143,6 +145,7 @@ export class AICustomizeView extends LitElement {
             presentation: 'Presentation',
             negotiation: 'Negotiation',
             exam: 'Exam Assistant',
+            debug: 'Debug / Code Review',
         };
         return names[profile] || profile;
     }
@@ -155,8 +158,22 @@ export class AICustomizeView extends LitElement {
             presentation: 'You are a presentation coach helping the user deliver impactful presentations.',
             negotiation: 'You are a negotiation expert helping the user achieve favorable outcomes.',
             exam: 'You are an exam assistant helping the user answer questions accurately and efficiently.',
+            debug: 'You are a debugging assistant identifying bugs, logical flaws, and exact fixes in code.',
         };
         return prompts[profile] || 'You are a helpful assistant.';
+    }
+
+    _getProfileDescription(profile) {
+        const descriptions = {
+            interview: 'Provides ready-to-speak answers for job interviews',
+            sales: 'Helps close deals with persuasive responses',
+            meeting: 'Clear, professional communication for meetings',
+            presentation: 'Engaging talking points for presentations',
+            negotiation: 'Strategic responses for deal-making',
+            exam: 'Direct, efficient answers for tests',
+            debug: 'Identifies bugs and suggests minimal code fixes',
+        };
+        return descriptions[profile] || '';
     }
 
     _togglePreview() {
@@ -187,6 +204,7 @@ export class AICustomizeView extends LitElement {
             { value: 'presentation', label: 'Presentation' },
             { value: 'negotiation', label: 'Negotiation' },
             { value: 'exam', label: 'Exam Assistant' },
+            { value: 'debug', label: 'Debug / Code Review' },
         ];
 
         return html`
@@ -203,6 +221,7 @@ export class AICustomizeView extends LitElement {
                                 <select class="control" .value=${this.selectedProfile} @change=${this._handleProfileChange}>
                                     ${profiles.map(profile => html`<option value=${profile.value}>${profile.label}</option>`)}
                                 </select>
+                                <div class="form-help">${this._getProfileDescription(this.selectedProfile)}</div>
                             </div>
                             <div class="form-group vertical">
                                 <label class="form-label">Custom Instructions</label>
@@ -212,7 +231,9 @@ export class AICustomizeView extends LitElement {
                                     .value=${this._context}
                                     @input=${e => this._saveContext(e.target.value)}
                                 ></textarea>
-                                <div class="form-help">Sent as context at session start. Keep it short.</div>
+                                <div class="form-help">
+                                    Custom instructions persist across all sessions and are layered on top of your selected profile.
+                                </div>
                             </div>
                         </div>
 

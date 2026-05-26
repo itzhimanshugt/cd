@@ -8,6 +8,7 @@ const AbortController = require('./AbortController');
 const TypingManager = require('./TypingManager');
 const HotkeyController = require('./HotkeyController');
 const WindowTargetLock = require('./WindowTargetLock');
+const BackendManager = require('./BackendManager');
 const backends = require('./backends');
 
 module.exports = {
@@ -19,5 +20,6 @@ module.exports = {
     TypingManager,
     HotkeyController,
     WindowTargetLock,
+    BackendManager,
     backends,
 };

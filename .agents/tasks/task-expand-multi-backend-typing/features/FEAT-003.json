@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Add BackendManager with failover system, update TypingManager to use it, update storage defaults with failoverChain, update TypingSettingsView with backend failover UI, and update _resolveBackendClass with all new backend mappings.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create src/typing/BackendManager.js - EventEmitter class that: manages all backend instances, provides getBackend(name), getAvailableBackends() (instantiates each and calls isAvailable()), implements failover chain (configurable order defaulting to: Win32SendInput -> VirtualKeyboard -> PowerShellAddType -> Clipboard -> PowerShellSendKeys -> AutoHotkey -> BatchPaste -> Hybrid -> NutJS -> RobotJS -> UIAutomation -> ElectronWebContents), tracks backend health (errorCount, lastErrorTime per backend), provides tryInject(text) that attempts primary then falls back through chain on error, emits 'failover' event with {from, to, error}, emits 'backend-error' event, provides getHealth() returning all backend health stats, provides setFailoverChain(chain) to reconfigure order, provides getPrimary() returning current primary backend name",
     "Update src/typing/TypingManager.js: add require for BackendManager, in constructor create this._backendManager = new BackendManager(), replace _initBackend logic to use BackendManager.getBackend(), update getAvailableBackends() to delegate to BackendManager.getAvailableBackends(), add failover support in _createScheduler - wrap backend.inject in try/catch that calls BackendManager.tryInject on failure, add getBackendHealth() method, update getStatus() to include backendHealth and failoverChain info, forward BackendManager 'failover' events as own events",

@@ -7,6 +7,7 @@ const HumanizationEngine = require('./HumanizationEngine');
 const InjectionScheduler = require('./InjectionScheduler');
 const TypingAbortController = require('./AbortController');
 const backends = require('./backends');
+const BackendManager = require('./BackendManager');
 
 const STATES = {
     IDLE: 'idle',
@@ -45,6 +46,11 @@ class TypingManager extends EventEmitter {
         this._backend = null;
         this._scheduler = null;
         this._lastResponse = null;
+
+        this._backendManager = new BackendManager({ failoverChain: config.failoverChain });
+        this._backendManager.initialize();
+
+        this._backendManager.on('failover', data => this.emit('backend-failover', data));
 
         this._initBackend(this._config.backend);
         this._setupQueueListeners();
@@ -157,7 +163,7 @@ class TypingManager extends EventEmitter {
 
     /**
      * Returns current status information.
-     * @returns {{state: string, progress: object, backend: string, speed: number}}
+     * @returns {{state: string, progress: object, backend: string, speed: number, backendHealth: object, failoverChain: string[]}}
      */
     getStatus() {
         return {
@@ -165,6 +171,8 @@ class TypingManager extends EventEmitter {
             progress: this._queue.getProgress(),
             backend: this._backend ? this._backend.getName() : 'none',
             speed: this._config.speed,
+            backendHealth: this._backendManager.getHealth(),
+            failoverChain: this._backendManager.getFailoverChain(),
         };
     }
 
@@ -183,26 +191,7 @@ class TypingManager extends EventEmitter {
      * @returns {string[]} Names of available backends
      */
     getAvailableBackends() {
-        const available = [];
-        const backendClasses = [
-            backends.Win32SendInputBackend,
-            backends.ClipboardInjectionBackend,
-            backends.PowerShellSendKeysBackend,
-            backends.RobotJSBackend,
-        ];
-
-        for (const BackendClass of backendClasses) {
-            try {
-                const instance = new BackendClass();
-                if (instance.isAvailable()) {
-                    available.push(instance.getName());
-                }
-            } catch (e) {
-                // Skip backends that fail to instantiate
-            }
-        }
-
-        return available;
+        return this._backendManager.getAvailableBackends();
     }
 
     /**
@@ -211,6 +200,22 @@ class TypingManager extends EventEmitter {
      */
     getLastResponse() {
         return this._lastResponse;
+    }
+
+    /**
+     * Returns health stats for all backends.
+     * @returns {object}
+     */
+    getBackendHealth() {
+        return this._backendManager.getHealth();
+    }
+
+    /**
+     * Sets the failover chain order.
+     * @param {string[]} chain - Ordered list of backend names
+     */
+    setFailoverChain(chain) {
+        this._backendManager.setFailoverChain(chain);
     }
 
     /**
@@ -227,6 +232,14 @@ class TypingManager extends EventEmitter {
             }
         }
 
+        // Try to get from BackendManager first
+        const managed = this._backendManager.getBackend(name);
+        if (managed) {
+            this._backend = managed;
+            return;
+        }
+
+        // Fallback: instantiate directly
         const BackendClass = this._resolveBackendClass(name);
         if (BackendClass) {
             this._backend = new BackendClass(this._config.backendOptions);
@@ -249,14 +262,38 @@ class TypingManager extends EventEmitter {
     _resolveBackendClass(name) {
         const map = {
             Win32SendInput: backends.Win32SendInputBackend,
-            ClipboardInjection: backends.ClipboardInjectionBackend,
-            PowerShellSendKeys: backends.PowerShellSendKeysBackend,
-            RobotJS: backends.RobotJSBackend,
-            // Kebab-case aliases (used by settings UI and storage)
             'win32-sendinput': backends.Win32SendInputBackend,
+            ClipboardInjection: backends.ClipboardInjectionBackend,
             clipboard: backends.ClipboardInjectionBackend,
+            PowerShellSendKeys: backends.PowerShellSendKeysBackend,
             powershell: backends.PowerShellSendKeysBackend,
+            RobotJS: backends.RobotJSBackend,
             robotjs: backends.RobotJSBackend,
+            AutoHotkey: backends.AutoHotkeyBackend,
+            autohotkey: backends.AutoHotkeyBackend,
+            ahk: backends.AutoHotkeyBackend,
+            NutJS: backends.NutJSBackend,
+            nutjs: backends.NutJSBackend,
+            nut: backends.NutJSBackend,
+            UIAutomation: backends.UIAutomationBackend,
+            'ui-automation': backends.UIAutomationBackend,
+            uiautomation: backends.UIAutomationBackend,
+            ElectronWebContents: backends.ElectronWebContentsBackend,
+            'electron-webcontents': backends.ElectronWebContentsBackend,
+            electron: backends.ElectronWebContentsBackend,
+            VirtualKeyboard: backends.VirtualKeyboardBackend,
+            'virtual-keyboard': backends.VirtualKeyboardBackend,
+            vk: backends.VirtualKeyboardBackend,
+            'keybd-event': backends.VirtualKeyboardBackend,
+            BatchPaste: backends.BatchPasteBackend,
+            'batch-paste': backends.BatchPasteBackend,
+            batch: backends.BatchPasteBackend,
+            HybridTyping: backends.HybridTypingBackend,
+            'hybrid-typing': backends.HybridTypingBackend,
+            hybrid: backends.HybridTypingBackend,
+            PowerShellAddType: backends.PowerShellAddTypeBackend,
+            'powershell-addtype': backends.PowerShellAddTypeBackend,
+            'ps-addtype': backends.PowerShellAddTypeBackend,
         };
         return map[name] || null;
     }
@@ -270,10 +307,29 @@ class TypingManager extends EventEmitter {
             this._scheduler.removeAllListeners();
         }
 
+        const actualBackend = this._backend || { inject() {} };
+        const backendManager = this._backendManager;
+
+        // Wrap backend with failover proxy
+        const failoverBackend = {
+            inject: async text => {
+                try {
+                    return await actualBackend.inject(text);
+                } catch (e) {
+                    // Primary failed, try failover chain
+                    const result = await backendManager.tryInject(text);
+                    if (!result.success) {
+                        throw e;
+                    }
+                    return result;
+                }
+            },
+        };
+
         this._scheduler = new InjectionScheduler({
             queue: this._queue,
             engine: this._engine,
-            backend: this._backend || { inject() {} },
+            backend: failoverBackend,
             abortController: this._abortController,
             granularity: this._config.granularity,
         });

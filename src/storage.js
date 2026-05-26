@@ -77,6 +77,20 @@ const DEFAULT_TYPING_SETTINGS = {
     pasteMode: false,
     granularity: 'character',
     sentenceBySentence: false,
+    failoverChain: [
+        'win32-sendinput',
+        'virtual-keyboard',
+        'powershell-addtype',
+        'clipboard',
+        'powershell',
+        'autohotkey',
+        'batch-paste',
+        'hybrid-typing',
+        'nutjs',
+        'robotjs',
+        'ui-automation',
+        'electron-webcontents',
+    ],
 };
 
 // Default window state — persisted across restarts

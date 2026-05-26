@@ -84,18 +84,95 @@ export class TypingSettingsView extends LitElement {
             .status-dot.paused {
                 background: #ff9800;
             }
+            .failover-list {
+                list-style: none;
+                padding: 0;
+                margin: 8px 0 0 0;
+            }
+            .failover-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 8px;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                margin-bottom: 4px;
+                background: var(--bg-elevated);
+            }
+            .failover-item-number {
+                font-size: var(--font-size-xs);
+                color: var(--text-muted);
+                min-width: 20px;
+            }
+            .failover-item-name {
+                flex: 1;
+                font-size: var(--font-size-sm);
+                color: var(--text-primary);
+            }
+            .failover-btn {
+                background: none;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                color: var(--text-secondary);
+                cursor: pointer;
+                padding: 2px 6px;
+                font-size: var(--font-size-xs);
+                line-height: 1;
+            }
+            .failover-btn:hover {
+                background: var(--bg-elevated);
+                color: var(--text-primary);
+            }
+            .health-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                margin-top: 8px;
+            }
+            .health-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 8px;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                background: var(--bg-elevated);
+            }
+            .health-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                flex-shrink: 0;
+            }
+            .health-dot.available {
+                background: #4caf50;
+            }
+            .health-dot.unavailable {
+                background: #f44336;
+            }
+            .health-name {
+                flex: 1;
+                font-size: var(--font-size-xs);
+                color: var(--text-primary);
+            }
+            .health-errors {
+                font-size: var(--font-size-xs);
+                color: var(--text-muted);
+            }
         `,
     ];
 
     static properties = {
         _settings: { state: true },
         _status: { state: true },
+        _backends: { state: true },
     };
 
     constructor() {
         super();
         this._settings = {};
         this._status = { state: 'idle' };
+        this._backends = [];
     }
 
     connectedCallback() {
@@ -125,7 +202,15 @@ export class TypingSettingsView extends LitElement {
     async _loadStatus() {
         try {
             const result = await window.cheatingDaddy.typing.getStatus();
-            this._status = result.data || result;
+            const data = result.data || result;
+            this._status = data;
+            if (data.backendHealth) {
+                this._backends = Object.entries(data.backendHealth).map(([name, info]) => ({
+                    name,
+                    available: info.available,
+                    errorCount: info.errorCount,
+                }));
+            }
         } catch (e) {
             // Ignore - status might not be available
         }
@@ -184,9 +269,28 @@ export class TypingSettingsView extends LitElement {
         this._updateSetting('sentenceBySentence', !this._settings.sentenceBySentence);
     }
 
+    _onMoveUp(index) {
+        const chain = [...(this._settings.failoverChain || [])];
+        if (index <= 0 || index >= chain.length) return;
+        const temp = chain[index - 1];
+        chain[index - 1] = chain[index];
+        chain[index] = temp;
+        this._updateSetting('failoverChain', chain);
+    }
+
+    _onMoveDown(index) {
+        const chain = [...(this._settings.failoverChain || [])];
+        if (index < 0 || index >= chain.length - 1) return;
+        const temp = chain[index + 1];
+        chain[index + 1] = chain[index];
+        chain[index] = temp;
+        this._updateSetting('failoverChain', chain);
+    }
+
     render() {
         const s = this._settings;
         const statusState = this._status?.state || 'idle';
+        const failoverChain = s.failoverChain || [];
 
         return html`
             <div class="unified-page">
@@ -216,11 +320,62 @@ export class TypingSettingsView extends LitElement {
                                 <label class="form-label">Injection Backend</label>
                                 <select class="control" .value=${s.backend || 'win32-sendinput'} @change=${this._onBackendChange}>
                                     <option value="win32-sendinput">Win32 SendInput</option>
+                                    <option value="virtual-keyboard">Virtual Keyboard (keybd_event)</option>
+                                    <option value="powershell-addtype">PowerShell Add-Type</option>
                                     <option value="clipboard">Clipboard</option>
                                     <option value="powershell">PowerShell SendKeys</option>
+                                    <option value="autohotkey">AutoHotkey</option>
+                                    <option value="batch-paste">Batch Paste</option>
+                                    <option value="hybrid-typing">Hybrid Typing</option>
+                                    <option value="nutjs">nut.js</option>
                                     <option value="robotjs">RobotJS</option>
+                                    <option value="ui-automation">UI Automation</option>
+                                    <option value="electron-webcontents">Electron WebContents</option>
                                 </select>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Failover Chain -->
+                    <div class="surface">
+                        <div class="surface-title">Failover Chain</div>
+                        <div class="surface-subtitle">
+                            Configure backend fallback order. If the primary backend fails, the system will try each in order.
+                        </div>
+                        <ol class="failover-list">
+                            ${failoverChain.map(
+                                (name, index) => html`
+                                    <li class="failover-item">
+                                        <span class="failover-item-number">${index + 1}.</span>
+                                        <span class="failover-item-name">${name}</span>
+                                        <button class="failover-btn" @click=${() => this._onMoveUp(index)} ?disabled=${index === 0}>&#9650;</button>
+                                        <button
+                                            class="failover-btn"
+                                            @click=${() => this._onMoveDown(index)}
+                                            ?disabled=${index === failoverChain.length - 1}
+                                        >
+                                            &#9660;
+                                        </button>
+                                    </li>
+                                `
+                            )}
+                        </ol>
+                    </div>
+
+                    <!-- Backend Health -->
+                    <div class="surface">
+                        <div class="surface-title">Backend Status</div>
+                        <div class="surface-subtitle">Real-time availability and health of injection backends</div>
+                        <div class="health-grid">
+                            ${this._backends.map(
+                                b => html`
+                                    <div class="health-item">
+                                        <span class="health-dot ${b.available ? 'available' : 'unavailable'}"></span>
+                                        <span class="health-name">${b.name}</span>
+                                        <span class="health-errors">${b.errorCount > 0 ? `${b.errorCount} errors` : ''}</span>
+                                    </div>
+                                `
+                            )}
                         </div>
                     </div>
 

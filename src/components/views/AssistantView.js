@@ -251,6 +251,16 @@ export class AssistantView extends LitElement {
             padding: var(--space-lg);
         }
 
+        /* ── Page indicator ── */
+
+        .page-indicator {
+            text-align: center;
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            padding: 4px 0;
+            font-family: var(--font-mono);
+        }
+
         /* ── Bottom input bar ── */
 
         .input-bar {
@@ -354,7 +364,8 @@ export class AssistantView extends LitElement {
         onSendText: { type: Function },
         shouldAnimateResponse: { type: Boolean },
         isAnalyzing: { type: Boolean, state: true },
-        _messages: { state: true },
+        _pages: { state: true },
+        _currentPage: { state: true },
     };
 
     constructor() {
@@ -365,7 +376,8 @@ export class AssistantView extends LitElement {
         this.onSendText = () => {};
         this.isAnalyzing = false;
         this._animFrame = null;
-        this._messages = [];
+        this._pages = [[]];
+        this._currentPage = 0;
         this._lastResponseCount = 0;
     }
 
@@ -430,6 +442,30 @@ export class AssistantView extends LitElement {
             ipcRenderer.on('scroll-response-down', this.handleScrollDown);
         }
 
+        // Keyboard shortcut for page navigation
+        this._pageKeyHandler = e => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'ArrowRight') {
+                e.preventDefault();
+                // Create new page only if current page has messages
+                if (this._pages[this._currentPage].length > 0) {
+                    const updatedPages = [...this._pages];
+                    updatedPages.push([]);
+                    this._pages = updatedPages;
+                    this._currentPage = this._pages.length - 1;
+                    this.requestUpdate();
+                    this._scrollToTop();
+                }
+            } else if (e.ctrlKey && e.shiftKey && e.key === 'ArrowLeft') {
+                e.preventDefault();
+                if (this._currentPage > 0) {
+                    this._currentPage = this._currentPage - 1;
+                    this.requestUpdate();
+                    this._scrollToTop();
+                }
+            }
+        };
+        window.addEventListener('keydown', this._pageKeyHandler);
+
         // Listen for analyze triggered via hotkey (so animation plays)
         if (window.cheatingDaddy && window.cheatingDaddy.events) {
             this._onAnalyzeTriggered = () => {
@@ -446,6 +482,10 @@ export class AssistantView extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         this._stopWaveformAnimation();
+
+        if (this._pageKeyHandler) {
+            window.removeEventListener('keydown', this._pageKeyHandler);
+        }
 
         if (window.cheatingDaddy && window.cheatingDaddy.events && this._onAnalyzeTriggered) {
             window.cheatingDaddy.events.removeEventListener('analyze-triggered', this._onAnalyzeTriggered);
@@ -465,8 +505,10 @@ export class AssistantView extends LitElement {
         if (textInput && textInput.value.trim()) {
             const message = textInput.value.trim();
             textInput.value = '';
-            // Add user message to chat
-            this._messages = [...this._messages, { type: 'user', content: message, timestamp: Date.now() }];
+            // Add user message to current page
+            const updatedPages = [...this._pages];
+            updatedPages[this._currentPage] = [...updatedPages[this._currentPage], { type: 'user', content: message, timestamp: Date.now() }];
+            this._pages = updatedPages;
             this.requestUpdate();
             this._scrollToBottom();
             await this.onSendText(message);
@@ -626,6 +668,15 @@ export class AssistantView extends LitElement {
         }, 0);
     }
 
+    _scrollToTop() {
+        setTimeout(() => {
+            const container = this.shadowRoot.querySelector('.messages-container');
+            if (container) {
+                container.scrollTop = 0;
+            }
+        }, 0);
+    }
+
     _formatTimestamp(ts) {
         const d = new Date(ts);
         const h = d.getHours();
@@ -647,7 +698,7 @@ export class AssistantView extends LitElement {
         }
 
         if (changedProperties.has('responses')) {
-            // Add new AI responses to messages
+            // Add new AI responses to current page
             if (this.responses.length > this._lastResponseCount) {
                 const newResponses = this.responses.slice(this._lastResponseCount);
                 const newMessages = newResponses.map(content => ({
@@ -655,15 +706,20 @@ export class AssistantView extends LitElement {
                     content,
                     timestamp: Date.now(),
                 }));
-                this._messages = [...this._messages, ...newMessages];
+                const updatedPages = [...this._pages];
+                updatedPages[this._currentPage] = [...updatedPages[this._currentPage], ...newMessages];
+                this._pages = updatedPages;
                 this._scrollToBottom();
             } else if (this.responses.length > 0 && this.responses.length === this._lastResponseCount) {
                 // Update the last AI message (streaming update)
-                const lastAiIdx = this._findLastAiMessageIndex();
+                const currentMessages = this._pages[this._currentPage];
+                const lastAiIdx = this._findLastAiMessageIndex(currentMessages);
                 if (lastAiIdx >= 0) {
-                    const updated = [...this._messages];
-                    updated[lastAiIdx] = { ...updated[lastAiIdx], content: this.responses[this.responses.length - 1] };
-                    this._messages = updated;
+                    const updatedMessages = [...currentMessages];
+                    updatedMessages[lastAiIdx] = { ...updatedMessages[lastAiIdx], content: this.responses[this.responses.length - 1] };
+                    const updatedPages = [...this._pages];
+                    updatedPages[this._currentPage] = updatedMessages;
+                    this._pages = updatedPages;
                 }
             }
             this._lastResponseCount = this.responses.length;
@@ -673,29 +729,31 @@ export class AssistantView extends LitElement {
             }
         }
 
-        // Reset messages when responses are cleared (new session)
+        // Reset pages when responses are cleared (new session)
         if (changedProperties.has('responses') && this.responses.length === 0) {
-            this._messages = [];
+            this._pages = [[]];
+            this._currentPage = 0;
             this._lastResponseCount = 0;
         }
     }
 
-    _findLastAiMessageIndex() {
-        for (let i = this._messages.length - 1; i >= 0; i--) {
-            if (this._messages[i].type === 'ai') return i;
+    _findLastAiMessageIndex(messages) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].type === 'ai') return i;
         }
         return -1;
     }
 
     render() {
         const profileNames = this.getProfileNames();
-        const hasMessages = this._messages.length > 0;
+        const currentMessages = this._pages[this._currentPage] || [];
+        const hasMessages = currentMessages.length > 0;
 
         return html`
             ${hasMessages
                 ? html`
                       <div class="messages-container">
-                          ${this._messages.map(
+                          ${currentMessages.map(
                               msg => html`
                                   <div class="message-row ${msg.type}">
                                       <div class="message-bubble ${msg.type}" .innerHTML=${msg.type === 'ai' ? this.renderMarkdown(msg.content) : ''}>
@@ -708,6 +766,7 @@ export class AssistantView extends LitElement {
                       </div>
                   `
                 : html` <div class="listening-placeholder">Listening to your ${profileNames[this.selectedProfile] || 'session'}...</div> `}
+            ${this._pages.length > 1 ? html` <div class="page-indicator">Page ${this._currentPage + 1} / ${this._pages.length}</div> ` : ''}
 
             <div class="input-bar">
                 <div class="input-bar-inner">

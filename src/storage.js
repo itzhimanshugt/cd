@@ -45,7 +45,11 @@ function _cacheWrite(key, filePath, data) {
 }
 
 function flushAll() {
-    _flushDirtyEntries();
+    try {
+        _flushDirtyEntries();
+    } catch (error) {
+        console.error('Error during storage flush:', error);
+    }
 }
 
 function initializeCache() {
@@ -307,16 +311,25 @@ function resetConfigDir() {
 
 // Initialize storage - call this on app startup
 function initializeStorage() {
-    if (needsReset()) {
-        resetConfigDir();
-    } else {
-        // Ensure history directory exists
-        const historyDir = getHistoryDir();
-        if (!fs.existsSync(historyDir)) {
-            fs.mkdirSync(historyDir, { recursive: true });
+    try {
+        if (needsReset()) {
+            resetConfigDir();
+        } else {
+            const historyDir = getHistoryDir();
+            if (!fs.existsSync(historyDir)) {
+                fs.mkdirSync(historyDir, { recursive: true });
+            }
+        }
+        initializeCache();
+    } catch (error) {
+        console.error('Failed to initialize storage, attempting recovery:', error);
+        try {
+            resetConfigDir();
+            initializeCache();
+        } catch (recoveryError) {
+            console.error('Storage recovery failed:', recoveryError);
         }
     }
-    initializeCache();
 }
 
 // ============ CONFIG ============

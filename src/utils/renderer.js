@@ -1425,7 +1425,7 @@ ipcRenderer.on('typing-response-ready', (_, data) => {
     _eventBus.dispatchEvent(new CustomEvent('typing-response-ready', { detail: data }));
     // Auto-load the response into TypingManager so it is ready for typing
     // Load the response first
-    ipcRenderer.invoke('typing:auto-load', data.text).catch(() => {});
+    ipcRenderer.invoke('typing:auto-load', data.text).catch(err => console.warn('Auto-load typing failed:', err.message));
 
     // If user has enabled auto-typing in settings, start typing after configured delay
     (async () => {
@@ -1436,7 +1436,7 @@ ipcRenderer.on('typing-response-ready', (_, data) => {
                 const delay = typeof settings.startupDelay === 'number' ? settings.startupDelay : 200;
                 setTimeout(
                     () => {
-                        ipcRenderer.invoke('typing:start').catch(() => {});
+                        ipcRenderer.invoke('typing:start').catch(err => console.warn('Auto-start typing failed:', err.message));
                     },
                     Math.max(0, delay)
                 );

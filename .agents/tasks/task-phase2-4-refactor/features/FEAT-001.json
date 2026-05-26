@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Phase 2 Performance: Async storage cache, hotkey optimization, event consolidation, and startup laziness",
+  "status": "in_progress",
+  "steps": [
+    "ITEM 6 - Async Storage Cache in src/storage.js: Add a _cache object at module level. On first read of each file (config, credentials, preferences, keybinds, windowState, typingSettings), populate cache. Subsequent reads return from cache. Writes update cache AND schedule a debounced flush (300ms). Add flushAll() export that writes all dirty entries immediately. Keep existing sync function signatures (getPreferences, getWindowState, etc.) so callers remain unchanged - they just read from cache now. Add initializeCache() called from initializeStorage() to pre-populate cache on startup.",
+    "ITEM 7 - Wire HotkeyService into src/utils/window.js: Import { HotkeyService } at top. Create a module-level instance: const hotkeyService = new HotkeyService(). In createWindow(), after mainWindow.webContents dom-ready, call hotkeyService.init(globalShortcut). Refactor updateGlobalShortcuts(): On FIRST call (hotkeyService._registry.size === 0), build a handlers map object {action: handler} and call hotkeyService.rebuildAll(keybinds, handlers). On subsequent calls, build the same handlers map, then iterate keybinds entries: for each action, call hotkeyService.updateBinding(action, keybinds[action], handlers[action]). Remove the globalShortcut.unregisterAll() call. Keep all existing handler logic intact.",
+    "ITEM 8 - Event consolidation in src/utils/renderer.js: Remove direct app.dispatchEvent() calls for events that are ALSO dispatched on _eventBus. Specifically: 'ai-mode-toggled' IPC handler currently dispatches on both app and _eventBus - remove the app.dispatchEvent. Same for 'debug-mode-toggled' and 'model-changed'. Components should listen on cheatingDaddy.events (the _eventBus) exclusively. CheatingDaddyApp.js already listens on 'this' for those events so update it to listen on cheatingDaddy.events instead. Also add a debounce utility function at top of renderer.js and wrap the font-opacity-change and bg-opacity-change handlers with debounce(fn, 50) to prevent rapid-fire redraws.",
+    "ITEM 9 - Startup laziness in src/index.js: Move apiKeys.startBackgroundValidation() timeout from 8000ms to 15000ms. Move screen capture pre-warm from 1500ms to 5000ms. Add comments: '// === IMMEDIATE ===' before storage.initializeStorage(), '// === DEFERRED (5s) ===' before the screen capture setTimeout, '// === DEFERRED (15s) ===' before apiKeys setTimeout. Lazy-require screenshot and logger: replace top-level const screenshot = require('./utils/screenshot') and const logger = require('./utils/logger') with let _screenshot = null; let _logger = null; function getScreenshot() { if (!_screenshot) _screenshot = require('./utils/screenshot'); return _screenshot; } function getLogger() { if (!_logger) _logger = require('./utils/logger'); return _logger; }. Update all usages of screenshot and logger in the file to use getScreenshot() and getLogger() instead."
+  ],
+  "acceptance_criteria": [
+    "src/storage.js exports flushAll() and uses an internal _cache for reads/writes",
+    "src/utils/window.js imports HotkeyService and uses updateBinding() for differential updates on subsequent calls",
+    "src/utils/renderer.js has a debounce utility and removes duplicate app.dispatchEvent calls for events already on _eventBus",
+    "src/index.js has lazy requires for screenshot/logger and deferred timers at 5s/15s",
+    "All files are syntactically valid JavaScript (verifiable with node --check for CJS or basic parse for ESM)"
+  ],
+  "verification": [
+    "Run: node --check /projects/sandbox/cd/src/storage.js",
+    "Run: node --check /projects/sandbox/cd/src/utils/window.js",
+    "Run: node --check /projects/sandbox/cd/src/index.js",
+    "Run: node -e \"const acorn = require('acorn'); acorn.parse(require('fs').readFileSync('/projects/sandbox/cd/src/utils/renderer.js','utf8'), {sourceType:'module', ecmaVersion:2022})\" or use a simple syntax check"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

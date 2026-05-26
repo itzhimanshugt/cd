@@ -1,6 +1,18 @@
 // renderer.js
 const { ipcRenderer } = require('electron');
 
+// Debounce utility - delays execution until after `ms` milliseconds of inactivity
+function debounce(fn, ms) {
+    let timer = null;
+    return function (...args) {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+            timer = null;
+            fn.apply(this, args);
+        }, ms);
+    };
+}
+
 let mediaStream = null;
 let screenshotInterval = null;
 let audioContext = null;
@@ -1267,7 +1279,7 @@ ipcRenderer.on('font-size-changed', (_, newSize) => {
 });
 
 // Font opacity: changes text color alpha only (Ctrl+[ / Ctrl+])
-ipcRenderer.on('font-opacity-change', (_, delta) => {
+ipcRenderer.on('font-opacity-change', debounce((_, delta) => {
     const root = document.documentElement;
     const current = parseFloat(root.style.getPropertyValue('--font-opacity') || '1');
     const next = Math.max(0.1, Math.min(1.0, parseFloat((current + delta).toFixed(2))));
@@ -1282,47 +1294,31 @@ ipcRenderer.on('font-opacity-change', (_, delta) => {
     storage.updatePreference('fontOpacity', next);
     _eventBus.dispatchEvent(new CustomEvent('font-opacity-changed', { detail: { value: next } }));
     showToast(`Font Opacity: ${Math.round(next * 100)}%`);
-});
+}, 50));
 
 // Background opacity: hooks into existing backgroundTransparency preference (Ctrl+Shift+[ / Ctrl+Shift+])
 // This is the SAME value the Settings slider controls -- single source of truth.
-ipcRenderer.on('bg-opacity-change', async (_, delta) => {
+ipcRenderer.on('bg-opacity-change', debounce(async (_, delta) => {
     const prefs = await storage.getPreferences();
     const current = prefs.backgroundTransparency ?? 0.8;
     const next = Math.max(0.0, Math.min(1.0, parseFloat((current + delta).toFixed(2))));
     await storage.updatePreference('backgroundTransparency', next);
     const colors = theme.get(theme.current);
     theme.applyBackgrounds(colors.background, next);
-    const app = document.querySelector('cheating-daddy-app');
-    if (app) {
-        app.dispatchEvent(new CustomEvent('bg-opacity-updated', { detail: { value: next } }));
-    }
     _eventBus.dispatchEvent(new CustomEvent('bg-opacity-changed', { detail: { value: next } }));
     showToast(`Background: ${Math.round(next * 100)}%`);
-});
+}, 50));
 
 ipcRenderer.on('ai-mode-toggled', (_, newMode) => {
-    const app = document.querySelector('cheating-daddy-app');
-    if (app) {
-        app.dispatchEvent(new CustomEvent('ai-mode-changed', { detail: { mode: newMode } }));
-    }
     _eventBus.dispatchEvent(new CustomEvent('ai-mode-toggled', { detail: { mode: newMode } }));
     showToast(`AI Mode: ${newMode}`);
 });
 
 ipcRenderer.on('debug-mode-toggled', (_, enabled) => {
-    const app = document.querySelector('cheating-daddy-app');
-    if (app) {
-        app.dispatchEvent(new CustomEvent('debug-mode-changed', { detail: { enabled } }));
-    }
     _eventBus.dispatchEvent(new CustomEvent('debug-mode-toggled', { detail: { enabled } }));
 });
 
 ipcRenderer.on('model-changed', (_, data) => {
-    const app = document.querySelector('cheating-daddy-app');
-    if (app) {
-        app.dispatchEvent(new CustomEvent('model-changed', { detail: data }));
-    }
     _eventBus.dispatchEvent(new CustomEvent('model-changed', { detail: data }));
     const shortName = data.model ? data.model.split('/').pop().split('-').slice(0, 3).join('-') : data.model;
     showToast(`Model: ${shortName}`);

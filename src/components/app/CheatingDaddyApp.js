@@ -497,21 +497,21 @@ export class CheatingDaddyApp extends LitElement {
     connectedCallback() {
         super.connectedCallback();
 
-        // Listen for AI mode changes from hotkey
+        // Listen for AI mode changes on the global event bus
         this._aiModeHandler = e => {
             this._aiMode = e.detail.mode;
             this.requestUpdate();
         };
-        this.addEventListener('ai-mode-changed', this._aiModeHandler);
+        window.cheatingDaddy.events.addEventListener('ai-mode-toggled', this._aiModeHandler);
 
-        // Listen for debug mode toggle
+        // Listen for debug mode toggle on the global event bus
         this._debugModeHandler = e => {
             this._debugMode = e.detail.enabled;
             this.requestUpdate();
         };
-        this.addEventListener('debug-mode-changed', this._debugModeHandler);
+        window.cheatingDaddy.events.addEventListener('debug-mode-toggled', this._debugModeHandler);
 
-        // Listen for model changes
+        // Listen for model changes on the global event bus
         this._modelChangeHandler = e => {
             const { task, model } = e.detail;
             if (task === 'extraction') this._modelExtraction = model;
@@ -519,7 +519,7 @@ export class CheatingDaddyApp extends LitElement {
             else if (task === 'debugging') this._modelDebugging = model;
             this.requestUpdate();
         };
-        this.addEventListener('model-changed', this._modelChangeHandler);
+        window.cheatingDaddy.events.addEventListener('model-changed', this._modelChangeHandler);
 
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
@@ -550,9 +550,9 @@ export class CheatingDaddyApp extends LitElement {
             this._sessionStoreUnsubscribe();
             this._sessionStoreUnsubscribe = null;
         }
-        this.removeEventListener('ai-mode-changed', this._aiModeHandler);
-        this.removeEventListener('debug-mode-changed', this._debugModeHandler);
-        this.removeEventListener('model-changed', this._modelChangeHandler);
+        window.cheatingDaddy.events.removeEventListener('ai-mode-toggled', this._aiModeHandler);
+        window.cheatingDaddy.events.removeEventListener('debug-mode-toggled', this._debugModeHandler);
+        window.cheatingDaddy.events.removeEventListener('model-changed', this._modelChangeHandler);
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.removeListener('new-response', this._ipcNewResponse);

@@ -9,8 +9,12 @@ const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = requir
 const apiKeys = require('./utils/apiKeys');
 const storage = require('./storage');
 const { TypingManager } = require('./typing');
-const logger = require('./utils/logger');
-const screenshot = require('./utils/screenshot');
+
+// Lazy-loaded modules
+let _logger = null;
+let _screenshot = null;
+function getLogger() { if (!_logger) _logger = require('./utils/logger'); return _logger; }
+function getScreenshot() { if (!_screenshot) _screenshot = require('./utils/screenshot'); return _screenshot; }
 
 const geminiSessionRef = { current: null };
 let mainWindow = null;
@@ -33,6 +37,7 @@ if (!gotTheLock) {
     });
 
     app.whenReady().then(async () => {
+        // === IMMEDIATE ===
         // Initialize storage (checks version, resets if needed)
         storage.initializeStorage();
 
@@ -60,6 +65,7 @@ if (!gotTheLock) {
         setupTypingIpcHandlers();
         setupDebugIpcHandlers();
 
+        // === DEFERRED (5s) ===
         // Pre-warm screen capture subsystem to avoid first-session freeze on Windows
         setTimeout(() => {
             const { desktopCapturer } = require('electron');
@@ -69,12 +75,13 @@ if (!gotTheLock) {
                     console.log(`Screen capture pre-warmed: ${sources.length} source(s)`);
                 })
                 .catch(() => {});
-        }, 1500);
+        }, 5000);
 
+        // === DEFERRED (15s) ===
         // Defer validation to avoid competing with initial render and GPU setup
         setTimeout(() => {
             apiKeys.startBackgroundValidation();
-        }, 8000);
+        }, 15000);
     });
 
     app.on('window-all-closed', () => {
@@ -578,17 +585,17 @@ function setupTypingIpcHandlers() {
 
 function setupDebugIpcHandlers() {
     ipcMain.handle('debug:capture-screenshot', async () => {
-        return screenshot.captureScreenshot(mainWindow);
+        return getScreenshot().captureScreenshot(mainWindow);
     });
 
     ipcMain.handle('debug:copy-screenshot', async () => {
-        return screenshot.copyScreenshotToClipboard(mainWindow);
+        return getScreenshot().copyScreenshotToClipboard(mainWindow);
     });
 
     ipcMain.handle('debug:capture-and-copy', async () => {
         const [saveResult, copyResult] = await Promise.all([
-            screenshot.captureScreenshot(mainWindow),
-            screenshot.copyScreenshotToClipboard(mainWindow),
+            getScreenshot().captureScreenshot(mainWindow),
+            getScreenshot().copyScreenshotToClipboard(mainWindow),
         ]);
         return {
             success: saveResult.success || copyResult.success,
@@ -600,25 +607,25 @@ function setupDebugIpcHandlers() {
     });
 
     ipcMain.handle('debug:open-screenshots', async () => {
-        return screenshot.openScreenshotsFolder();
+        return getScreenshot().openScreenshotsFolder();
     });
 
     ipcMain.handle('debug:get-logs', async (event, filters) => {
         try {
-            return { success: true, data: logger.getEntries(filters || {}) };
+            return { success: true, data: getLogger().getEntries(filters || {}) };
         } catch (e) {
             return { success: false, error: e.message };
         }
     });
 
     ipcMain.handle('debug:clear-logs', async () => {
-        logger.clear();
+        getLogger().clear();
         return { success: true };
     });
 
     ipcMain.handle('debug:export-logs', async () => {
         try {
-            const filePath = logger.exportToFile();
+            const filePath = getLogger().exportToFile();
             return { success: true, path: filePath };
         } catch (e) {
             return { success: false, error: e.message };
@@ -626,7 +633,7 @@ function setupDebugIpcHandlers() {
     });
 
     ipcMain.handle('debug:set-log-level', async (event, level) => {
-        logger.setLevel(level);
+        getLogger().setLevel(level);
         return { success: true };
     });
 
@@ -691,7 +698,7 @@ function setupDebugIpcHandlers() {
                 keybinds: storage.getKeybinds(),
                 typingSettings: storage.getTypingSettings(),
                 typingStatus: typingManager ? typingManager.getStatus() : null,
-                logs: logger.getEntries(),
+                logs: getLogger().getEntries(),
             };
             const dir = storage.getConfigDir();
             const filePath = path.join(dir, `debug-snapshot-${Date.now()}.json`);

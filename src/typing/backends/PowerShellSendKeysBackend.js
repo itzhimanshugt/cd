@@ -32,6 +32,14 @@ class PowerShellSendKeysBackend extends BaseBackend {
         return process.platform === 'win32';
     }
 
+    supportsRealtimeStreaming() {
+        return true;
+    }
+
+    supportsKeyCombos() {
+        return true;
+    }
+
     initialize() {
         this._initialized = true;
     }

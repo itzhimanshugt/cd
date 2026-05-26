@@ -50,6 +50,75 @@ class BaseBackend {
     destroy() {
         throw new Error('Not implemented');
     }
+
+    // --- Capability reporting (defaults; override in subclasses) ---
+
+    /**
+     * Whether this backend supports realtime character-by-character streaming.
+     * @returns {boolean}
+     */
+    supportsRealtimeStreaming() {
+        return false;
+    }
+
+    /**
+     * Whether this backend supports sending key combinations (e.g. Ctrl+C).
+     * @returns {boolean}
+     */
+    supportsKeyCombos() {
+        return false;
+    }
+
+    /**
+     * Whether this backend supports full Unicode text injection.
+     * @returns {boolean}
+     */
+    supportsUnicode() {
+        return false;
+    }
+
+    /**
+     * Whether this backend supports chunked text injection.
+     * @returns {boolean}
+     */
+    supportsChunking() {
+        return false;
+    }
+
+    // --- Lifecycle (no-op defaults) ---
+
+    /**
+     * Pauses the current injection operation.
+     */
+    pause() {}
+
+    /**
+     * Resumes a paused injection operation.
+     */
+    resume() {}
+
+    /**
+     * Aborts the current injection operation.
+     */
+    abort() {}
+
+    /**
+     * Cleans up resources. Default calls destroy().
+     */
+    cleanup() {
+        this.destroy();
+    }
+
+    // --- Unified naming alias ---
+
+    /**
+     * Unified alias for inject(). Subclasses should override inject().
+     * @param {string} text - Text to type
+     * @returns {*}
+     */
+    typeText(text) {
+        return this.inject(text);
+    }
 }
 
 module.exports = BaseBackend;

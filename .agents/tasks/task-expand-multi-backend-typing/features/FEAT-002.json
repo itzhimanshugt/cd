@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Expand BaseBackend interface with capability-reporting methods and unified naming, update all 4 existing backends to implement the new interface, and add 8 new injection backends: AutoHotkeyBackend, NutJSBackend, UIAutomationBackend, ElectronWebContentsBackend, VirtualKeyboardBackend, BatchPasteBackend, HybridTypingBackend, PowerShellAddTypeBackend.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Expand src/typing/backends/BaseBackend.js to add: supportsRealtimeStreaming() -> false, supportsKeyCombos() -> false, supportsUnicode() -> false, supportsChunking() -> false, pause() (no-op), resume() (no-op), abort() (no-op), cleanup() as alias for destroy(), typeText(text) as alias calling inject(text)",
     "Update src/typing/backends/Win32SendInputBackend.js - add supportsRealtimeStreaming() -> true, supportsKeyCombos() -> true, supportsUnicode() -> true, supportsChunking() -> false, typeText alias",

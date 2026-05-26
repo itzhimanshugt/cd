@@ -7,12 +7,11 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 
 /**
- * Primary Windows backend using user32.dll SendInput via PowerShell P/Invoke.
- * Sends characters as Unicode scan-code keystrokes.
- * Uses async execution to avoid blocking the Electron main thread.
- * Text is passed via Base64 encoding to prevent command injection.
+ * Lighter-weight user32 wrapper that compiles the C# type ONCE and caches it.
+ * Uses a flag to skip Add-Type on subsequent calls by checking if the type already exists.
+ * Text is Base64-encoded for safe transmission to PowerShell.
  */
-class Win32SendInputBackend extends BaseBackend {
+class PowerShellAddTypeBackend extends BaseBackend {
     /**
      * @param {object} [options]
      * @param {number} [options.interKeyDelay=10] - Delay between keystrokes in ms
@@ -20,11 +19,12 @@ class Win32SendInputBackend extends BaseBackend {
     constructor(options = {}) {
         super();
         this._interKeyDelay = options.interKeyDelay ?? 10;
+        this._typeCompiled = false;
         this._initialized = false;
     }
 
     getName() {
-        return 'Win32SendInput';
+        return 'PowerShellAddType';
     }
 
     isAvailable() {
@@ -45,29 +45,30 @@ class Win32SendInputBackend extends BaseBackend {
 
     initialize() {
         this._initialized = true;
+        this._typeCompiled = false;
     }
 
     destroy() {
         this._initialized = false;
+        this._typeCompiled = false;
     }
 
     /**
-     * Injects text using SendInput Unicode keystrokes.
-     * Text is passed via Base64-encoded command to avoid command injection.
+     * Injects text using a cached Add-Type SendInput wrapper.
+     * The C# type is compiled once and reused on subsequent calls.
      * @param {string} text - Text to inject
      * @returns {Promise<void>}
      */
     async inject(text) {
         if (!text) return;
 
-        // Encode text as Base64 for safe transmission to PowerShell
         const base64Text = Buffer.from(text, 'utf16le').toString('base64');
 
-        const script = `
-Add-Type -TypeDefinition @"
+        // Build script that conditionally compiles the type
+        const typeDefinition = `
 using System;
 using System.Runtime.InteropServices;
-public class SendInputHelper {
+public class CachedSendInput {
     [StructLayout(LayoutKind.Sequential)]
     public struct INPUT {
         public int type;
@@ -87,7 +88,7 @@ public class SendInputHelper {
     }
     [DllImport("user32.dll", SetLastError=true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-    public static void SendChar(char c) {
+    public static void TypeChar(char c) {
         INPUT[] inputs = new INPUT[2];
         inputs[0].type = 1;
         inputs[0].u.ki.wVk = 0;
@@ -99,12 +100,18 @@ public class SendInputHelper {
         inputs[1].u.ki.dwFlags = 0x0004 | 0x0002;
         SendInput(2, inputs, Marshal.SizeOf(typeof(INPUT)));
     }
+}`;
+
+        const script = `
+if (-not ([System.Management.Automation.PSTypeName]'CachedSendInput').Type) {
+    Add-Type -TypeDefinition @"
+${typeDefinition}
+"@
 }
-"@ -ErrorAction SilentlyContinue
 $bytes = [Convert]::FromBase64String('${base64Text}')
 $text = [System.Text.Encoding]::Unicode.GetString($bytes)
 foreach ($c in $text.ToCharArray()) {
-    [SendInputHelper]::SendChar($c)
+    [CachedSendInput]::TypeChar($c)
     Start-Sleep -Milliseconds ${this._interKeyDelay}
 }`;
 
@@ -113,64 +120,22 @@ foreach ($c in $text.ToCharArray()) {
                 windowsHide: true,
                 timeout: 30000,
             });
+            this._typeCompiled = true;
         } catch (e) {
-            // Silently fail if PowerShell is not available or script errors
+            // PowerShell AddType injection failed
         }
     }
 
     /**
-     * Injects a single virtual key code.
      * @param {number} keyCode - Virtual key code
      * @returns {Promise<void>}
      */
     async injectKey(keyCode) {
-        const script = `
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public class KeyHelper {
-    [StructLayout(LayoutKind.Sequential)]
-    public struct INPUT {
-        public int type;
-        public INPUTUNION u;
-    }
-    [StructLayout(LayoutKind.Explicit)]
-    public struct INPUTUNION {
-        [FieldOffset(0)] public KEYBDINPUT ki;
-    }
-    [StructLayout(LayoutKind.Sequential)]
-    public struct KEYBDINPUT {
-        public ushort wVk;
-        public ushort wScan;
-        public uint dwFlags;
-        public uint time;
-        public IntPtr dwExtraInfo;
-    }
-    [DllImport("user32.dll", SetLastError=true)]
-    public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-    public static void SendKey(ushort vk) {
-        INPUT[] inputs = new INPUT[2];
-        inputs[0].type = 1;
-        inputs[0].u.ki.wVk = vk;
-        inputs[0].u.ki.dwFlags = 0;
-        inputs[1].type = 1;
-        inputs[1].u.ki.wVk = vk;
-        inputs[1].u.ki.dwFlags = 0x0002;
-        SendInput(2, inputs, Marshal.SizeOf(typeof(INPUT)));
-    }
-}
-"@ -ErrorAction SilentlyContinue
-[KeyHelper]::SendKey(${keyCode})`;
-
-        try {
-            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
-                windowsHide: true,
-                timeout: 10000,
-            });
-        } catch (e) {
-            // Silently fail
+        const char = String.fromCharCode(keyCode);
+        if (char) {
+            await this.inject(char);
         }
     }
 }
 
-module.exports = Win32SendInputBackend;
+module.exports = PowerShellAddTypeBackend;

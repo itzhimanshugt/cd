@@ -1390,9 +1390,7 @@ ipcRenderer.on('typing-response-ready', (_, data) => {
     _eventBus.dispatchEvent(new CustomEvent('typing-response-ready', { detail: data }));
     // Auto-load the response into TypingManager so it is ready for typing
     // Load the response first
-    ipcRenderer
-        .invoke('typing:auto-load', data.text)
-        .catch(() => {});
+    ipcRenderer.invoke('typing:auto-load', data.text).catch(() => {});
 
     // If user has enabled auto-typing in settings, start typing after configured delay
     (async () => {
@@ -1401,14 +1399,24 @@ ipcRenderer.on('typing-response-ready', (_, data) => {
             const settings = res && res.data ? res.data : res;
             if (settings && settings.enabled) {
                 const delay = typeof settings.startupDelay === 'number' ? settings.startupDelay : 200;
-                setTimeout(() => {
-                    ipcRenderer.invoke('typing:start').catch(() => {});
-                }, Math.max(0, delay));
+                setTimeout(
+                    () => {
+                        ipcRenderer.invoke('typing:start').catch(() => {});
+                    },
+                    Math.max(0, delay)
+                );
             }
         } catch (err) {
             // Non-fatal - ignore
         }
     })();
+});
+
+// ============ DEBUG EVENT LISTENERS ============
+
+ipcRenderer.on('debug-screenshot-captured', (_, filePath) => {
+    showToast(`Screenshot saved: ${filePath.split(/[\\/]/).pop()}`);
+    _eventBus.dispatchEvent(new CustomEvent('debug-screenshot-captured', { detail: { path: filePath } }));
 });
 
 // ============ GLOBAL EVENT BUS ============
@@ -1453,6 +1461,43 @@ const cheatingDaddy = {
 
     // Typing Controls API
     typing: typingControls,
+
+    // Debug/Developer API
+    debug: {
+        async captureScreenshot() {
+            return ipcRenderer.invoke('debug:capture-screenshot');
+        },
+        async copyScreenshot() {
+            return ipcRenderer.invoke('debug:copy-screenshot');
+        },
+        async openScreenshots() {
+            return ipcRenderer.invoke('debug:open-screenshots');
+        },
+        async getLogs(filters) {
+            const result = await ipcRenderer.invoke('debug:get-logs', filters);
+            return result.success ? result.data : [];
+        },
+        async clearLogs() {
+            return ipcRenderer.invoke('debug:clear-logs');
+        },
+        async exportLogs() {
+            return ipcRenderer.invoke('debug:export-logs');
+        },
+        async setLogLevel(level) {
+            return ipcRenderer.invoke('debug:set-log-level', level);
+        },
+        async getRuntimeState() {
+            const result = await ipcRenderer.invoke('debug:get-runtime-state');
+            return result.success ? result.data : {};
+        },
+        async getPerformance() {
+            const result = await ipcRenderer.invoke('debug:get-performance');
+            return result.success ? result.data : {};
+        },
+        async exportSnapshot() {
+            return ipcRenderer.invoke('debug:export-snapshot');
+        },
+    },
 
     // Theme API
     theme,

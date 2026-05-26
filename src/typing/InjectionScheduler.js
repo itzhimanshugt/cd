@@ -92,9 +92,9 @@ class InjectionScheduler extends EventEmitter {
 
         if (match) {
             const skipCount = match.index + 1;
-            // Inject the skipped text all at once
+            // Inject the skipped text all at once (fire-and-forget for skip)
             const skippedText = remaining.slice(0, skipCount);
-            this._backend.inject(skippedText);
+            Promise.resolve(this._backend.inject(skippedText)).catch(() => {});
             this._queue.advance(skipCount);
         }
     }
@@ -146,10 +146,14 @@ class InjectionScheduler extends EventEmitter {
 
         const delay = this._engine.getNextDelay(char, context);
 
-        this._timerId = setTimeout(() => {
+        this._timerId = setTimeout(async () => {
             if (!this._running) return;
 
-            this._backend.inject(chunk);
+            try {
+                await this._backend.inject(chunk);
+            } catch (e) {
+                // Backend injection errors are non-fatal
+            }
             this._queue.advance(chunk.length);
             this.emit('injected', { text: chunk, position: this._queue.getPosition() });
             this._scheduleNext();

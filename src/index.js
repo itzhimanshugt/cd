@@ -454,6 +454,17 @@ function setupTypingIpcHandlers() {
         }
     });
 
+    // Auto-load: called by the renderer when a new AI response arrives
+    ipcMain.handle('typing:auto-load', async (event, text) => {
+        try {
+            typingManager.loadResponse(text);
+            return { success: true };
+        } catch (error) {
+            console.error('Error auto-loading typing response:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     ipcMain.handle('typing:start', async () => {
         try {
             typingManager.start();

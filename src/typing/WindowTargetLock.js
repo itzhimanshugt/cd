@@ -1,6 +1,9 @@
 'use strict';
 
-const { execSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Captures the active foreground window when typing starts.
@@ -16,9 +19,9 @@ class WindowTargetLock {
 
     /**
      * Captures the current foreground window as the typing target.
-     * @returns {boolean} Whether the lock was successfully acquired
+     * @returns {Promise<boolean>} Whether the lock was successfully acquired
      */
-    lock() {
+    async lock() {
         if (process.platform === 'win32') {
             try {
                 const script = `
@@ -37,12 +40,12 @@ $sb = New-Object System.Text.StringBuilder 256
 [void][FocusHelper]::GetWindowText($hwnd, $sb, 256)
 Write-Output "$hwnd|$($sb.ToString())"`;
 
-                const result = execSync(`powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`, {
+                const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
                     windowsHide: true,
                     timeout: 5000,
-                    encoding: 'utf8',
-                }).trim();
+                });
 
+                const result = stdout.trim();
                 const parts = result.split('|');
                 this._targetHandle = parts[0] || null;
                 this._targetInfo = {
@@ -91,9 +94,9 @@ Write-Output "$hwnd|$($sb.ToString())"`;
     /**
      * Checks whether the current foreground window matches the locked target.
      * On non-Windows platforms, always returns true.
-     * @returns {boolean}
+     * @returns {Promise<boolean>}
      */
-    checkFocus() {
+    async checkFocus() {
         if (!this._locked) return false;
 
         if (process.platform !== 'win32' || !this._targetHandle) {
@@ -114,13 +117,12 @@ public class FocusChecker {
 $hwnd = [FocusChecker]::GetForegroundWindow()
 Write-Output "$hwnd"`;
 
-            const result = execSync(`powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`, {
+            const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
                 windowsHide: true,
                 timeout: 3000,
-                encoding: 'utf8',
-            }).trim();
+            });
 
-            return result === this._targetHandle;
+            return stdout.trim() === this._targetHandle;
         } catch (e) {
             // If we cannot check, assume focused to avoid interrupting typing
             return true;

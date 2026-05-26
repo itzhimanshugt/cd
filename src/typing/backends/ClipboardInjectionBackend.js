@@ -34,6 +34,14 @@ class ClipboardInjectionBackend extends BaseBackend {
         }
     }
 
+    supportsUnicode() {
+        return true;
+    }
+
+    supportsChunking() {
+        return true;
+    }
+
     initialize() {
         try {
             const { clipboard } = require('electron');

@@ -29,6 +29,14 @@ class RobotJSBackend extends BaseBackend {
         }
     }
 
+    supportsRealtimeStreaming() {
+        return true;
+    }
+
+    supportsKeyCombos() {
+        return true;
+    }
+
     initialize() {
         try {
             this._robot = require('robotjs');

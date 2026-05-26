@@ -48,10 +48,12 @@ class AutoHotkeyBackend extends BaseBackend {
         // Check PATH via where command
         try {
             const { execFileSync } = require('child_process');
+            // Suppress stdout/stderr from the where command to avoid noisy Windows messages
             const result = execFileSync('where', ['AutoHotkey.exe'], {
                 windowsHide: true,
                 timeout: 5000,
                 encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'],
             });
             const firstLine = result.trim().split('\n')[0].trim();
             if (firstLine) {
@@ -59,7 +61,7 @@ class AutoHotkeyBackend extends BaseBackend {
                 return true;
             }
         } catch (e) {
-            // where command failed
+            // where command failed or AutoHotkey not found; silence is intentional
         }
 
         return false;

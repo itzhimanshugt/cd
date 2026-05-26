@@ -3,6 +3,22 @@ const path = require('node:path');
 const storage = require('../storage');
 
 let mouseEventsIgnored = false;
+
+    // Summary log: show which accelerators were registered (helps debug failures)
+    try {
+        const summary = {};
+        for (const [k, v] of Object.entries(keybinds || {})) {
+            if (k === '_version' || !v) continue;
+            try {
+                summary[k] = { accelerator: v, registered: globalShortcut.isRegistered(v) };
+            } catch (e) {
+                summary[k] = { accelerator: v, registered: false, error: e.message };
+            }
+        }
+        console.log('Global shortcuts registration summary:', summary);
+    } catch (e) {
+        // non-fatal
+    }
 let _programmaticMove = false;
 
 const KEYBINDS_VERSION = 6; // Bumped: add typing control hotkeys
@@ -602,3 +618,4 @@ module.exports = {
     applyZoom,
     HARD_LIMITS,
 };
+

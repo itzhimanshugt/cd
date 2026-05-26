@@ -1389,7 +1389,26 @@ ipcRenderer.on('typing-aborted', () => {
 ipcRenderer.on('typing-response-ready', (_, data) => {
     _eventBus.dispatchEvent(new CustomEvent('typing-response-ready', { detail: data }));
     // Auto-load the response into TypingManager so it is ready for typing
-    ipcRenderer.invoke('typing:auto-load', data.text).catch(() => {});
+    // Load the response first
+    ipcRenderer
+        .invoke('typing:auto-load', data.text)
+        .catch(() => {});
+
+    // If user has enabled auto-typing in settings, start typing after configured delay
+    (async () => {
+        try {
+            const res = await ipcRenderer.invoke('typing:get-settings');
+            const settings = res && res.data ? res.data : res;
+            if (settings && settings.enabled) {
+                const delay = typeof settings.startupDelay === 'number' ? settings.startupDelay : 200;
+                setTimeout(() => {
+                    ipcRenderer.invoke('typing:start').catch(() => {});
+                }, Math.max(0, delay));
+            }
+        } catch (err) {
+            // Non-fatal - ignore
+        }
+    })();
 });
 
 // ============ GLOBAL EVENT BUS ============

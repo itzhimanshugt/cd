@@ -132,6 +132,28 @@ export class CheatingDaddyApp extends LitElement {
             opacity: 0;
         }
 
+        /* ── Flyout sidebar overlay (active session) ── */
+
+        .flyout-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .sidebar.flyout {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 1000;
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            max-width: var(--sidebar-width);
+            opacity: 1;
+            border-right: 1px solid var(--border);
+        }
+
         .hamburger-btn {
             display: flex;
             align-items: center;
@@ -144,7 +166,9 @@ export class CheatingDaddyApp extends LitElement {
             color: var(--text-secondary);
             cursor: pointer;
             margin: 0 auto var(--space-sm) auto;
-            transition: color var(--transition), background var(--transition);
+            transition:
+                color var(--transition),
+                background var(--transition);
         }
 
         .hamburger-btn:hover {
@@ -456,6 +480,7 @@ export class CheatingDaddyApp extends LitElement {
         _modelSolution: { state: true },
         _modelDebugging: { state: true },
         sidebarCollapsed: { type: Boolean },
+        _flyoutOpen: { state: true },
     };
 
     constructor() {
@@ -488,6 +513,7 @@ export class CheatingDaddyApp extends LitElement {
         this._modelSolution = 'gemini-2.5-flash';
         this._modelDebugging = 'gemini-2.5-flash';
         this.sidebarCollapsed = false;
+        this._flyoutOpen = false;
 
         this._loadFromStorage();
         setTimeout(() => this._checkForUpdates(), 10000);
@@ -677,6 +703,9 @@ export class CheatingDaddyApp extends LitElement {
 
     navigate(view) {
         this.currentView = view;
+        if (this.sessionActive) {
+            this._flyoutOpen = false;
+        }
         this.requestUpdate();
     }
 
@@ -907,6 +936,7 @@ export class CheatingDaddyApp extends LitElement {
                         .onProfileChange=${p => this.handleProfileChange(p)}
                         .onStart=${() => this.handleStart()}
                         .onExternalLink=${url => this.handleExternalLinkClick(url)}
+                        .onNavigate=${view => this.navigate(view)}
                         .whisperDownloading=${this._whisperDownloading}
                     ></main-view>
                 `;
@@ -1086,7 +1116,15 @@ export class CheatingDaddyApp extends LitElement {
         return html`
             <div class="sidebar ${this._isLiveMode() ? 'hidden' : ''} ${this.sidebarCollapsed ? 'collapsed' : ''}">
                 <button class="hamburger-btn" @click=${() => this._toggleSidebar()} title="${this.sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
                         <line x1="3" y1="6" x2="21" y2="6"></line>
                         <line x1="3" y1="12" x2="21" y2="12"></line>
                         <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -1146,6 +1184,25 @@ export class CheatingDaddyApp extends LitElement {
         return html`
             <div class="live-bar">
                 <div class="live-bar-left">
+                    ${this.sessionActive
+                        ? html`
+                              <button class="live-bar-back" @click=${() => (this._flyoutOpen = !this._flyoutOpen)} title="Menu">
+                                  <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      stroke-width="2"
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                  >
+                                      <line x1="3" y1="6" x2="21" y2="6"></line>
+                                      <line x1="3" y1="12" x2="21" y2="12"></line>
+                                      <line x1="3" y1="18" x2="21" y2="18"></line>
+                                  </svg>
+                              </button>
+                          `
+                        : ''}
                     <button class="live-bar-back" @click=${() => this.handleClose()} title="End session">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                             <path
@@ -1179,6 +1236,94 @@ export class CheatingDaddyApp extends LitElement {
         `;
     }
 
+    _renderFlyoutSidebar() {
+        const items = [
+            {
+                id: 'main',
+                label: 'Home',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path
+                            d="m19 8.71l-5.333-4.148a2.666 2.666 0 0 0-3.274 0L5.059 8.71a2.67 2.67 0 0 0-1.029 2.105v7.2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.2c0-.823-.38-1.6-1.03-2.105"
+                        />
+                        <path d="M16 15c-2.21 1.333-5.792 1.333-8 0" />
+                    </g>
+                </svg>`,
+            },
+            {
+                id: 'assistant',
+                label: 'Session',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <path
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M13 3v7h6l-8 11v-7H5z"
+                    />
+                </svg>`,
+            },
+            {
+                id: 'customize',
+                label: 'Settings',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path
+                            d="M19.875 6.27A2.23 2.23 0 0 1 21 8.218v7.284c0 .809-.443 1.555-1.158 1.948l-6.75 4.27a2.27 2.27 0 0 1-2.184 0l-6.75-4.27A2.23 2.23 0 0 1 3 15.502V8.217c0-.809.443-1.554 1.158-1.947l6.75-3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98z"
+                        />
+                        <path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0" />
+                    </g>
+                </svg>`,
+            },
+            {
+                id: 'hotkeys',
+                label: 'Hotkeys',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <rect x="2" y="6" width="20" height="12" rx="2" />
+                        <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8M6 10v.01" />
+                    </g>
+                </svg>`,
+            },
+            {
+                id: 'auto-type',
+                label: 'Auto Type',
+                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path d="M4 20h16" />
+                        <path d="M7 16V8l5 6 5-6v8" />
+                    </g>
+                </svg>`,
+            },
+        ];
+
+        return html`
+            <div class="flyout-backdrop" @click=${() => (this._flyoutOpen = false)}></div>
+            <div class="sidebar flyout">
+                <div class="sidebar-brand">
+                    <h1>Cheating Daddy</h1>
+                </div>
+                <nav class="sidebar-nav">
+                    ${items.map(
+                        item => html`
+                            <button
+                                class="nav-item ${this.currentView === item.id ? 'active' : ''}"
+                                @click=${() => this.navigate(item.id)}
+                                title=${item.label}
+                            >
+                                ${item.icon} <span class="nav-label">${item.label}</span>
+                            </button>
+                        `
+                    )}
+                </nav>
+                <div class="sidebar-footer">
+                    <div class="version-text">v${this._localVersion}</div>
+                </div>
+            </div>
+        `;
+    }
+
     render() {
         // Onboarding is fullscreen, no sidebar
         if (this.currentView === 'onboarding') {
@@ -1197,7 +1342,7 @@ export class CheatingDaddyApp extends LitElement {
                     </div>
                     <div class="drag-region"></div>
                 </div>
-                ${this.renderSidebar()}
+                ${this.renderSidebar()} ${this._flyoutOpen && this.sessionActive ? this._renderFlyoutSidebar() : ''}
                 <div class="content">
                     ${isLive ? this.renderLiveBar() : ''}
                     <div class="content-inner ${isLive ? 'live' : ''}">${this.renderCurrentView()}</div>

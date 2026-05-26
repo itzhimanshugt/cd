@@ -412,6 +412,32 @@ export class HistoryView extends LitElement {
             .action-btn.danger:hover {
                 background: rgba(239,68,68,0.1);
             }
+
+            .empty-state {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: var(--space-xl) var(--space-lg);
+                text-align: center;
+                flex: 1;
+            }
+            .empty-state-icon {
+                font-size: 32px;
+                margin-bottom: var(--space-md);
+                opacity: 0.6;
+            }
+            .empty-state-title {
+                font-size: var(--font-size-md);
+                font-weight: var(--font-weight-semibold);
+                color: var(--text-primary);
+                margin-bottom: var(--space-xs);
+            }
+            .empty-state-text {
+                font-size: var(--font-size-sm);
+                color: var(--text-muted);
+                max-width: 280px;
+            }
         `,
     ];
 
@@ -768,7 +794,14 @@ export class HistoryView extends LitElement {
                 </div>
                 <div class="sessions-list">
                     ${this.loading ? html`<div class="empty" style="margin:var(--space-md);">Loading sessions...</div>` : ''}
-                    ${!this.loading && filteredSessions.length === 0
+                    ${!this.loading && this.sessions.length === 0 ? html`
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <div class="empty-state-title">No sessions yet</div>
+                            <div class="empty-state-text">Start a session to see your conversation history here.</div>
+                        </div>
+                    ` : ''}
+                    ${!this.loading && this.sessions.length > 0 && filteredSessions.length === 0
                         ? html`<div class="empty" style="margin:var(--space-md);">No matching sessions.</div>`
                         : ''}
                     ${!this.loading

@@ -397,6 +397,16 @@ export class CheatingDaddyApp extends LitElement {
             flex-shrink: 0;
         }
 
+        .session-dot.connecting {
+            background: #f59e0b;
+            animation: pulse-dot 1.2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.7); }
+        }
+
         .live-bar-left {
             display: flex;
             align-items: center;
@@ -534,6 +544,7 @@ export class CheatingDaddyApp extends LitElement {
         _flyoutOpen: { state: true },
         _isMacOS: { state: true },
         _preloadedMessages: { state: true },
+        _isInitializing: { state: true },
     };
 
     constructor() {
@@ -570,6 +581,7 @@ export class CheatingDaddyApp extends LitElement {
         this._isMacOS = (typeof process !== 'undefined' && process.platform === 'darwin') ||
                         (navigator.platform && navigator.platform.toLowerCase().includes('mac'));
         this._preloadedMessages = null;
+        this._isInitializing = false;
 
         this._loadFromStorage();
         setTimeout(() => this._checkForUpdates(), 10000);
@@ -683,6 +695,12 @@ export class CheatingDaddyApp extends LitElement {
             ipcRenderer.on('click-through-toggled', this._ipcClickThrough);
             ipcRenderer.on('reconnect-failed', this._ipcReconnectFailed);
             ipcRenderer.on('whisper-downloading', this._ipcWhisperDownloading);
+
+            this._ipcSessionInitializing = (_, isInit) => {
+                this._isInitializing = isInit;
+                this.requestUpdate();
+            };
+            ipcRenderer.on('session-initializing', this._ipcSessionInitializing);
         }
     }
 
@@ -705,6 +723,7 @@ export class CheatingDaddyApp extends LitElement {
             ipcRenderer.removeListener('click-through-toggled', this._ipcClickThrough);
             ipcRenderer.removeListener('reconnect-failed', this._ipcReconnectFailed);
             ipcRenderer.removeListener('whisper-downloading', this._ipcWhisperDownloading);
+            ipcRenderer.removeListener('session-initializing', this._ipcSessionInitializing);
         }
     }
 
@@ -863,10 +882,14 @@ export class CheatingDaddyApp extends LitElement {
             }
 
             if (!success && providerMode !== 'byok') {
+                // Show error briefly in status before reverting
+                this.statusText = 'Connection failed. Please check your settings and try again.';
+                this.requestUpdate();
+                // Give user a moment to see the error
+                await new Promise(resolve => setTimeout(resolve, 1500));
                 this.sessionActive = false;
                 this._stopTimer();
                 this.currentView = 'main';
-                this.statusText = 'Connection failed';
                 this.requestUpdate();
                 return;
             }
@@ -875,10 +898,13 @@ export class CheatingDaddyApp extends LitElement {
             cheatingDaddy.startCapture(this.selectedScreenshotInterval, this.selectedImageQuality, aiHearingEnabled);
         } catch (error) {
             console.error('Provider initialization failed:', error);
+            // Show error message to user
+            this.statusText = 'Error: ' + (error.message || 'Connection failed');
+            this.requestUpdate();
+            await new Promise(resolve => setTimeout(resolve, 1500));
             this.sessionActive = false;
             this._stopTimer();
             this.currentView = 'main';
-            this.statusText = 'Error: ' + (error.message || 'Connection failed');
             this.requestUpdate();
         }
     }
@@ -1327,7 +1353,7 @@ export class CheatingDaddyApp extends LitElement {
                             />
                         </svg>
                     </button>
-                    <span class="session-dot"></span>
+                    <span class="session-dot ${this._isInitializing ? 'connecting' : ''}"></span>
                     <span class="live-bar-text">Active</span>
                 </div>
                 <div class="live-bar-center">${this._getModelShortName(this._modelSolution)}</div>

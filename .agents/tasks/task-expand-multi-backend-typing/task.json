@@ -1,0 +1,7 @@
+{
+  "task_id": "task-expand-multi-backend-typing",
+  "task_description": "Expand the auto-typing/input injection system into a fully modular multi-backend architecture with 12 backends total, BackendManager with failover, expanded BaseBackend interface, and updated UI/storage. Also commit all previously missed .agents/ files.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

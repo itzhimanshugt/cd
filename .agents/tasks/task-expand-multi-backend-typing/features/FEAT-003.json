@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Add BackendManager with failover system, update TypingManager to use it, update storage defaults with failoverChain, update TypingSettingsView with backend failover UI, and update _resolveBackendClass with all new backend mappings.",
+  "status": "pending",
+  "steps": [
+    "Create src/typing/BackendManager.js - EventEmitter class that: manages all backend instances, provides getBackend(name), getAvailableBackends() (instantiates each and calls isAvailable()), implements failover chain (configurable order defaulting to: Win32SendInput -> VirtualKeyboard -> PowerShellAddType -> Clipboard -> PowerShellSendKeys -> AutoHotkey -> BatchPaste -> Hybrid -> NutJS -> RobotJS -> UIAutomation -> ElectronWebContents), tracks backend health (errorCount, lastErrorTime per backend), provides tryInject(text) that attempts primary then falls back through chain on error, emits 'failover' event with {from, to, error}, emits 'backend-error' event, provides getHealth() returning all backend health stats, provides setFailoverChain(chain) to reconfigure order, provides getPrimary() returning current primary backend name",
+    "Update src/typing/TypingManager.js: add require for BackendManager, in constructor create this._backendManager = new BackendManager(), replace _initBackend logic to use BackendManager.getBackend(), update getAvailableBackends() to delegate to BackendManager.getAvailableBackends(), add failover support in _createScheduler - wrap backend.inject in try/catch that calls BackendManager.tryInject on failure, add getBackendHealth() method, update getStatus() to include backendHealth and failoverChain info, forward BackendManager 'failover' events as own events",
+    "Update src/typing/TypingManager.js _resolveBackendClass() to add all new backend name mappings - both PascalCase and kebab-case: AutoHotkey/autohotkey/ahk, NutJS/nutjs/nut, UIAutomation/ui-automation/uiautomation, ElectronWebContents/electron-webcontents/electron, VirtualKeyboard/virtual-keyboard/vk/keybd-event, BatchPaste/batch-paste/batch, HybridTyping/hybrid-typing/hybrid, PowerShellAddType/powershell-addtype/ps-addtype",
+    "Update src/storage.js DEFAULT_TYPING_SETTINGS - add failoverChain: ['win32-sendinput', 'virtual-keyboard', 'powershell-addtype', 'clipboard', 'powershell', 'autohotkey', 'batch-paste', 'hybrid-typing', 'nutjs', 'robotjs', 'ui-automation', 'electron-webcontents']",
+    "Update src/typing/index.js to export BackendManager",
+    "Update src/components/views/TypingSettingsView.js: add the new backends to the <select> dropdown options, add a failover chain configuration section (ordered list with drag-reorder concept displayed as numbered list with up/down buttons), add backend health/status display section showing each backend's availability and error count"
+  ],
+  "acceptance_criteria": [
+    "BackendManager.js exists and extends EventEmitter",
+    "BackendManager implements getBackend, getAvailableBackends, tryInject, setFailoverChain, getHealth, getPrimary",
+    "TypingManager uses BackendManager for backend resolution and failover",
+    "_resolveBackendClass has mappings for all 12 backends in both PascalCase and kebab-case",
+    "DEFAULT_TYPING_SETTINGS in storage.js includes failoverChain array",
+    "TypingSettingsView shows all 12 backends in dropdown and has failover chain UI",
+    "src/typing/index.js exports BackendManager",
+    "All files pass node --check syntax validation"
+  ],
+  "verification": [
+    "Run: find src/typing -name '*.js' -exec node --check {} + and confirm 0 exit code",
+    "Run: node --check src/storage.js and confirm 0 exit code",
+    "Run: node --check src/components/views/TypingSettingsView.js and confirm 0 exit code (may fail due to ES module imports - acceptable since it runs in Electron renderer with script tags)",
+    "Run: node -e \"const t = require('./src/typing'); console.log(Object.keys(t))\" and confirm BackendManager is in the list"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

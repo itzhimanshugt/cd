@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Expand BaseBackend interface with capability-reporting methods and unified naming, update all 4 existing backends to implement the new interface, and add 8 new injection backends: AutoHotkeyBackend, NutJSBackend, UIAutomationBackend, ElectronWebContentsBackend, VirtualKeyboardBackend, BatchPasteBackend, HybridTypingBackend, PowerShellAddTypeBackend.",
+  "status": "pending",
+  "steps": [
+    "Expand src/typing/backends/BaseBackend.js to add: supportsRealtimeStreaming() -> false, supportsKeyCombos() -> false, supportsUnicode() -> false, supportsChunking() -> false, pause() (no-op), resume() (no-op), abort() (no-op), cleanup() as alias for destroy(), typeText(text) as alias calling inject(text)",
+    "Update src/typing/backends/Win32SendInputBackend.js - add supportsRealtimeStreaming() -> true, supportsKeyCombos() -> true, supportsUnicode() -> true, supportsChunking() -> false, typeText alias",
+    "Update src/typing/backends/ClipboardInjectionBackend.js - add supportsRealtimeStreaming() -> false, supportsKeyCombos() -> false, supportsUnicode() -> true, supportsChunking() -> true, typeText alias",
+    "Update src/typing/backends/PowerShellSendKeysBackend.js - add supportsRealtimeStreaming() -> true, supportsKeyCombos() -> true, supportsUnicode() -> false (SendKeys has limited Unicode), supportsChunking() -> false, typeText alias",
+    "Update src/typing/backends/RobotJSBackend.js - add supportsRealtimeStreaming() -> true, supportsKeyCombos() -> true, supportsUnicode() -> false, supportsChunking() -> false, typeText alias",
+    "Create src/typing/backends/AutoHotkeyBackend.js - extends BaseBackend, dynamically generates AHK scripts, writes temp .ahk file via fs.writeFileSync to os.tmpdir(), executes via execFile('ahk.exe', [scriptPath]), isAvailable() checks PATH and common locations (C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey64.exe etc), Base64-safe text handling, cleanup removes temp files",
+    "Create src/typing/backends/NutJSBackend.js - extends BaseBackend, attempts require('@nut-tree/nut-js'), optional dependency pattern like RobotJS, isAvailable() uses require.resolve, keyboard.type() for injection",
+    "Create src/typing/backends/UIAutomationBackend.js - extends BaseBackend, uses PowerShell to invoke UIAutomation ValuePattern.SetValue via Add-Type with UIAutomationClient COM, Base64-encoded text, isAvailable() checks win32 platform",
+    "Create src/typing/backends/ElectronWebContentsBackend.js - extends BaseBackend, uses BrowserWindow.getFocusedWindow().webContents.insertText() and sendInputEvent(), isAvailable() checks require('electron').BrowserWindow existence",
+    "Create src/typing/backends/VirtualKeyboardBackend.js - extends BaseBackend, uses PowerShell P/Invoke of user32 keybd_event (alternative to SendInput), simpler API, Base64-encoded text",
+    "Create src/typing/backends/BatchPasteBackend.js - extends BaseBackend, buffered chunk insertion mode, accumulates text and pastes at configurable intervals, supports sentence/paragraph chunking via regex splitting, uses ClipboardInjectionBackend internally for paste operations",
+    "Create src/typing/backends/HybridTypingBackend.js - extends BaseBackend, combines SendInput for short bursts with Clipboard paste for long chunks, configurable threshold (default 50 chars), punctuation delays between sentences",
+    "Create src/typing/backends/PowerShellAddTypeBackend.js - extends BaseBackend, lighter-weight user32 wrapper that caches the compiled type (generates .dll or type definition once, reuses across calls), uses execFile with Base64 text",
+    "Update src/typing/backends/index.js barrel export to include all 12 backends (4 existing + 8 new)"
+  ],
+  "acceptance_criteria": [
+    "BaseBackend.js has all new methods as no-op/default implementations",
+    "All 4 existing backends implement the new capability methods with correct return values",
+    "All 8 new backend files exist in src/typing/backends/",
+    "All backends extend BaseBackend",
+    "All backends use execFile (not exec) for child processes",
+    "All PowerShell-based backends encode text via Base64 before passing to scripts",
+    "All backends implement isAvailable() correctly checking for platform/dependencies",
+    "src/typing/backends/index.js exports all 12 backends",
+    "All files pass node --check syntax validation"
+  ],
+  "verification": [
+    "Run: find src/typing/backends -name '*.js' -exec node --check {} + and confirm 0 exit code",
+    "Run: node -e \"const b = require('./src/typing/backends'); console.log(Object.keys(b).length)\" and confirm 13 keys (12 backends + BaseBackend)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

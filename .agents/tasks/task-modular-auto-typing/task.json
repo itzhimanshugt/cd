@@ -1,0 +1,16 @@
+{
+  "task_id": "task-modular-auto-typing",
+  "task_description": "Implement a modular auto-typing/input injection system with: immutable response buffers, typing queue with pause/resume/abort, pluggable injection backends (Win32 SendInput, Clipboard, PowerShell SendKeys, RobotJS), humanization engine, hold-to-type behavior, window target locking, and full integration with existing hotkey/storage/IPC/toast systems.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "review_v1": "NEEDS_CHANGES (7 issues)",
+    "review_v2": "APPROVED",
+    "summary": "All files pass node --check syntax validation. Functional tests verify: backend name resolution (kebab-case + PascalCase), async injection loop completion, start guard without load, storage persistence. Review v1 found 7 issues (backend name mismatch, main-thread blocking, command injection, missing guard, no auto-load, dead code, clipboard race). All 7 fixed in follow-up commit. Review v2 approved with 2 minor non-blocking notes."
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "project_type": "Electron desktop app with Lit web components",
+  "language": "JavaScript",
+  "build_system": "Electron Forge, npm",
+  "test_framework": "None (no automated tests)",
+  "build_command": "npm start (dev mode)",
+  "test_command": "No tests available",
+  "verification_instructions": "Run npx prettier --write . to format, verify no syntax errors with node -e require",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install && npm start",
+  "environment_constraints": "No npm install available in sandbox - use AST validation only. Lit imported from local asset file at ../../assets/lit-core-2.7.4.min.js",
+  "contribution_requirements": "Prettier formatting (4-space indent, 150 print width, semicolons, single quotes). No new npm packages.",
+  "key_patterns": "Lit web components with static styles/properties, views in src/components/views/, stores in src/stores/, IPC via window.require('electron').ipcRenderer, global event bus at window.cheatingDaddy.events, CSS vars for theming",
+  "relevant_files": [
+    "src/components/app/CheatingDaddyApp.js",
+    "src/components/views/MainView.js",
+    "src/components/views/AssistantView.js",
+    "src/components/views/HistoryView.js",
+    "src/components/views/AICustomizeView.js",
+    "src/components/views/AutoTypeView.js",
+    "src/components/ui/cd-keybind-input.js",
+    "src/stores/session-store.js",
+    "src/utils/prompts.js"
+  ],
+  "directory_structure": "src/components/app/ - main app shell, src/components/views/ - page views, src/components/ui/ - reusable UI components, src/stores/ - state stores, src/typing/ - typing system, src/utils/ - utilities including prompts, src/services/ - services"
+}

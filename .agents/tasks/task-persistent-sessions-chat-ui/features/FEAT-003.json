@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Top Status Bar + Session Page Navigation in AssistantView",
+  "status": "pending",
+  "steps": [
+    "In src/components/app/CheatingDaddyApp.js: Add a thin session status bar at the top of the content area (below the existing live-bar or replacing parts of it) when session is active. Height: 28px. Left side: green dot + 'Active'. Center: provider/model name. Right: elapsed time in MM:SS format (ticking via the existing timer). Style with existing CSS vars. This can be integrated into the existing renderLiveBar() or added as a separate element.",
+    "In src/components/views/AssistantView.js: Track conversation 'pages' as an array of message arrays. Add keyboard shortcuts: Ctrl+Shift+Right creates a new page if current page has messages, Ctrl+Shift+Left goes to previous page. Show page indicator (e.g. 'Page 2/3') in the UI. Guard: don't create a new page if the current page is empty."
+  ],
+  "acceptance_criteria": [
+    "A thin status bar shows at top of content area during active session with green dot, Active text, provider/model, and ticking elapsed time",
+    "Ctrl+Shift+Right creates new conversation page when current has messages",
+    "Ctrl+Shift+Left navigates to previous page",
+    "Page indicator shows current page number and total",
+    "Cannot create new page if current page is empty"
+  ],
+  "verification": [
+    "Run npx prettier --check src/components/app/CheatingDaddyApp.js src/components/views/AssistantView.js"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

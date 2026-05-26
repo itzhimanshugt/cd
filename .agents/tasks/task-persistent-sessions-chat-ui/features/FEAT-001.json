@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Persistent Sessions + Chat UI + Flyout Sidebar: Remove session-close on nav, add flyout sidebar overlay during active sessions, dynamic version display, session resume/end buttons on MainView, and convert AssistantView to chat bubble layout with follow-up input",
+  "status": "completed",
+  "steps": [
+    "In src/components/app/CheatingDaddyApp.js: Remove the code that calls close-session when navigating away from assistant view. The navigate() method should just change the view without resetting the session.",
+    "In src/components/app/CheatingDaddyApp.js: When sessionActive is true and user clicks a sidebar nav item, show the sidebar as a flyout overlay (position:fixed, z-index above content) instead of the inline sidebar. Add a backdrop div that closes the flyout on click. The hamburger button should open/close this flyout.",
+    "In src/components/app/CheatingDaddyApp.js: The dynamic version display already works (calls cheatingDaddy.getVersion() in _checkForUpdates and uses this._localVersion). Verify it displays in sidebar footer as v${this._localVersion} instead of hardcoded v0.7.0 - this is already implemented, just confirm.",
+    "In src/components/views/MainView.js: Import sessionStore from '../../stores/session-store.js'. Subscribe in connectedCallback and unsubscribe in disconnectedCallback. When sessionStore shows active:true, display a 'Resume Session' button (navigates to assistant view) and an 'End Session' button (calls close-session IPC then resets store). Show session info line: 'Active - {provider} - {duration}'. When no session active, show the normal start session flow.",
+    "In src/components/views/AssistantView.js: Convert the single-response display to a chat conversation layout. Each message in a bubble - AI responses left-aligned with dark surface background (var(--bg-surface)), user messages right-aligned with accent color. Add timestamps below each bubble (small, muted text). Keep scrollable message list.",
+    "In src/components/views/AssistantView.js: Change the bottom input field placeholder from 'Type a message...' to 'Follow up...'. When user types and submits (Enter or button click), it sends via the existing onSendText prop and adds the user message to the conversation display as a right-aligned bubble.",
+    "In src/components/views/AssistantView.js: Keep existing screenshot/analyze rendering but wrap responses in bubble format. Track messages as an array of {type: 'user'|'ai', content: string, timestamp: number} objects."
+  ],
+  "acceptance_criteria": [
+    "Navigating away from assistant view does not end the session",
+    "When session is active, sidebar appears as flyout overlay with backdrop",
+    "Clicking backdrop closes the flyout",
+    "MainView shows Resume/End buttons when session is active",
+    "AssistantView displays messages in chat bubble format with left-aligned AI and right-aligned user messages",
+    "Follow-up input sends message and displays in conversation",
+    "Version displays dynamically in sidebar footer"
+  ],
+  "verification": [
+    "Run npx prettier --check src/components/app/CheatingDaddyApp.js src/components/views/MainView.js src/components/views/AssistantView.js to verify formatting",
+    "Verify no syntax errors: node --check src/components/app/CheatingDaddyApp.js || true (ES modules won't fully parse but gross errors will show)"
+  ],
+  "blocked_reason": null,
+  "findings": "All changes verified with node --check (no syntax errors) and npx prettier --check (formatting pass). No npm install needed - all imports use local asset paths. The flyout sidebar uses position:fixed with z-index 1000, backdrop closes on click. AssistantView now tracks _messages array and adds AI responses from the responses prop changes. User messages are added directly when user submits text. Streaming AI updates are handled via the updated() lifecycle detecting same-length responses array changes."
+}

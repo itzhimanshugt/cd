@@ -628,36 +628,21 @@ export class AutoTypeView extends LitElement {
                         <div class="surface-title">Keybinds</div>
                         <div class="surface-subtitle">Configure keyboard shortcuts for typing control</div>
                         <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label">Hold-to-Type Key</label>
-                                <input
-                                    class="keybind-input"
-                                    type="text"
-                                    .value=${s.holdToTypeKeybind || ''}
-                                    @change=${this._onHoldToTypeKeybindChange}
-                                    placeholder="e.g. RightControl"
-                                />
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Abort Key</label>
-                                <input
-                                    class="keybind-input"
-                                    type="text"
-                                    .value=${s.abortKeybind || ''}
-                                    @change=${this._onAbortKeybindChange}
-                                    placeholder="e.g. Escape"
-                                />
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Full Response Key</label>
-                                <input
-                                    class="keybind-input"
-                                    type="text"
-                                    .value=${s.fullResponseKeybind || ''}
-                                    @change=${this._onFullResponseKeybindChange}
-                                    placeholder="e.g. F9"
-                                />
-                            </div>
+                            <cd-keybind-input
+                                .value=${s.holdToTypeKeybind || ''}
+                                label="Hold-to-Type Key"
+                                @keybind-change=${e => this._updateSetting('holdToTypeKeybind', e.detail.value)}
+                            ></cd-keybind-input>
+                            <cd-keybind-input
+                                .value=${s.abortKeybind || ''}
+                                label="Abort Key"
+                                @keybind-change=${e => this._updateSetting('abortKeybind', e.detail.value)}
+                            ></cd-keybind-input>
+                            <cd-keybind-input
+                                .value=${s.fullResponseKeybind || ''}
+                                label="Full Response Key"
+                                @keybind-change=${e => this._updateSetting('fullResponseKeybind', e.detail.value)}
+                            ></cd-keybind-input>
                         </div>
                     </div>
 

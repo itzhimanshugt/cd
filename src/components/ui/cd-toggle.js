@@ -21,22 +21,24 @@ export class CdToggle extends LitElement {
 
         .track {
             position: relative;
-            width: 36px;
-            height: 20px;
-            border-radius: 10px;
-            background: var(--border-strong);
+            width: 40px;
+            height: 22px;
+            border-radius: 11px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
             cursor: pointer;
             transition: background var(--transition);
         }
 
         :host([checked]) .track {
             background: var(--accent);
+            border-color: var(--accent);
         }
 
         .dot {
             position: absolute;
-            top: 2px;
-            left: 2px;
+            top: 3px;
+            left: 3px;
             width: 16px;
             height: 16px;
             border-radius: 50%;
@@ -45,7 +47,7 @@ export class CdToggle extends LitElement {
         }
 
         :host([checked]) .dot {
-            transform: translateX(16px);
+            transform: translateX(18px);
         }
 
         .label {

@@ -1,0 +1,27 @@
+{
+  "project_type": "Electron desktop app with Lit web components",
+  "language": "JavaScript",
+  "build_system": "No bundler - raw Electron with bundled Lit from assets/lit-core-2.7.4.min.js",
+  "test_framework": "None - manual testing only",
+  "build_command": "N/A - no build step",
+  "test_command": "N/A - no test suite",
+  "verification_instructions": "Verify syntax correctness of all modified JS files using node --check",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "No setup needed - just edit files",
+  "environment_constraints": "No npm, no bundler, Lit imported from local bundled file. Electron main process uses CommonJS require.",
+  "contribution_requirements": "Commit directly on refactor/ux-session-complete branch",
+  "key_patterns": "Views use LitElement with static styles array including unifiedPageStyles. UI components in src/components/ui/ are custom elements (cd-slider, cd-toggle, cd-select, cd-keybind-input). Main process window logic in src/utils/window.js uses CommonJS.",
+  "relevant_files": [
+    "src/utils/window.js",
+    "src/components/views/sharedPageStyles.js",
+    "src/components/views/DebugView.js",
+    "src/components/views/AutoTypeView.js",
+    "src/components/views/HotkeysView.js",
+    "src/components/views/CustomizeView.js",
+    "src/components/views/HistoryView.js",
+    "src/components/views/MainView.js",
+    "src/components/ui/cd-slider.js",
+    "src/components/ui/cd-toggle.js"
+  ],
+  "directory_structure": "src/utils/ (main process utilities), src/components/views/ (Lit view components), src/components/ui/ (shared UI components)"
+}

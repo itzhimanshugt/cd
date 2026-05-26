@@ -776,7 +776,7 @@ export class HistoryView extends LitElement {
                     <div class="list-header-left">
                         <input
                             type="checkbox"
-                            class="session-checkbox"
+                            class="session-checkbox styled-checkbox"
                             .checked=${this._selectAll}
                             @change=${() => this._toggleSelectAll()}
                         />
@@ -810,7 +810,7 @@ export class HistoryView extends LitElement {
                                   <button class="session-card" @click=${() => this.openSession(session.sessionId)}>
                                       <input
                                           type="checkbox"
-                                          class="session-checkbox"
+                                          class="session-checkbox styled-checkbox"
                                           .checked=${this._selectedIds.has(session.sessionId)}
                                           @click=${(e) => this._toggleSessionSelect(session.sessionId, e)}
                                           @change=${(e) => e.stopPropagation()}

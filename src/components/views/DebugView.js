@@ -462,156 +462,158 @@ export class DebugView extends LitElement {
         const displayedLogs = this._logEntries.slice(-100);
 
         return html`
-            <div class="page-container">
-                <div class="page-header">
-                    <h2 class="page-title">Developer</h2>
-                    <p class="page-subtitle">Debug tools, logging, screenshots, and runtime inspection</p>
-                </div>
+            <div class="unified-page">
+                <div class="unified-wrap">
+                    <div>
+                        <div class="page-title">Developer</div>
+                        <div class="page-subtitle">Debug tools, logging, screenshots, and runtime inspection</div>
+                    </div>
 
-                <!-- Screenshot System -->
-                <div class="debug-section">
-                    <h3>Screenshot System</h3>
-                    <p>Capture the app window to file or clipboard</p>
-                    <div class="btn-row">
-                        <button class="debug-btn" @click=${this._captureScreenshot}>Capture to File</button>
-                        <button class="debug-btn" @click=${this._copyScreenshot}>Copy to Clipboard</button>
-                        <button class="debug-btn" @click=${this._openScreenshots}>Open Folder</button>
-                    </div>
-                    <div class="feedback ${this._screenshotFeedback.startsWith('Error') ? 'error' : 'success'}">${this._screenshotFeedback}</div>
-                </div>
+                    <!-- Screenshot System -->
+                    <section class="surface">
+                        <div class="surface-title">Screenshot System</div>
+                        <p>Capture the app window to file or clipboard</p>
+                        <div class="btn-row">
+                            <button class="debug-btn" @click=${this._captureScreenshot}>Capture to File</button>
+                            <button class="debug-btn" @click=${this._copyScreenshot}>Copy to Clipboard</button>
+                            <button class="debug-btn" @click=${this._openScreenshots}>Open Folder</button>
+                        </div>
+                        <div class="feedback ${this._screenshotFeedback.startsWith('Error') ? 'error' : 'success'}">${this._screenshotFeedback}</div>
+                    </section>
 
-                <!-- Log Viewer -->
-                <div class="debug-section">
-                    <h3>Log Viewer</h3>
-                    <div class="log-controls">
-                        <select @change=${this._onLogLevelChange}>
-                            <option value="ALL" ?selected=${this._logLevel === 'ALL'}>ALL</option>
-                            <option value="TRACE" ?selected=${this._logLevel === 'TRACE'}>TRACE</option>
-                            <option value="DEBUG" ?selected=${this._logLevel === 'DEBUG'}>DEBUG</option>
-                            <option value="INFO" ?selected=${this._logLevel === 'INFO'}>INFO</option>
-                            <option value="WARN" ?selected=${this._logLevel === 'WARN'}>WARN</option>
-                            <option value="ERROR" ?selected=${this._logLevel === 'ERROR'}>ERROR</option>
-                        </select>
-                        <select @change=${this._onLogCategoryChange}>
-                            <option value="">All Categories</option>
-                            ${categories.map(c => html`<option value=${c} ?selected=${this._logCategory === c}>${c}</option>`)}
-                        </select>
-                        <input type="text" placeholder="Search..." .value=${this._logSearch} @input=${this._onLogSearchInput} />
-                        <label class="toggle-row">
-                            <input type="checkbox" .checked=${this._logAutoRefresh} @change=${this._toggleLogAutoRefresh} />
-                            Auto-refresh
-                        </label>
-                    </div>
-                    <div class="btn-row">
-                        <button class="debug-btn" @click=${this._loadLogs}>Refresh</button>
-                        <button class="debug-btn" @click=${this._clearLogs}>Clear</button>
-                        <button class="debug-btn" @click=${this._exportLogs}>Export</button>
-                    </div>
-                    <div class="log-viewer">
-                        ${displayedLogs.length === 0
-                            ? html`<div style="color: var(--text-muted); padding: 8px;">No log entries</div>`
-                            : displayedLogs.map(
-                                  entry => html`
-                                      <div class="log-entry">
-                                          <span class="log-time">${this._formatTime(entry.timestamp)}</span>
-                                          <span class="log-level ${entry.level}">${entry.level}</span>
-                                          <span class="log-category">${entry.category}</span>
-                                          <span class="log-message">${entry.message}</span>
+                    <!-- Log Viewer -->
+                    <section class="surface">
+                        <div class="surface-title">Log Viewer</div>
+                        <div class="log-controls">
+                            <select @change=${this._onLogLevelChange}>
+                                <option value="ALL" ?selected=${this._logLevel === 'ALL'}>ALL</option>
+                                <option value="TRACE" ?selected=${this._logLevel === 'TRACE'}>TRACE</option>
+                                <option value="DEBUG" ?selected=${this._logLevel === 'DEBUG'}>DEBUG</option>
+                                <option value="INFO" ?selected=${this._logLevel === 'INFO'}>INFO</option>
+                                <option value="WARN" ?selected=${this._logLevel === 'WARN'}>WARN</option>
+                                <option value="ERROR" ?selected=${this._logLevel === 'ERROR'}>ERROR</option>
+                            </select>
+                            <select @change=${this._onLogCategoryChange}>
+                                <option value="">All Categories</option>
+                                ${categories.map(c => html`<option value=${c} ?selected=${this._logCategory === c}>${c}</option>`)}
+                            </select>
+                            <input type="text" placeholder="Search..." .value=${this._logSearch} @input=${this._onLogSearchInput} />
+                            <label class="toggle-row">
+                                <input type="checkbox" class="styled-checkbox" .checked=${this._logAutoRefresh} @change=${this._toggleLogAutoRefresh} />
+                                Auto-refresh
+                            </label>
+                        </div>
+                        <div class="btn-row">
+                            <button class="debug-btn" @click=${this._loadLogs}>Refresh</button>
+                            <button class="debug-btn" @click=${this._clearLogs}>Clear</button>
+                            <button class="debug-btn" @click=${this._exportLogs}>Export</button>
+                        </div>
+                        <div class="log-viewer">
+                            ${displayedLogs.length === 0
+                                ? html`<div style="color: var(--text-muted); padding: 8px;">No log entries</div>`
+                                : displayedLogs.map(
+                                      entry => html`
+                                          <div class="log-entry">
+                                              <span class="log-time">${this._formatTime(entry.timestamp)}</span>
+                                              <span class="log-level ${entry.level}">${entry.level}</span>
+                                              <span class="log-category">${entry.category}</span>
+                                              <span class="log-message">${entry.message}</span>
+                                          </div>
+                                      `
+                                  )}
+                        </div>
+                    </section>
+
+                    <!-- Runtime State Inspector -->
+                    <section class="surface">
+                        <div class="surface-title">Runtime State Inspector</div>
+                        <div class="btn-row">
+                            <button class="debug-btn" @click=${this._loadRuntimeState}>Load State</button>
+                            <label class="toggle-row">
+                                <input type="checkbox" class="styled-checkbox" .checked=${this._runtimeAutoRefresh} @change=${this._toggleRuntimeAutoRefresh} />
+                                Auto-refresh
+                            </label>
+                        </div>
+                        ${this._runtimeState
+                            ? html`
+                                  ${this._renderStateSection('keybinds', 'Keybinds', this._runtimeState.keybinds)}
+                                  ${this._renderStateSection('preferences', 'Preferences', this._runtimeState.preferences)}
+                                  ${this._renderStateSection('windowState', 'Window State', this._runtimeState.windowState)}
+                                  ${this._renderStateSection('windowBounds', 'Window Bounds', this._runtimeState.windowBounds)}
+                                  ${this._renderStateSection('typingSettings', 'Typing Settings', this._runtimeState.typingSettings)}
+                                  ${this._renderStateSection('typingStatus', 'Typing Status', this._runtimeState.typingStatus)}
+                                  ${this._renderStateSection('memoryUsage', 'Memory Usage', this._runtimeState.memoryUsage)}
+                              `
+                            : html`<div class="feedback">No data loaded</div>`}
+                    </section>
+
+                    <!-- Performance Metrics -->
+                    <section class="surface">
+                        <div class="surface-title">Performance Metrics</div>
+                        <div class="btn-row">
+                            <button class="debug-btn" @click=${this._loadPerformance}>Refresh</button>
+                            <label class="toggle-row">
+                                <input type="checkbox" class="styled-checkbox" .checked=${this._perfAutoRefresh} @change=${this._togglePerfAutoRefresh} />
+                                Auto-refresh
+                            </label>
+                        </div>
+                        ${this._perfData
+                            ? html`
+                                  <div class="perf-grid">
+                                      <div class="perf-item">
+                                          <div class="perf-label">Uptime</div>
+                                          <div class="perf-value">${this._formatUptime(this._perfData.uptime)}</div>
                                       </div>
-                                  `
-                              )}
-                    </div>
-                </div>
+                                      <div class="perf-item">
+                                          <div class="perf-label">Heap Used</div>
+                                          <div class="perf-value">${this._formatBytes(this._perfData.memoryUsage?.heapUsed || 0)}</div>
+                                      </div>
+                                      <div class="perf-item">
+                                          <div class="perf-label">Heap Total</div>
+                                          <div class="perf-value">${this._formatBytes(this._perfData.memoryUsage?.heapTotal || 0)}</div>
+                                      </div>
+                                      <div class="perf-item">
+                                          <div class="perf-label">RSS</div>
+                                          <div class="perf-value">${this._formatBytes(this._perfData.memoryUsage?.rss || 0)}</div>
+                                      </div>
+                                      <div class="perf-item">
+                                          <div class="perf-label">CPU User</div>
+                                          <div class="perf-value">${Math.round((this._perfData.cpuUsage?.user || 0) / 1000)} ms</div>
+                                      </div>
+                                      <div class="perf-item">
+                                          <div class="perf-label">CPU System</div>
+                                          <div class="perf-value">${Math.round((this._perfData.cpuUsage?.system || 0) / 1000)} ms</div>
+                                      </div>
+                                      <div class="perf-item">
+                                          <div class="perf-label">Electron</div>
+                                          <div class="perf-value">${this._perfData.versions?.electron || 'N/A'}</div>
+                                      </div>
+                                      <div class="perf-item">
+                                          <div class="perf-label">Chrome</div>
+                                          <div class="perf-value">${this._perfData.versions?.chrome || 'N/A'}</div>
+                                      </div>
+                                      <div class="perf-item">
+                                          <div class="perf-label">Node</div>
+                                          <div class="perf-value">${this._perfData.versions?.node || 'N/A'}</div>
+                                      </div>
+                                      <div class="perf-item">
+                                          <div class="perf-label">PID</div>
+                                          <div class="perf-value">${this._perfData.pid || 'N/A'}</div>
+                                      </div>
+                                  </div>
+                              `
+                            : html`<div class="feedback">No metrics loaded</div>`}
+                    </section>
 
-                <!-- Runtime State Inspector -->
-                <div class="debug-section">
-                    <h3>Runtime State Inspector</h3>
-                    <div class="btn-row">
-                        <button class="debug-btn" @click=${this._loadRuntimeState}>Load State</button>
-                        <label class="toggle-row">
-                            <input type="checkbox" .checked=${this._runtimeAutoRefresh} @change=${this._toggleRuntimeAutoRefresh} />
-                            Auto-refresh
-                        </label>
-                    </div>
-                    ${this._runtimeState
-                        ? html`
-                              ${this._renderStateSection('keybinds', 'Keybinds', this._runtimeState.keybinds)}
-                              ${this._renderStateSection('preferences', 'Preferences', this._runtimeState.preferences)}
-                              ${this._renderStateSection('windowState', 'Window State', this._runtimeState.windowState)}
-                              ${this._renderStateSection('windowBounds', 'Window Bounds', this._runtimeState.windowBounds)}
-                              ${this._renderStateSection('typingSettings', 'Typing Settings', this._runtimeState.typingSettings)}
-                              ${this._renderStateSection('typingStatus', 'Typing Status', this._runtimeState.typingStatus)}
-                              ${this._renderStateSection('memoryUsage', 'Memory Usage', this._runtimeState.memoryUsage)}
-                          `
-                        : html`<div class="feedback">No data loaded</div>`}
-                </div>
-
-                <!-- Performance Metrics -->
-                <div class="debug-section">
-                    <h3>Performance Metrics</h3>
-                    <div class="btn-row">
-                        <button class="debug-btn" @click=${this._loadPerformance}>Refresh</button>
-                        <label class="toggle-row">
-                            <input type="checkbox" .checked=${this._perfAutoRefresh} @change=${this._togglePerfAutoRefresh} />
-                            Auto-refresh
-                        </label>
-                    </div>
-                    ${this._perfData
-                        ? html`
-                              <div class="perf-grid">
-                                  <div class="perf-item">
-                                      <div class="perf-label">Uptime</div>
-                                      <div class="perf-value">${this._formatUptime(this._perfData.uptime)}</div>
-                                  </div>
-                                  <div class="perf-item">
-                                      <div class="perf-label">Heap Used</div>
-                                      <div class="perf-value">${this._formatBytes(this._perfData.memoryUsage?.heapUsed || 0)}</div>
-                                  </div>
-                                  <div class="perf-item">
-                                      <div class="perf-label">Heap Total</div>
-                                      <div class="perf-value">${this._formatBytes(this._perfData.memoryUsage?.heapTotal || 0)}</div>
-                                  </div>
-                                  <div class="perf-item">
-                                      <div class="perf-label">RSS</div>
-                                      <div class="perf-value">${this._formatBytes(this._perfData.memoryUsage?.rss || 0)}</div>
-                                  </div>
-                                  <div class="perf-item">
-                                      <div class="perf-label">CPU User</div>
-                                      <div class="perf-value">${Math.round((this._perfData.cpuUsage?.user || 0) / 1000)} ms</div>
-                                  </div>
-                                  <div class="perf-item">
-                                      <div class="perf-label">CPU System</div>
-                                      <div class="perf-value">${Math.round((this._perfData.cpuUsage?.system || 0) / 1000)} ms</div>
-                                  </div>
-                                  <div class="perf-item">
-                                      <div class="perf-label">Electron</div>
-                                      <div class="perf-value">${this._perfData.versions?.electron || 'N/A'}</div>
-                                  </div>
-                                  <div class="perf-item">
-                                      <div class="perf-label">Chrome</div>
-                                      <div class="perf-value">${this._perfData.versions?.chrome || 'N/A'}</div>
-                                  </div>
-                                  <div class="perf-item">
-                                      <div class="perf-label">Node</div>
-                                      <div class="perf-value">${this._perfData.versions?.node || 'N/A'}</div>
-                                  </div>
-                                  <div class="perf-item">
-                                      <div class="perf-label">PID</div>
-                                      <div class="perf-value">${this._perfData.pid || 'N/A'}</div>
-                                  </div>
-                              </div>
-                          `
-                        : html`<div class="feedback">No metrics loaded</div>`}
-                </div>
-
-                <!-- Debug Snapshot Export -->
-                <div class="debug-section">
-                    <h3>Debug Snapshot Export</h3>
-                    <p>Export all state, settings, and logs into a single JSON file for diagnostics</p>
-                    <div class="btn-row">
-                        <button class="debug-btn" @click=${this._exportSnapshot}>Export Snapshot</button>
-                    </div>
-                    <div class="feedback ${this._snapshotFeedback.startsWith('Error') ? 'error' : 'success'}">${this._snapshotFeedback}</div>
+                    <!-- Debug Snapshot Export -->
+                    <section class="surface">
+                        <div class="surface-title">Debug Snapshot Export</div>
+                        <p>Export all state, settings, and logs into a single JSON file for diagnostics</p>
+                        <div class="btn-row">
+                            <button class="debug-btn" @click=${this._exportSnapshot}>Export Snapshot</button>
+                        </div>
+                        <div class="feedback ${this._snapshotFeedback.startsWith('Error') ? 'error' : 'success'}">${this._snapshotFeedback}</div>
+                    </section>
                 </div>
             </div>
         `;

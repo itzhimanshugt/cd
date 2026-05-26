@@ -214,6 +214,11 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
     // ── Emergency Quit — always registered, no guards ──
     handlers.emergencyQuit = () => {
         try {
+            if (!mainWindow.isDestroyed()) {
+                mainWindow.setIgnoreMouseEvents(false);
+            }
+        } catch (_) {}
+        try {
             storage.flushAll();
         } catch (_) {}
         try {
@@ -242,6 +247,8 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
     };
 
     handlers.toggleClickThrough = () => {
+        // Safety: if window is in a bad state, always disable
+        if (mainWindow.isDestroyed()) return;
         mouseEventsIgnored = !mouseEventsIgnored;
         mainWindow.setIgnoreMouseEvents(mouseEventsIgnored, { forward: true });
         mainWindow.webContents.send('click-through-toggled', mouseEventsIgnored);

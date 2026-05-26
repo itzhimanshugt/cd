@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Mouse lock safety fix in window.js, DebugView layout fix, slider/toggle consistency updates, and font/text shared styles",
+  "status": "in_progress",
+  "steps": [
+    "In src/utils/window.js: 1) In the toggleClickThrough handler, add safety logic so that if mouseEventsIgnored is already true and the toggle is pressed, it ALWAYS disables click-through (set mouseEventsIgnored=false, call setIgnoreMouseEvents(false)). 2) In the emergencyQuit handler at the top of updateGlobalShortcuts, add mainWindow.setIgnoreMouseEvents(false) before app.exit(0) as a safety net. 3) In the view-changed IPC handler in setupWindowIpcHandlers, the existing line already does mainWindow.setIgnoreMouseEvents(false) - this is good. 4) No other changes to window.js.",
+    "In src/components/ui/cd-slider.js: Update the slider styles to have: track height 4px (change height: 5px to 4px), track background var(--border-strong) instead of var(--border), add active/filled track color support using a linear-gradient background on the input based on value percentage with var(--accent). Keep thumb at 16px diameter with var(--text-primary) color. Width stays 100%.",
+    "In src/components/ui/cd-toggle.js: Update dimensions to width: 40px (was 36px), height: 22px (was 20px). OFF state background: var(--bg-elevated) with border: 1px solid var(--border) (instead of solid var(--border-strong)). ON state: var(--accent) (already correct). Thumb stays 16px white circle, but update transform translateX to 18px to account for wider track.",
+    "In src/components/views/sharedPageStyles.js: Add these rules to the unifiedPageStyles template literal: .form-label { font-size: var(--font-size-sm); color: var(--text-secondary); } (already exists, verify), .surface-title already has font-size md and weight semibold (verify). Add .form-help with font-size: var(--font-size-xs); color: var(--text-muted);. Add .styled-checkbox styles (appearance:none, 16px square, 2px solid var(--border-strong), border-radius 3px, bg var(--bg-elevated), cursor pointer, checked state with var(--accent) bg and checkmark pseudo-element).",
+    "In src/components/views/DebugView.js: The render method currently wraps content in div.page-container and div.page-header which are NOT from unifiedPageStyles. Change the outermost wrapper to div.unified-page > div.unified-wrap structure. Wrap each debug-section in a div.surface with div.surface-title for the h3 content. Remove the old .debug-section h3 styling (replace with .surface-title usage). Apply class styled-checkbox to all checkbox inputs in the template.",
+    "Remove view-specific slider CSS overrides from HotkeysView.js (.setting-slider styles) since we want cd-slider to be the source of truth. Replace the raw <input type='range' class='setting-slider'> elements in HotkeysView._renderSlider with <cd-slider> component usage.",
+    "In CustomizeView.js: Replace raw slider-input range inputs (font size slider, font weight slider) with <cd-slider> components. Remove the duplicate .slider-input, .slider-wrap, .slider-header CSS that duplicates cd-slider styling.",
+    "In HistoryView.js: Add class='styled-checkbox' to all checkbox inputs (select-all and per-session checkboxes). The session-action-btn already has width/height 24px - verify.",
+    "In MainView.js: If there's an AI Hearing checkbox, add class='styled-checkbox' to it."
+  ],
+  "acceptance_criteria": [
+    "All modified JS files pass node --check syntax validation",
+    "The toggleClickThrough handler always disables click-through when already enabled",
+    "cd-slider track is 4px high with var(--border-strong) background",
+    "cd-toggle is 40x22px with proper OFF state (bg-elevated + border) and ON state (accent)",
+    "DebugView uses unified-page/unified-wrap layout with surface cards",
+    "All native checkboxes in DebugView, HistoryView, and MainView have styled-checkbox class",
+    "sharedPageStyles includes .styled-checkbox CSS with checked state styling"
+  ],
+  "verification": [
+    "Run: find /projects/sandbox/cd/src -name '*.js' -exec node --check {} \\; to verify no syntax errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

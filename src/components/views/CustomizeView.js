@@ -1,5 +1,7 @@
 import { html, css, LitElement } from '../../assets/lit-core-2.7.4.min.js';
 import { unifiedPageStyles } from './sharedPageStyles.js';
+import { settingsStore } from '../../stores/settings-store.js';
+import '../../components/ui/index.js';
 
 export class CustomizeView extends LitElement {
     static styles = [
@@ -257,8 +259,22 @@ export class CustomizeView extends LitElement {
         return cheatingDaddy.theme.getAll();
     }
 
+    connectedCallback() {
+        super.connectedCallback();
+        this._storeUnsubscribe = settingsStore.subscribe(state => {
+            this.backgroundTransparency = state.backgroundTransparency ?? this.backgroundTransparency;
+            this.hotkeyToastsEnabled = state.hotkeyToastsEnabled ?? this.hotkeyToastsEnabled;
+            this.theme = state.theme ?? this.theme;
+            this.requestUpdate();
+        });
+    }
+
     disconnectedCallback() {
         super.disconnectedCallback();
+        if (this._storeUnsubscribe) {
+            this._storeUnsubscribe();
+            this._storeUnsubscribe = null;
+        }
         if (this._appElement) {
             this._appElement.removeEventListener('bg-opacity-updated', this._bgOpacityListener);
         }
@@ -441,6 +457,30 @@ export class CustomizeView extends LitElement {
         this.hotkeyToastsEnabled = e.target.checked;
         await cheatingDaddy.storage.updatePreference('hotkeyToastsEnabled', this.hotkeyToastsEnabled);
         cheatingDaddy.setHotkeyToastsEnabled(this.hotkeyToastsEnabled);
+        this.requestUpdate();
+    }
+
+    _handleBgTransparencySlider(e) {
+        this.backgroundTransparency = e.detail.value;
+        settingsStore.set({ backgroundTransparency: e.detail.value });
+        cheatingDaddy.storage.updatePreference('backgroundTransparency', e.detail.value);
+        this.updateBackgroundAppearance();
+        this.requestUpdate();
+    }
+
+    _handleHotkeyToastsToggle(e) {
+        this.hotkeyToastsEnabled = e.detail.checked;
+        settingsStore.set({ hotkeyToastsEnabled: e.detail.checked });
+        cheatingDaddy.storage.updatePreference('hotkeyToastsEnabled', e.detail.checked);
+        cheatingDaddy.setHotkeyToastsEnabled(e.detail.checked);
+        this.requestUpdate();
+    }
+
+    _handleThemeSelect(e) {
+        this.theme = e.detail.value;
+        settingsStore.set({ theme: e.detail.value });
+        cheatingDaddy.theme.save(e.detail.value);
+        this.updateBackgroundAppearance();
         this.requestUpdate();
     }
 
@@ -657,25 +697,23 @@ export class CustomizeView extends LitElement {
                 <div class="surface-title">Appearance</div>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label class="form-label">Theme</label>
-                        <select class="control" .value=${this.theme} @change=${this.handleThemeChange}>
-                            ${this.getThemes().map(theme => html`<option value=${theme.value}>${theme.name}</option>`)}
-                        </select>
+                        <cd-select
+                            .value=${this.theme}
+                            .options=${this.getThemes()}
+                            label="Theme"
+                            @select-change=${this._handleThemeSelect}
+                        ></cd-select>
                     </div>
-                    <div class="form-group slider-wrap">
-                        <div class="slider-header">
-                            <label class="form-label">Background Transparency</label>
-                            <span class="slider-value">${Math.round(this.backgroundTransparency * 100)}%</span>
-                        </div>
-                        <input
-                            class="slider-input"
-                            type="range"
+                    <div class="form-group">
+                        <cd-slider
+                            .value=${this.backgroundTransparency}
                             min="0"
                             max="1"
                             step="0.01"
-                            .value=${this.backgroundTransparency}
-                            @input=${this.handleBackgroundTransparencyChange}
-                        />
+                            label="Background Transparency"
+                            unit="%"
+                            @slider-input=${this._handleBgTransparencySlider}
+                        ></cd-slider>
                     </div>
                     <div class="form-group slider-wrap">
                         <div class="slider-header">
@@ -740,16 +778,11 @@ export class CustomizeView extends LitElement {
                             @input=${this.handleFontWeightChange}
                         />
                     </div>
-                    <div class="toggle-row">
-                        <input
-                            class="toggle-input"
-                            type="checkbox"
-                            id="hotkeyToasts"
-                            .checked=${this.hotkeyToastsEnabled}
-                            @change=${this.handleHotkeyToastsChange}
-                        />
-                        <label class="toggle-label" for="hotkeyToasts">Show hotkey notifications</label>
-                    </div>
+                    <cd-toggle
+                        .checked=${this.hotkeyToastsEnabled}
+                        label="Show hotkey notifications"
+                        @toggle-change=${this._handleHotkeyToastsToggle}
+                    ></cd-toggle>
                 </div>
             </section>
         `;

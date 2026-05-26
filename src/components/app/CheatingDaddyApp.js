@@ -10,6 +10,7 @@ import { HotkeysView } from '../views/HotkeysView.js';
 import { AutoTypeView } from '../views/AutoTypeView.js';
 import { DebugView } from '../views/DebugView.js';
 import { ModelSettingsView } from '../views/ModelSettingsView.js';
+import { sessionStore } from '../../stores/session-store.js';
 
 export class CheatingDaddyApp extends LitElement {
     static styles = css`
@@ -437,6 +438,12 @@ export class CheatingDaddyApp extends LitElement {
 
         this._loadFromStorage();
         setTimeout(() => this._checkForUpdates(), 10000);
+
+        // Subscribe to session-store for route-independent session state
+        this._sessionStoreUnsubscribe = sessionStore.subscribe(state => {
+            this.sessionActive = state.active;
+            this.requestUpdate();
+        });
     }
 
     async _checkForUpdates() {
@@ -539,6 +546,10 @@ export class CheatingDaddyApp extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         this._stopTimer();
+        if (this._sessionStoreUnsubscribe) {
+            this._sessionStoreUnsubscribe();
+            this._sessionStoreUnsubscribe = null;
+        }
         this.removeEventListener('ai-mode-changed', this._aiModeHandler);
         this.removeEventListener('debug-mode-changed', this._debugModeHandler);
         this.removeEventListener('model-changed', this._modelChangeHandler);

@@ -32,6 +32,69 @@ export class AICustomizeView extends LitElement {
                 overflow-y: auto;
                 min-height: 0;
             }
+            .preview-section {
+                margin-top: var(--space-md);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                overflow: hidden;
+            }
+            .preview-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 8px 12px;
+                background: var(--bg-elevated);
+                cursor: pointer;
+                user-select: none;
+            }
+            .preview-header:hover {
+                background: var(--bg-hover);
+            }
+            .preview-title {
+                font-size: var(--font-size-sm);
+                color: var(--text-secondary);
+                font-weight: var(--font-weight-medium);
+            }
+            .preview-toggle {
+                font-size: 10px;
+                color: var(--text-muted);
+            }
+            .preview-body {
+                padding: 10px 12px;
+                border-top: 1px solid var(--border);
+            }
+            .preview-code {
+                background: var(--bg-app);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                padding: 10px;
+                font-family: var(--font-mono);
+                font-size: 11px;
+                color: var(--text-secondary);
+                max-height: 200px;
+                overflow-y: auto;
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+            .preview-actions {
+                display: flex;
+                justify-content: flex-end;
+                margin-top: 8px;
+            }
+            .copy-btn {
+                background: var(--bg-elevated);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                color: var(--text-secondary);
+                padding: 4px 10px;
+                font-size: var(--font-size-xs);
+                cursor: pointer;
+                transition: background 0.2s, color 0.2s;
+            }
+            .copy-btn:hover {
+                background: var(--accent);
+                color: var(--bg-app);
+            }
         `,
     ];
 
@@ -39,6 +102,8 @@ export class AICustomizeView extends LitElement {
         selectedProfile: { type: String },
         onProfileChange: { type: Function },
         _context: { state: true },
+        _showPreview: { state: true },
+        _previewText: { state: true },
     };
 
     constructor() {
@@ -46,6 +111,8 @@ export class AICustomizeView extends LitElement {
         this.selectedProfile = 'interview';
         this.onProfileChange = () => {};
         this._context = '';
+        this._showPreview = false;
+        this._previewText = '';
         this._loadFromStorage();
     }
 
@@ -78,6 +145,38 @@ export class AICustomizeView extends LitElement {
             exam: 'Exam Assistant',
         };
         return names[profile] || profile;
+    }
+
+    _getProfilePrompt(profile) {
+        const prompts = {
+            interview: 'You are an expert interview coach helping the user ace their job interview. Provide clear, concise answers.',
+            sales: 'You are a sales strategy expert helping the user close deals effectively.',
+            meeting: 'You are a business meeting assistant helping the user communicate clearly and professionally.',
+            presentation: 'You are a presentation coach helping the user deliver impactful presentations.',
+            negotiation: 'You are a negotiation expert helping the user achieve favorable outcomes.',
+            exam: 'You are an exam assistant helping the user answer questions accurately and efficiently.',
+        };
+        return prompts[profile] || 'You are a helpful assistant.';
+    }
+
+    _togglePreview() {
+        this._showPreview = !this._showPreview;
+        if (this._showPreview) {
+            const profilePrompt = this._getProfilePrompt(this.selectedProfile);
+            const customPart = this._context ? `\n\nCustom Instructions:\n${this._context}` : '';
+            this._previewText = profilePrompt + customPart;
+        }
+    }
+
+    async _copyPreview() {
+        try {
+            await navigator.clipboard.writeText(this._previewText);
+            if (window.cheatingDaddy && window.cheatingDaddy.showToast) {
+                window.cheatingDaddy.showToast('Prompt copied to clipboard');
+            }
+        } catch (e) {
+            console.error('Failed to copy prompt:', e);
+        }
     }
 
     render() {
@@ -115,6 +214,23 @@ export class AICustomizeView extends LitElement {
                                 ></textarea>
                                 <div class="form-help">Sent as context at session start. Keep it short.</div>
                             </div>
+                        </div>
+
+                        <div class="preview-section">
+                            <div class="preview-header" @click=${this._togglePreview}>
+                                <span class="preview-title">Preview System Prompt</span>
+                                <span class="preview-toggle">${this._showPreview ? '▲ Hide' : '▼ Show'}</span>
+                            </div>
+                            ${this._showPreview
+                                ? html`
+                                      <div class="preview-body">
+                                          <div class="preview-code">${this._previewText}</div>
+                                          <div class="preview-actions">
+                                              <button class="copy-btn" @click=${this._copyPreview}>Copy</button>
+                                          </div>
+                                      </div>
+                                  `
+                                : ''}
                         </div>
                     </section>
                 </div>

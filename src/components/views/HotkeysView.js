@@ -1,5 +1,6 @@
 import { html, css, LitElement } from '../../assets/lit-core-2.7.4.min.js';
 import { unifiedPageStyles } from './sharedPageStyles.js';
+import '../../components/ui/index.js';
 
 // ── Hotkey categories with labels, descriptions, and which window-state property they toggle ──
 const HOTKEY_GROUPS = [
@@ -171,47 +172,6 @@ export class HotkeysView extends LitElement {
                 display: flex;
                 align-items: center;
                 gap: 6px;
-            }
-            .kb-display {
-                flex: 1;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: var(--bg-app);
-                border: 1px solid var(--border);
-                border-radius: var(--radius-sm);
-                padding: 4px 8px;
-                font-family: var(--font-mono);
-                font-size: 11px;
-                color: var(--text-primary);
-                cursor: pointer;
-                transition: border-color var(--transition);
-                min-width: 90px;
-                text-align: center;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-            .kb-display:hover {
-                border-color: var(--accent);
-            }
-            .kb-display.recording {
-                border-color: var(--accent);
-                color: var(--accent);
-                animation: kbPulse 1s ease-in-out infinite;
-            }
-            @keyframes kbPulse {
-                0%,
-                100% {
-                    opacity: 1;
-                }
-                50% {
-                    opacity: 0.5;
-                }
-            }
-            .kb-display.none {
-                color: var(--text-muted);
-                font-style: italic;
             }
             .kb-clear {
                 background: transparent;
@@ -535,6 +495,20 @@ export class HotkeysView extends LitElement {
         this.requestUpdate();
     }
 
+    _onKeybindChange(e, actionId) {
+        const combo = e.detail.value;
+        // Conflict check
+        const conflict = Object.entries(this._keybinds).find(([id, kb]) => kb === combo && id !== actionId);
+        if (conflict) {
+            this._conflict = conflict[0];
+            this.requestUpdate();
+            return;
+        }
+        this._keybinds = { ...this._keybinds, [actionId]: combo };
+        this._conflict = null;
+        this.requestUpdate();
+    }
+
     async _save() {
         await cheatingDaddy.window.updateKeybinds(this._keybinds);
         this._saved = true;
@@ -647,14 +621,11 @@ export class HotkeysView extends LitElement {
                                         : ''}
                                 </div>
                                 <div class="kb-wrap">
-                                    <div
-                                        class="kb-display ${isRecording ? 'recording' : ''} ${!kb ? 'none' : ''}"
-                                        tabindex="0"
-                                        @click=${() => this._startRecording(action.id)}
-                                        @keydown=${e => this._handleKeydown(e, action.id)}
-                                    >
-                                        ${isRecording ? 'Press keys…' : kb || 'Click to set'}
-                                    </div>
+                                    <cd-keybind-input
+                                        .value=${kb || ''}
+                                        placeholder="Click to set"
+                                        @keybind-change=${e => this._onKeybindChange(e, action.id)}
+                                    ></cd-keybind-input>
                                     ${kb ? html`<button class="kb-clear" @click=${() => this._clearKeybind(action.id)} title="Clear">✕</button>` : ''}
                                 </div>
                                 ${action.toggle

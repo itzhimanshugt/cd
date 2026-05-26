@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Phase 3 UX: Responsive hamburger sidebar, shared component migration in AutoTypeView/HotkeysView, status bar overlay, and prompt preview with toast",
+  "status": "in_progress",
+  "steps": [
+    "ITEM 10 - Hamburger Sidebar in src/components/app/CheatingDaddyApp.js: Add a 'sidebarCollapsed' reactive property (Boolean, default false). In connectedCallback, load collapsed state from cheatingDaddy.storage.getPreferences() (or a ui-store if available). Add a hamburger toggle button (3 horizontal lines SVG) fixed at top of the sidebar. When clicked, toggle sidebarCollapsed and persist via cheatingDaddy.storage.updatePreference('sidebarCollapsed', value). When collapsed: sidebar width 60px, only nav-item SVG icons visible (hide label text with overflow:hidden/display:none). When expanded: sidebar width 220px (current var(--sidebar-width)). Add CSS transitions on width/min-width (0.2s ease). Update .sidebar class to use dynamic width based on sidebarCollapsed. Update .nav-item to hide label when collapsed. Add CSS variable --sidebar-width to switch between 60px and 220px.",
+    "ITEM 11 - Migrate AutoTypeView to shared components: In src/components/views/AutoTypeView.js: import '../../components/ui/index.js' at top. Replace custom .toggle-switch divs with <cd-toggle .checked=${value} @change=${handler}></cd-toggle>. Replace custom slider-row HTML with <cd-slider .value=${value} .min=${min} .max=${max} .step=${step} @input=${handler}></cd-slider>. Replace custom select elements with <cd-select .value=${value} .options=${optionsArray} @change=${handler}></cd-select>. Remove the now-unused CSS for .toggle-switch, .slider-row, .slider-value that are replaced by the shared components.",
+    "ITEM 11b - Migrate HotkeysView keybind inputs: In src/components/views/HotkeysView.js: import '../../components/ui/index.js' at top. Replace the custom .kb-display div (click-to-record pattern) with <cd-keybind-input .value=${kb} .recording=${isRecording} @record-start=${() => this._startRecording(action.id)} @keydown=${e => this._handleKeydown(e, action.id)} @clear=${() => this._clearKeybind(action.id)}></cd-keybind-input>. Remove the now-unused CSS for .kb-display, .kb-clear, .kb-wrap.",
+    "ITEM 12 - Status bar overlay in src/utils/renderer.js: After the _eventBus declaration and before the cheatingDaddy object, add a mini status bar element. Create a floating div#cd-status-pill, position fixed bottom-left (bottom:12px, left:12px), z-index:99998, semi-transparent background (rgba(20,20,20,0.85)), border-radius:12px, padding:4px 10px, font-size:11px, color:#ccc, pointer-events:none, opacity:0 by default, transition: opacity 0.3s. Add _statusPillState = 'idle'. Listen on _eventBus for: 'typing-started' -> show pill 'Typing via [backend]', 'typing-paused' -> 'Typing Paused', 'typing-completed' -> fade out after 2s, 'typing-aborted' -> fade out after 1s. Also listen for session state: ipcRenderer.on('update-status') already exists - if status includes 'Live' show 'Session Active', if includes 'Local' show 'Session Active (Local)'. Pill visible only when relevant state is active. Hide when idle (opacity:0).",
+    "ITEM 13 - Prompt preview and toast in src/components/views/AICustomizeView.js: Add a collapsible 'Preview System Prompt' section below the custom prompt textarea. Add a _showPreview Boolean property (default false). Add a _previewText state property. When user clicks 'Preview System Prompt' button, toggle _showPreview. When shown, assemble the full prompt by: reading selectedProfile to get the system prompt prefix (hardcode the known profile prompts or fetch via IPC), appending the user's customPrompt. Display in a read-only pre/code block with max-height:200px overflow-y:auto. Add a 'Copy' button that copies _previewText to clipboard via navigator.clipboard.writeText(). Add styling for the collapsible section.",
+    "ITEM 13b - Toast on custom prompt change during active session: In src/utils/renderer.js, in the storage.updatePreference wrapper or by listening for preference changes, detect when 'customPrompt' is updated while a session is active (cheatingDaddyApp.sessionActive === true). If so, call showToast('Custom instructions updated - will apply on next session')."
+  ],
+  "acceptance_criteria": [
+    "CheatingDaddyApp.js has sidebarCollapsed property with toggle button, icon-only mode at 60px, and persistence",
+    "AutoTypeView.js uses <cd-toggle>, <cd-slider>, <cd-select> instead of custom implementations",
+    "HotkeysView.js uses <cd-keybind-input> for keybind fields",
+    "renderer.js has a #cd-status-pill element that shows typing/session state",
+    "AICustomizeView.js has a collapsible prompt preview section with Copy button",
+    "renderer.js shows a toast when customPrompt changes during an active session"
+  ],
+  "verification": [
+    "Run: node -e \"require('fs').readFileSync('/projects/sandbox/cd/src/components/app/CheatingDaddyApp.js','utf8')\" to confirm it is readable",
+    "Run: node -e \"const code = require('fs').readFileSync('/projects/sandbox/cd/src/utils/renderer.js','utf8'); if(!code.includes('cd-status-pill')) throw new Error('missing status pill')\"",
+    "Grep for cd-toggle in AutoTypeView.js",
+    "Grep for cd-keybind-input in HotkeysView.js"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

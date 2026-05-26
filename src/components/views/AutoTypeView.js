@@ -1,26 +1,11 @@
 import { html, css, LitElement } from '../../assets/lit-core-2.7.4.min.js';
 import { unifiedPageStyles } from './sharedPageStyles.js';
+import '../../components/ui/index.js';
 
 export class AutoTypeView extends LitElement {
     static styles = [
         unifiedPageStyles,
         css`
-            .slider-row {
-                display: flex;
-                align-items: center;
-                gap: var(--space-sm);
-            }
-            .slider-row input[type='range'] {
-                flex: 1;
-                accent-color: var(--accent);
-            }
-            .slider-value {
-                min-width: 48px;
-                text-align: right;
-                font-size: var(--font-size-xs);
-                color: var(--text-secondary);
-                font-family: var(--font-mono);
-            }
             .toggle-row {
                 display: flex;
                 align-items: center;
@@ -30,33 +15,6 @@ export class AutoTypeView extends LitElement {
             .toggle-label {
                 color: var(--text-secondary);
                 font-size: var(--font-size-sm);
-            }
-            .toggle-switch {
-                position: relative;
-                width: 36px;
-                height: 20px;
-                background: var(--bg-elevated);
-                border: 1px solid var(--border);
-                border-radius: 10px;
-                cursor: pointer;
-                transition: background 0.2s;
-            }
-            .toggle-switch.active {
-                background: var(--accent);
-            }
-            .toggle-switch::after {
-                content: '';
-                position: absolute;
-                top: 2px;
-                left: 2px;
-                width: 14px;
-                height: 14px;
-                border-radius: 50%;
-                background: var(--text-primary);
-                transition: transform 0.2s;
-            }
-            .toggle-switch.active::after {
-                transform: translateX(16px);
             }
             .status-badge {
                 display: inline-flex;
@@ -305,7 +263,7 @@ export class AutoTypeView extends LitElement {
     }
 
     _onBackendChange(e) {
-        this._updateSetting('backend', e.target.value);
+        this._updateSetting('backend', e.detail.value);
     }
 
     _onTestBackend() {
@@ -317,31 +275,31 @@ export class AutoTypeView extends LitElement {
     }
 
     _onSpeedChange(e) {
-        this._updateSetting('typingSpeed', parseInt(e.target.value, 10));
+        this._updateSetting('typingSpeed', parseInt(e.detail.value, 10));
     }
 
     _onStartupDelayChange(e) {
-        this._updateSetting('startupDelay', parseInt(e.target.value, 10));
+        this._updateSetting('startupDelay', parseInt(e.detail.value, 10));
     }
 
     _onPunctuationDelayChange(e) {
-        this._updateSetting('punctuationDelay', parseInt(e.target.value, 10));
+        this._updateSetting('punctuationDelay', parseInt(e.detail.value, 10));
     }
 
     _onSentenceDelayChange(e) {
-        this._updateSetting('sentenceDelay', parseInt(e.target.value, 10));
+        this._updateSetting('sentenceDelay', parseInt(e.detail.value, 10));
     }
 
     _onBurstSizeChange(e) {
-        this._updateSetting('burstSize', parseInt(e.target.value, 10));
+        this._updateSetting('burstSize', parseInt(e.detail.value, 10));
     }
 
     _onJitterChange(e) {
-        this._updateSetting('jitterRange', parseFloat(e.target.value));
+        this._updateSetting('jitterRange', parseFloat(e.detail.value));
     }
 
     _onGranularityChange(e) {
-        this._updateSetting('granularity', e.target.value);
+        this._updateSetting('granularity', e.detail.value);
     }
 
     _toggleEnabled() {
@@ -476,9 +434,11 @@ export class AutoTypeView extends LitElement {
                         <div class="form-grid">
                             <div class="form-group">
                                 <label class="form-label">Injection Backend</label>
-                                <select class="control" .value=${s.backend || 'win32-sendinput'} @change=${this._onBackendChange}>
-                                    ${allBackends.map(b => html`<option value=${b}>${b}</option>`)}
-                                </select>
+                                <cd-select
+                                    .value=${s.backend || 'win32-sendinput'}
+                                    .options=${allBackends.map(b => ({ value: b, label: b }))}
+                                    @select-change=${this._onBackendChange}
+                                ></cd-select>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Availability</label>
@@ -551,74 +511,65 @@ export class AutoTypeView extends LitElement {
                         <div class="surface-subtitle">Adjust typing speed and timing parameters</div>
                         <div class="form-grid">
                             <div class="form-group vertical">
-                                <label class="form-label">Typing Speed (WPM): ${s.typingSpeed || 80}</label>
-                                <div class="slider-row">
-                                    <input type="range" min="10" max="300" .value=${String(s.typingSpeed || 80)} @input=${this._onSpeedChange} />
-                                    <span class="slider-value">${s.typingSpeed || 80}</span>
-                                </div>
+                                <cd-slider
+                                    label="Typing Speed (WPM)"
+                                    .value=${s.typingSpeed || 80}
+                                    .min=${10}
+                                    .max=${300}
+                                    .step=${1}
+                                    @slider-input=${this._onSpeedChange}
+                                ></cd-slider>
                             </div>
                             <div class="form-group vertical">
-                                <label class="form-label">Startup Delay (ms): ${s.startupDelay || 200}</label>
-                                <div class="slider-row">
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="2000"
-                                        step="50"
-                                        .value=${String(s.startupDelay || 200)}
-                                        @input=${this._onStartupDelayChange}
-                                    />
-                                    <span class="slider-value">${s.startupDelay || 200}</span>
-                                </div>
+                                <cd-slider
+                                    label="Startup Delay (ms)"
+                                    .value=${s.startupDelay || 200}
+                                    .min=${0}
+                                    .max=${2000}
+                                    .step=${50}
+                                    @slider-input=${this._onStartupDelayChange}
+                                ></cd-slider>
                             </div>
                             <div class="form-group vertical">
-                                <label class="form-label">Punctuation Delay (ms): ${s.punctuationDelay || 150}</label>
-                                <div class="slider-row">
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="1000"
-                                        step="10"
-                                        .value=${String(s.punctuationDelay || 150)}
-                                        @input=${this._onPunctuationDelayChange}
-                                    />
-                                    <span class="slider-value">${s.punctuationDelay || 150}</span>
-                                </div>
+                                <cd-slider
+                                    label="Punctuation Delay (ms)"
+                                    .value=${s.punctuationDelay || 150}
+                                    .min=${0}
+                                    .max=${1000}
+                                    .step=${10}
+                                    @slider-input=${this._onPunctuationDelayChange}
+                                ></cd-slider>
                             </div>
                             <div class="form-group vertical">
-                                <label class="form-label">Sentence Delay (ms): ${s.sentenceDelay || 300}</label>
-                                <div class="slider-row">
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="2000"
-                                        step="10"
-                                        .value=${String(s.sentenceDelay || 300)}
-                                        @input=${this._onSentenceDelayChange}
-                                    />
-                                    <span class="slider-value">${s.sentenceDelay || 300}</span>
-                                </div>
+                                <cd-slider
+                                    label="Sentence Delay (ms)"
+                                    .value=${s.sentenceDelay || 300}
+                                    .min=${0}
+                                    .max=${2000}
+                                    .step=${10}
+                                    @slider-input=${this._onSentenceDelayChange}
+                                ></cd-slider>
                             </div>
                             <div class="form-group vertical">
-                                <label class="form-label">Chunk/Burst Size: ${s.burstSize || 3}</label>
-                                <div class="slider-row">
-                                    <input type="range" min="1" max="10" .value=${String(s.burstSize || 3)} @input=${this._onBurstSizeChange} />
-                                    <span class="slider-value">${s.burstSize || 3}</span>
-                                </div>
+                                <cd-slider
+                                    label="Chunk/Burst Size"
+                                    .value=${s.burstSize || 3}
+                                    .min=${1}
+                                    .max=${10}
+                                    .step=${1}
+                                    @slider-input=${this._onBurstSizeChange}
+                                ></cd-slider>
                             </div>
                             <div class="form-group vertical">
-                                <label class="form-label">Jitter/Randomization: ${Math.round((s.jitterRange || 0.3) * 100)}%</label>
-                                <div class="slider-row">
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.05"
-                                        .value=${String(s.jitterRange || 0.3)}
-                                        @input=${this._onJitterChange}
-                                    />
-                                    <span class="slider-value">${Math.round((s.jitterRange || 0.3) * 100)}%</span>
-                                </div>
+                                <cd-slider
+                                    label="Jitter/Randomization"
+                                    .value=${s.jitterRange || 0.3}
+                                    .min=${0}
+                                    .max=${1}
+                                    .step=${0.05}
+                                    unit="%"
+                                    @slider-input=${this._onJitterChange}
+                                ></cd-slider>
                             </div>
                         </div>
                     </div>
@@ -630,40 +581,44 @@ export class AutoTypeView extends LitElement {
                         <div class="form-grid">
                             <div class="form-group">
                                 <label class="form-label">Granularity</label>
-                                <select class="control" .value=${s.granularity || 'character'} @change=${this._onGranularityChange}>
-                                    <option value="character">Character</option>
-                                    <option value="word">Word</option>
-                                    <option value="sentence">Sentence</option>
-                                    <option value="paragraph">Paragraph</option>
-                                </select>
+                                <cd-select
+                                    .value=${s.granularity || 'character'}
+                                    .options=${[
+                                        { value: 'character', label: 'Character' },
+                                        { value: 'word', label: 'Word' },
+                                        { value: 'sentence', label: 'Sentence' },
+                                        { value: 'paragraph', label: 'Paragraph' },
+                                    ]}
+                                    @select-change=${this._onGranularityChange}
+                                ></cd-select>
                             </div>
                             <div class="toggle-row">
                                 <span class="toggle-label">Enabled</span>
-                                <div class="toggle-switch ${s.enabled ? 'active' : ''}" @click=${this._toggleEnabled}></div>
+                                <cd-toggle .checked=${s.enabled || false} @toggle-change=${this._toggleEnabled}></cd-toggle>
                             </div>
                             <div class="toggle-row">
                                 <span class="toggle-label">Paste Mode</span>
-                                <div class="toggle-switch ${s.pasteMode ? 'active' : ''}" @click=${this._togglePasteMode}></div>
+                                <cd-toggle .checked=${s.pasteMode || false} @toggle-change=${this._togglePasteMode}></cd-toggle>
                             </div>
                             <div class="toggle-row">
                                 <span class="toggle-label">Sentence by Sentence</span>
-                                <div class="toggle-switch ${s.sentenceBySentence ? 'active' : ''}" @click=${this._toggleSentenceBySentence}></div>
+                                <cd-toggle .checked=${s.sentenceBySentence || false} @toggle-change=${this._toggleSentenceBySentence}></cd-toggle>
                             </div>
                             <div class="toggle-row">
                                 <span class="toggle-label">Typo Simulation</span>
-                                <div class="toggle-switch ${s.typoSimulation ? 'active' : ''}" @click=${this._toggleTypoSimulation}></div>
+                                <cd-toggle .checked=${s.typoSimulation || false} @toggle-change=${this._toggleTypoSimulation}></cd-toggle>
                             </div>
                             <div class="toggle-row">
                                 <span class="toggle-label">Backspace Simulation</span>
-                                <div class="toggle-switch ${s.backspaceSimulation ? 'active' : ''}" @click=${this._toggleBackspaceSimulation}></div>
+                                <cd-toggle .checked=${s.backspaceSimulation || false} @toggle-change=${this._toggleBackspaceSimulation}></cd-toggle>
                             </div>
                             <div class="toggle-row">
                                 <span class="toggle-label">Adaptive Speed</span>
-                                <div class="toggle-switch ${s.adaptiveSpeed ? 'active' : ''}" @click=${this._toggleAdaptiveSpeed}></div>
+                                <cd-toggle .checked=${s.adaptiveSpeed || false} @toggle-change=${this._toggleAdaptiveSpeed}></cd-toggle>
                             </div>
                             <div class="toggle-row">
                                 <span class="toggle-label">Hold-to-Type Mode</span>
-                                <div class="toggle-switch ${s.holdToTypeMode ? 'active' : ''}" @click=${this._toggleHoldToTypeMode}></div>
+                                <cd-toggle .checked=${s.holdToTypeMode || false} @toggle-change=${this._toggleHoldToTypeMode}></cd-toggle>
                             </div>
                         </div>
                     </div>
@@ -713,15 +668,15 @@ export class AutoTypeView extends LitElement {
                         <div class="form-grid">
                             <div class="toggle-row">
                                 <span class="toggle-label">Target Lock</span>
-                                <div class="toggle-switch ${s.targetLock ? 'active' : ''}" @click=${this._toggleTargetLock}></div>
+                                <cd-toggle .checked=${s.targetLock || false} @toggle-change=${this._toggleTargetLock}></cd-toggle>
                             </div>
                             <div class="toggle-row">
                                 <span class="toggle-label">Auto-Refocus</span>
-                                <div class="toggle-switch ${s.autoRefocus ? 'active' : ''}" @click=${this._toggleAutoRefocus}></div>
+                                <cd-toggle .checked=${s.autoRefocus || false} @toggle-change=${this._toggleAutoRefocus}></cd-toggle>
                             </div>
                             <div class="toggle-row">
                                 <span class="toggle-label">Clipboard Restore</span>
-                                <div class="toggle-switch ${s.clipboardRestore ? 'active' : ''}" @click=${this._toggleClipboardRestore}></div>
+                                <cd-toggle .checked=${s.clipboardRestore || false} @toggle-change=${this._toggleClipboardRestore}></cd-toggle>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Auto-Focus Delay (ms)</label>

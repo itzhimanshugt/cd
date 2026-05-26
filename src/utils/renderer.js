@@ -78,7 +78,12 @@ const storage = {
         return ipcRenderer.invoke('storage:set-preferences', preferences);
     },
     async updatePreference(key, value) {
-        return ipcRenderer.invoke('storage:update-preference', key, value);
+        const result = await ipcRenderer.invoke('storage:update-preference', key, value);
+        // Show toast when customPrompt changes during an active session
+        if (key === 'customPrompt' && cheatingDaddyApp && cheatingDaddyApp.sessionActive) {
+            showToast('Custom instructions updated - will apply on next session');
+        }
+        return result;
     },
 
     // Keybinds
@@ -375,6 +380,7 @@ async function initializeCloud(profile = 'interview') {
 ipcRenderer.on('update-status', (event, status) => {
     console.log('Status update:', status);
     cheatingDaddy.setStatus(status);
+    _eventBus.dispatchEvent(new CustomEvent('session-status-update', { detail: status }));
 });
 
 async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'medium', aiHearingEnabled = true) {
@@ -1418,6 +1424,75 @@ ipcRenderer.on('debug-screenshot-captured', (_, filePath) => {
 // ============ GLOBAL EVENT BUS ============
 // Allows components to subscribe to state changes triggered by hotkeys
 const _eventBus = new EventTarget();
+
+// ============ STATUS PILL OVERLAY ============
+let _statusPill = null;
+let _statusPillState = 'idle';
+let _statusPillTimer = null;
+
+function _ensureStatusPill() {
+    if (_statusPill) return _statusPill;
+    _statusPill = document.createElement('div');
+    _statusPill.id = 'cd-status-pill';
+    _statusPill.style.cssText =
+        'position:fixed;bottom:12px;left:12px;z-index:99998;background:rgba(20,20,20,0.85);' +
+        'border-radius:12px;padding:4px 10px;font-size:11px;color:#ccc;pointer-events:none;' +
+        'opacity:0;transition:opacity 0.3s;font-family:system-ui,-apple-system,sans-serif;';
+    document.body.appendChild(_statusPill);
+    return _statusPill;
+}
+
+function _showStatusPill(text) {
+    const pill = _ensureStatusPill();
+    pill.textContent = text;
+    pill.style.opacity = '1';
+    _statusPillState = 'visible';
+    if (_statusPillTimer) {
+        clearTimeout(_statusPillTimer);
+        _statusPillTimer = null;
+    }
+}
+
+function _fadeStatusPill(delayMs) {
+    if (_statusPillTimer) clearTimeout(_statusPillTimer);
+    _statusPillTimer = setTimeout(() => {
+        const pill = _ensureStatusPill();
+        pill.style.opacity = '0';
+        _statusPillState = 'idle';
+        _statusPillTimer = null;
+    }, delayMs);
+}
+
+// Listen for typing events on the event bus
+_eventBus.addEventListener('typing-started', () => {
+    const status = cheatingDaddyApp && cheatingDaddyApp._settings
+        ? cheatingDaddyApp._settings.backend || 'SendInput'
+        : 'SendInput';
+    _showStatusPill(`Typing via ${status}`);
+});
+_eventBus.addEventListener('typing-paused', () => {
+    _showStatusPill('Typing Paused');
+});
+_eventBus.addEventListener('typing-completed', () => {
+    _showStatusPill('Typing Complete');
+    _fadeStatusPill(2000);
+});
+_eventBus.addEventListener('typing-aborted', () => {
+    _showStatusPill('Typing Aborted');
+    _fadeStatusPill(1000);
+});
+
+// Listen for session status via IPC - hook into the existing update-status to also show pill
+_eventBus.addEventListener('session-status-update', (e) => {
+    const status = e.detail;
+    if (status.includes('Live')) {
+        _showStatusPill('Session Active');
+    } else if (status.includes('Local')) {
+        _showStatusPill('Session Active (Local)');
+    } else if (status.includes('Ready') || status.includes('Error') || status.includes('Idle')) {
+        _fadeStatusPill(1500);
+    }
+});
 
 // Consolidated cheatingDaddy object - all functions in one place
 const cheatingDaddy = {

@@ -111,10 +111,16 @@ export class CheatingDaddyApp extends LitElement {
             flex-direction: column;
             padding: 42px 0 var(--space-md) 0;
             transition:
-                width var(--transition),
-                min-width var(--transition),
+                width 0.2s ease,
+                min-width 0.2s ease,
                 opacity var(--transition);
             overflow: hidden;
+        }
+
+        .sidebar.collapsed {
+            width: 60px;
+            min-width: 60px;
+            max-width: 60px;
         }
 
         .sidebar.hidden {
@@ -126,10 +132,41 @@ export class CheatingDaddyApp extends LitElement {
             opacity: 0;
         }
 
+        .hamburger-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: none;
+            border: none;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            cursor: pointer;
+            margin: 0 auto var(--space-sm) auto;
+            transition: color var(--transition), background var(--transition);
+        }
+
+        .hamburger-btn:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        .hamburger-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
         .sidebar-brand {
             padding: var(--space-sm) var(--space-lg);
             padding-top: var(--space-md);
             margin-bottom: var(--space-lg);
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .sidebar.collapsed .sidebar-brand {
+            display: none;
         }
 
         .sidebar-brand h1 {
@@ -183,10 +220,24 @@ export class CheatingDaddyApp extends LitElement {
             flex-shrink: 0;
         }
 
+        .sidebar.collapsed .nav-item {
+            justify-content: center;
+            padding: var(--space-sm);
+        }
+
+        .sidebar.collapsed .nav-item span,
+        .sidebar.collapsed .nav-label {
+            display: none;
+        }
+
         .sidebar-footer {
             padding: var(--space-sm);
             margin-top: var(--space-sm);
             -webkit-app-region: no-drag;
+        }
+
+        .sidebar.collapsed .sidebar-footer {
+            display: none;
         }
 
         .update-btn {
@@ -404,6 +455,7 @@ export class CheatingDaddyApp extends LitElement {
         _modelExtraction: { state: true },
         _modelSolution: { state: true },
         _modelDebugging: { state: true },
+        sidebarCollapsed: { type: Boolean },
     };
 
     constructor() {
@@ -435,6 +487,7 @@ export class CheatingDaddyApp extends LitElement {
         this._modelExtraction = 'gemini-2.5-flash';
         this._modelSolution = 'gemini-2.5-flash';
         this._modelDebugging = 'gemini-2.5-flash';
+        this.sidebarCollapsed = false;
 
         this._loadFromStorage();
         setTimeout(() => this._checkForUpdates(), 10000);
@@ -484,6 +537,7 @@ export class CheatingDaddyApp extends LitElement {
             this._modelExtraction = prefs.modelExtraction || 'gemini-2.5-flash';
             this._modelSolution = prefs.modelSolution || 'gemini-2.5-flash';
             this._modelDebugging = prefs.modelDebugging || 'gemini-2.5-flash';
+            this.sidebarCollapsed = prefs.sidebarCollapsed || false;
 
             this._storageLoaded = true;
             this.requestUpdate();
@@ -778,6 +832,11 @@ export class CheatingDaddyApp extends LitElement {
         this.requestUpdate();
     }
 
+    async _toggleSidebar() {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        await cheatingDaddy.storage.updatePreference('sidebarCollapsed', this.sidebarCollapsed);
+    }
+
     async handleExternalLinkClick(url) {
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
@@ -1025,7 +1084,14 @@ export class CheatingDaddyApp extends LitElement {
         ];
 
         return html`
-            <div class="sidebar ${this._isLiveMode() ? 'hidden' : ''}">
+            <div class="sidebar ${this._isLiveMode() ? 'hidden' : ''} ${this.sidebarCollapsed ? 'collapsed' : ''}">
+                <button class="hamburger-btn" @click=${() => this._toggleSidebar()} title="${this.sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
                 <div class="sidebar-brand">
                     <h1>Cheating Daddy</h1>
                 </div>
@@ -1037,7 +1103,7 @@ export class CheatingDaddyApp extends LitElement {
                                 @click=${() => this.navigate(item.id)}
                                 title=${item.label}
                             >
-                                ${item.icon} ${item.label}
+                                ${item.icon} <span class="nav-label">${item.label}</span>
                             </button>
                         `
                     )}

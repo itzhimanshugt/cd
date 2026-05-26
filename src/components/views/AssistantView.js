@@ -15,32 +15,85 @@ export class AssistantView extends LitElement {
             cursor: default;
         }
 
-        /* ── Response area ── */
+        /* ── Messages container ── */
 
-        .response-container {
+        .messages-container {
             flex: 1;
             overflow-y: auto;
+            padding: var(--space-md);
+            scroll-behavior: smooth;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb {
+            background: var(--border-strong);
+            border-radius: 3px;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: #444444;
+        }
+
+        /* ── Chat bubbles ── */
+
+        .message-row {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+        }
+
+        .message-row.ai {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+
+        .message-row.user {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        .message-bubble {
+            padding: var(--space-sm) var(--space-md);
             font-size: var(--response-font-size, 15px);
             line-height: var(--line-height);
-            background: var(--bg-app);
-            padding: var(--space-sm) var(--space-md);
-            scroll-behavior: smooth;
-            user-select: text;
-            cursor: text;
-            color: var(--text-primary);
-        }
-
-        .response-container * {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
             user-select: text;
             cursor: text;
         }
 
-        .response-container a {
+        .message-bubble * {
+            user-select: text;
+            cursor: text;
+        }
+
+        .message-bubble a {
             cursor: pointer;
         }
 
-        .response-container [data-word] {
-            display: inline-block;
+        .message-bubble.ai {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            color: var(--text-primary);
+        }
+
+        .message-bubble.user {
+            background: var(--accent);
+            color: var(--bg-app);
+            border-radius: 16px;
+            border-bottom-right-radius: 4px;
         }
 
         .dual-response {
@@ -79,177 +132,159 @@ export class AssistantView extends LitElement {
 
         /* ── Markdown ── */
 
-        .response-container h1,
-        .response-container h2,
-        .response-container h3,
-        .response-container h4,
-        .response-container h5,
-        .response-container h6 {
-            margin: 1em 0 0.5em 0;
-            color: var(--text-primary);
+        .message-timestamp {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            padding: 0 var(--space-sm);
+        }
+
+        /* ── Markdown inside bubbles ── */
+
+        .message-bubble h1,
+        .message-bubble h2,
+        .message-bubble h3,
+        .message-bubble h4,
+        .message-bubble h5,
+        .message-bubble h6 {
+            margin: 0.8em 0 0.4em 0;
             font-weight: var(--font-weight-semibold);
         }
 
-        .response-container h1 {
-            font-size: 1.5em;
+        .message-bubble.ai h1,
+        .message-bubble.ai h2,
+        .message-bubble.ai h3,
+        .message-bubble.ai h4,
+        .message-bubble.ai h5,
+        .message-bubble.ai h6 {
+            color: var(--text-primary);
         }
-        .response-container h2 {
-            font-size: 1.3em;
+
+        .message-bubble h1 {
+            font-size: 1.4em;
         }
-        .response-container h3 {
-            font-size: 1.15em;
+        .message-bubble h2 {
+            font-size: 1.25em;
         }
-        .response-container h4 {
-            font-size: 1.05em;
+        .message-bubble h3 {
+            font-size: 1.1em;
         }
-        .response-container h5,
-        .response-container h6 {
+        .message-bubble h4,
+        .message-bubble h5,
+        .message-bubble h6 {
             font-size: 1em;
         }
 
-        .response-container p {
+        .message-bubble p {
+            margin: 0.5em 0;
+        }
+
+        .message-bubble p:first-child {
+            margin-top: 0;
+        }
+
+        .message-bubble p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-bubble ul,
+        .message-bubble ol {
+            margin: 0.5em 0;
+            padding-left: 1.4em;
+        }
+
+        .message-bubble li {
+            margin: 0.2em 0;
+        }
+
+        .message-bubble blockquote {
             margin: 0.6em 0;
-            color: var(--text-primary);
-        }
-
-        .response-container ul,
-        .response-container ol {
-            margin: 0.6em 0;
-            padding-left: 1.5em;
-            color: var(--text-primary);
-        }
-
-        .response-container li {
-            margin: 0.3em 0;
-        }
-
-        .response-container blockquote {
-            margin: 0.8em 0;
-            padding: 0.5em 1em;
+            padding: 0.4em 0.8em;
             border-left: 2px solid var(--border-strong);
-            background: var(--bg-surface);
+            background: var(--bg-elevated);
             border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
         }
 
-        .response-container code {
+        .message-bubble code {
             background: var(--bg-elevated);
-            padding: 0.15em 0.4em;
+            padding: 0.1em 0.35em;
             border-radius: var(--radius-sm);
             font-family: var(--font-mono);
             font-size: 0.85em;
         }
 
-        .response-container pre {
-            background: var(--bg-surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            padding: var(--space-md);
-            overflow-x: auto;
-            margin: 0.8em 0;
+        .message-bubble.user code {
+            background: rgba(0, 0, 0, 0.15);
         }
 
-        .response-container pre code {
+        .message-bubble pre {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm);
+            overflow-x: auto;
+            margin: 0.6em 0;
+        }
+
+        .message-bubble.user pre {
+            background: rgba(0, 0, 0, 0.15);
+            border-color: rgba(0, 0, 0, 0.2);
+        }
+
+        .message-bubble pre code {
             background: none;
             padding: 0;
         }
 
-        .response-container a {
+        .message-bubble a {
             color: var(--accent);
             text-decoration: underline;
             text-underline-offset: 2px;
         }
 
-        .response-container strong,
-        .response-container b {
+        .message-bubble.user a {
+            color: inherit;
+        }
+
+        .message-bubble strong,
+        .message-bubble b {
             font-weight: var(--font-weight-semibold);
         }
 
-        .response-container hr {
+        .message-bubble hr {
             border: none;
             border-top: 1px solid var(--border);
-            margin: 1.5em 0;
+            margin: 1em 0;
         }
 
-        .response-container table {
+        .message-bubble table {
             border-collapse: collapse;
             width: 100%;
-            margin: 0.8em 0;
+            margin: 0.6em 0;
         }
 
-        .response-container th,
-        .response-container td {
+        .message-bubble th,
+        .message-bubble td {
             border: 1px solid var(--border);
-            padding: var(--space-sm);
+            padding: var(--space-xs) var(--space-sm);
             text-align: left;
         }
 
-        .response-container th {
-            background: var(--bg-surface);
+        .message-bubble th {
+            background: var(--bg-elevated);
             font-weight: var(--font-weight-semibold);
         }
 
-        .response-container::-webkit-scrollbar {
-            width: 6px;
-        }
+        /* ── Listening placeholder ── */
 
-        .response-container::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .response-container::-webkit-scrollbar-thumb {
-            background: var(--border-strong);
-            border-radius: 3px;
-        }
-
-        .response-container::-webkit-scrollbar-thumb:hover {
-            background: #444444;
-        }
-
-        /* ── Response navigation strip ── */
-
-        .response-nav {
+        .listening-placeholder {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: var(--space-sm);
-            padding: var(--space-xs) var(--space-md);
-            border-top: 1px solid var(--border);
-            background: var(--bg-app);
-        }
-
-        .nav-btn {
-            background: none;
-            border: none;
             color: var(--text-muted);
-            cursor: pointer;
-            padding: var(--space-xs);
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: color var(--transition);
-        }
-
-        .nav-btn:hover:not(:disabled) {
-            color: var(--text-primary);
-        }
-
-        .nav-btn:disabled {
-            opacity: 0.25;
-            cursor: default;
-        }
-
-        .nav-btn svg {
-            width: 14px;
-            height: 14px;
-        }
-
-        .response-counter {
-            font-size: var(--font-size-xs);
-            color: var(--text-muted);
-            font-family: var(--font-mono);
-            min-width: 40px;
-            text-align: center;
+            font-size: var(--font-size-sm);
+            padding: var(--space-lg);
         }
 
         /* ── Bottom input bar ── */
@@ -357,6 +392,7 @@ export class AssistantView extends LitElement {
         onSendText: { type: Function },
         shouldAnimateResponse: { type: Boolean },
         isAnalyzing: { type: Boolean, state: true },
+        _messages: { state: true },
     };
 
     constructor() {
@@ -369,6 +405,8 @@ export class AssistantView extends LitElement {
         this.onSendText = () => {};
         this.isAnalyzing = false;
         this._animFrame = null;
+        this._messages = [];
+        this._lastResponseCount = 0;
     }
 
     getProfileNames() {
@@ -383,13 +421,6 @@ export class AssistantView extends LitElement {
         };
     }
 
-    getCurrentResponse() {
-        const profileNames = this.getProfileNames();
-        return this.responses.length > 0 && this.currentResponseIndex >= 0
-            ? this.responses[this.currentResponseIndex]
-            : `Listening to your ${profileNames[this.selectedProfile] || 'session'}...`;
-    }
-
     renderMarkdown(content) {
         if (typeof window !== 'undefined' && window.marked) {
             try {
@@ -398,9 +429,7 @@ export class AssistantView extends LitElement {
                     gfm: true,
                     sanitize: false,
                 });
-                let rendered = window.marked.parse(content);
-                rendered = this.wrapWordsInSpans(rendered);
-                return rendered;
+                return window.marked.parse(content);
             } catch (error) {
                 console.warn('Error parsing markdown:', error);
                 return content;
@@ -409,62 +438,8 @@ export class AssistantView extends LitElement {
         return content;
     }
 
-    wrapWordsInSpans(html) {
-        // Skip word wrapping for short responses - not noticeable and saves DOM parsing
-        if (html.length < 500) return html;
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const tagsToSkip = ['PRE'];
-
-        function wrap(node) {
-            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() && !tagsToSkip.includes(node.parentNode.tagName)) {
-                const words = node.textContent.split(/(\s+)/);
-                const frag = document.createDocumentFragment();
-                words.forEach(word => {
-                    if (word.trim()) {
-                        const span = document.createElement('span');
-                        span.setAttribute('data-word', '');
-                        span.textContent = word;
-                        frag.appendChild(span);
-                    } else {
-                        frag.appendChild(document.createTextNode(word));
-                    }
-                });
-                node.parentNode.replaceChild(frag, node);
-            } else if (node.nodeType === Node.ELEMENT_NODE && !tagsToSkip.includes(node.tagName)) {
-                Array.from(node.childNodes).forEach(wrap);
-            }
-        }
-        Array.from(doc.body.childNodes).forEach(wrap);
-        return doc.body.innerHTML;
-    }
-
-    navigateToPreviousResponse() {
-        if (this.currentResponseIndex > 0) {
-            this.currentResponseIndex--;
-            this.dispatchEvent(
-                new CustomEvent('response-index-changed', {
-                    detail: { index: this.currentResponseIndex },
-                })
-            );
-            this.requestUpdate();
-        }
-    }
-
-    navigateToNextResponse() {
-        if (this.currentResponseIndex < this.responses.length - 1) {
-            this.currentResponseIndex++;
-            this.dispatchEvent(
-                new CustomEvent('response-index-changed', {
-                    detail: { index: this.currentResponseIndex },
-                })
-            );
-            this.requestUpdate();
-        }
-    }
-
     scrollResponseUp() {
-        const container = this.shadowRoot.querySelector('.response-container');
+        const container = this.shadowRoot.querySelector('.messages-container');
         if (container) {
             const scrollAmount = container.clientHeight * 0.3;
             container.scrollTop = Math.max(0, container.scrollTop - scrollAmount);
@@ -472,7 +447,7 @@ export class AssistantView extends LitElement {
     }
 
     scrollResponseDown() {
-        const container = this.shadowRoot.querySelector('.response-container');
+        const container = this.shadowRoot.querySelector('.messages-container');
         if (container) {
             const scrollAmount = container.clientHeight * 0.3;
             container.scrollTop = Math.min(container.scrollHeight - container.clientHeight, container.scrollTop + scrollAmount);
@@ -485,8 +460,8 @@ export class AssistantView extends LitElement {
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
 
-            this.handlePreviousResponse = () => this.navigateToPreviousResponse();
-            this.handleNextResponse = () => this.navigateToNextResponse();
+            this.handlePreviousResponse = () => {};
+            this.handleNextResponse = () => {};
             this.handleScrollUp = () => this.scrollResponseUp();
             this.handleScrollDown = () => this.scrollResponseDown();
 
@@ -531,6 +506,10 @@ export class AssistantView extends LitElement {
         if (textInput && textInput.value.trim()) {
             const message = textInput.value.trim();
             textInput.value = '';
+            // Add user message to chat
+            this._messages = [...this._messages, { type: 'user', content: message, timestamp: Date.now() }];
+            this.requestUpdate();
+            this._scrollToBottom();
             await this.onSendText(message);
         }
     }
@@ -564,27 +543,23 @@ export class AssistantView extends LitElement {
 
         const dangerColor = getComputedStyle(this).getPropertyValue('--danger').trim() || '#EF4444';
         const startTime = performance.now();
-        const FADE_IN = 0.5; // seconds
-        const PARTICLE_SPREAD = 4; // px inward from border
+        const FADE_IN = 0.5;
+        const PARTICLE_SPREAD = 4;
         const PARTICLE_COUNT = 250;
 
-        // Pill perimeter helpers
         const w = rect.width;
         const h = rect.height;
-        const r = h / 2; // pill radius = half height
+        const r = h / 2;
         const straightLen = w - 2 * r;
         const arcLen = Math.PI * r;
         const perimeter = 2 * straightLen + 2 * arcLen;
 
-        // Given a distance along the perimeter, return {x, y, nx, ny} (position + inward normal)
         const pointOnPerimeter = d => {
             d = ((d % perimeter) + perimeter) % perimeter;
-            // Top straight: left to right
             if (d < straightLen) {
                 return { x: r + d, y: 0, nx: 0, ny: 1 };
             }
             d -= straightLen;
-            // Right arc
             if (d < arcLen) {
                 const angle = -Math.PI / 2 + (d / arcLen) * Math.PI;
                 return {
@@ -595,12 +570,10 @@ export class AssistantView extends LitElement {
                 };
             }
             d -= arcLen;
-            // Bottom straight: right to left
             if (d < straightLen) {
                 return { x: w - r - d, y: h, nx: 0, ny: -1 };
             }
             d -= straightLen;
-            // Left arc
             const angle = Math.PI / 2 + (d / arcLen) * Math.PI;
             return {
                 x: r + Math.cos(angle) * r,
@@ -610,7 +583,6 @@ export class AssistantView extends LitElement {
             };
         };
 
-        // Pre-seed random offsets for stable particles
         const seeds = [];
         for (let i = 0; i < PARTICLE_COUNT; i++) {
             seeds.push({ pos: Math.random(), drift: Math.random(), depthSeed: Math.random() });
@@ -622,7 +594,6 @@ export class AssistantView extends LitElement {
 
             ctx.clearRect(0, 0, w, h);
 
-            // ── Particle border ──
             ctx.fillStyle = dangerColor;
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const s = seeds[i];
@@ -643,7 +614,6 @@ export class AssistantView extends LitElement {
                 ctx.fill();
             }
 
-            // ── Waveform ──
             const midY = h / 2;
             const waves = [
                 { freq: 3, amp: 0.35, speed: 2.5, opacity: 0.9, width: 1.8 },
@@ -688,25 +658,26 @@ export class AssistantView extends LitElement {
         }
     }
 
-    scrollToBottom() {
+    _scrollToBottom() {
         setTimeout(() => {
-            const container = this.shadowRoot.querySelector('.response-container');
+            const container = this.shadowRoot.querySelector('.messages-container');
             if (container) {
                 container.scrollTop = container.scrollHeight;
             }
         }, 0);
     }
 
-    firstUpdated() {
-        super.firstUpdated();
-        this.updateResponseContent();
+    _formatTimestamp(ts) {
+        const d = new Date(ts);
+        const h = d.getHours();
+        const m = String(d.getMinutes()).padStart(2, '0');
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        return `${h12}:${m} ${ampm}`;
     }
 
     updated(changedProperties) {
         super.updated(changedProperties);
-        if (changedProperties.has('responses') || changedProperties.has('currentResponseIndex') || changedProperties.has('liveResponses') || changedProperties.has('responseMode')) {
-            this.updateResponseContent();
-        }
 
         if (changedProperties.has('isAnalyzing')) {
             if (this.isAnalyzing) {
@@ -716,87 +687,72 @@ export class AssistantView extends LitElement {
             }
         }
 
-        if (changedProperties.has('responses') && this.isAnalyzing) {
-            if (this.responses.length > this._responseCountWhenStarted) {
+        if (changedProperties.has('responses')) {
+            // Add new AI responses to messages
+            if (this.responses.length > this._lastResponseCount) {
+                const newResponses = this.responses.slice(this._lastResponseCount);
+                const newMessages = newResponses.map(content => ({
+                    type: 'ai',
+                    content,
+                    timestamp: Date.now(),
+                }));
+                this._messages = [...this._messages, ...newMessages];
+                this._scrollToBottom();
+            } else if (this.responses.length > 0 && this.responses.length === this._lastResponseCount) {
+                // Update the last AI message (streaming update)
+                const lastAiIdx = this._findLastAiMessageIndex();
+                if (lastAiIdx >= 0) {
+                    const updated = [...this._messages];
+                    updated[lastAiIdx] = { ...updated[lastAiIdx], content: this.responses[this.responses.length - 1] };
+                    this._messages = updated;
+                }
+            }
+            this._lastResponseCount = this.responses.length;
+
+            if (this.isAnalyzing && this.responses.length > this._responseCountWhenStarted) {
                 this.isAnalyzing = false;
             }
         }
-    }
 
-    updateResponseContent() {
-        const container = this.shadowRoot.querySelector('#responseContainer');
-        if (container) {
-            if (this.responseMode === 'both') {
-                const geminiResponse = this.liveResponses?.gemini?.trim() ? this.renderMarkdown(this.liveResponses.gemini) : '<p class="response-placeholder">Waiting for Gemini response...</p>';
-                const groqResponse = this.liveResponses?.groq?.trim() ? this.renderMarkdown(this.liveResponses.groq) : '<p class="response-placeholder">Waiting for Groq response...</p>';
-                container.innerHTML = `
-                    <div class="dual-response">
-                        <section class="provider-panel provider-gemini">
-                            <div class="provider-title">Gemini</div>
-                            <div class="provider-body">${geminiResponse}</div>
-                        </section>
-                        <section class="provider-panel provider-groq">
-                            <div class="provider-title">Groq</div>
-                            <div class="provider-body">${groqResponse}</div>
-                        </section>
-                    </div>
-                `;
-            } else {
-                const currentResponse = this.getCurrentResponse();
-                const renderedResponse = this.renderMarkdown(currentResponse);
-                container.innerHTML = renderedResponse;
-            }
-            if (this.shouldAnimateResponse) {
-                this.dispatchEvent(new CustomEvent('response-animation-complete', { bubbles: true, composed: true }));
-            }
+        // Reset messages when responses are cleared (new session)
+        if (changedProperties.has('responses') && this.responses.length === 0) {
+            this._messages = [];
+            this._lastResponseCount = 0;
         }
     }
 
+    _findLastAiMessageIndex() {
+        for (let i = this._messages.length - 1; i >= 0; i--) {
+            if (this._messages[i].type === 'ai') return i;
+        }
+        return -1;
+    }
+
     render() {
-        const hasMultipleResponses = this.responseMode !== 'both' && this.responses.length > 1;
+        const profileNames = this.getProfileNames();
+        const hasMessages = this._messages.length > 0;
 
         return html`
-            <div class="response-container" id="responseContainer"></div>
-
-            ${hasMultipleResponses
+            ${hasMessages
                 ? html`
-                      <div class="response-nav">
-                          <button
-                              class="nav-btn"
-                              @click=${this.navigateToPreviousResponse}
-                              ?disabled=${this.currentResponseIndex <= 0}
-                              title="Previous response"
-                          >
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                  <path
-                                      fill-rule="evenodd"
-                                      d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"
-                                      clip-rule="evenodd"
-                                  />
-                              </svg>
-                          </button>
-                          <span class="response-counter">${this.currentResponseIndex + 1} of ${this.responses.length}</span>
-                          <button
-                              class="nav-btn"
-                              @click=${this.navigateToNextResponse}
-                              ?disabled=${this.currentResponseIndex >= this.responses.length - 1}
-                              title="Next response"
-                          >
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                  <path
-                                      fill-rule="evenodd"
-                                      d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"
-                                      clip-rule="evenodd"
-                                  />
-                              </svg>
-                          </button>
+                      <div class="messages-container">
+                          ${this._messages.map(
+                              msg => html`
+                                  <div class="message-row ${msg.type}">
+                                      <div class="message-bubble ${msg.type}" .innerHTML=${msg.type === 'ai' ? this.renderMarkdown(msg.content) : ''}>
+                                          ${msg.type === 'user' ? msg.content : ''}
+                                      </div>
+                                      <div class="message-timestamp">${this._formatTimestamp(msg.timestamp)}</div>
+                                  </div>
+                              `
+                          )}
                       </div>
                   `
-                : ''}
+                : html` <div class="listening-placeholder">Listening to your ${profileNames[this.selectedProfile] || 'session'}...</div> `}
 
             <div class="input-bar">
                 <div class="input-bar-inner">
-                    <input type="text" id="textInput" placeholder="Type a message..." @keydown=${this.handleTextKeydown} />
+                    <input type="text" id="textInput" placeholder="Follow up..." @keydown=${this.handleTextKeydown} />
                 </div>
                 <button class="analyze-btn ${this.isAnalyzing ? 'analyzing' : ''}" @click=${this.handleScreenAnswer}>
                     <canvas class="analyze-canvas"></canvas>

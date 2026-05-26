@@ -1,4 +1,5 @@
 import { html, css, LitElement } from '../../assets/lit-core-2.7.4.min.js';
+import { sessionStore } from '../../stores/session-store.js';
 
 export class MainView extends LitElement {
     static styles = css`
@@ -16,6 +17,74 @@ export class MainView extends LitElement {
             align-items: center;
             justify-content: center;
             padding: var(--space-xl) var(--space-lg);
+        }
+
+        .session-active-panel {
+            width: 100%;
+            max-width: 420px;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            margin-bottom: var(--space-md);
+        }
+
+        .session-info-line {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .session-active-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            flex-shrink: 0;
+        }
+
+        .session-actions {
+            display: flex;
+            gap: var(--space-sm);
+        }
+
+        .session-btn {
+            flex: 1;
+            padding: 8px var(--space-md);
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-sm);
+            font-family: var(--font);
+            font-weight: var(--font-weight-medium);
+            cursor: pointer;
+            border: 1px solid var(--border);
+            transition:
+                background var(--transition),
+                border-color var(--transition);
+        }
+
+        .session-btn.resume {
+            background: var(--accent);
+            color: var(--bg-app);
+            border-color: var(--accent);
+        }
+
+        .session-btn.resume:hover {
+            opacity: 0.9;
+        }
+
+        .session-btn.end {
+            background: var(--bg-surface);
+            color: var(--text-secondary);
+        }
+
+        .session-btn.end:hover {
+            border-color: var(--danger, #ef4444);
+            color: var(--danger, #ef4444);
         }
 
         .form-wrapper {
@@ -526,6 +595,7 @@ export class MainView extends LitElement {
     static properties = {
         onStart: { type: Function },
         onExternalLink: { type: Function },
+        onNavigate: { type: Function },
         selectedProfile: { type: String },
         responseMode: { type: String },
         onProfileChange: { type: Function },
@@ -547,12 +617,17 @@ export class MainView extends LitElement {
         _showLocalHelp: { state: true },
         // AI Hearing
         _aiHearingEnabled: { state: true },
+        // Session state
+        _sessionActive: { state: true },
+        _sessionProvider: { state: true },
+        _sessionDuration: { state: true },
     };
 
     constructor() {
         super();
         this.onStart = () => {};
         this.onExternalLink = () => {};
+        this.onNavigate = () => {};
         this.selectedProfile = 'interview';
         this.responseMode = 'both';
         this.onProfileChange = () => {};
@@ -572,6 +647,10 @@ export class MainView extends LitElement {
         this._ollamaModel = 'llama3.1';
         this._whisperModel = 'Xenova/whisper-small';
         this._aiHearingEnabled = false;
+
+        this._sessionActive = false;
+        this._sessionProvider = 'byok';
+        this._sessionDuration = 0;
 
         this._animId = null;
         this._time = 0;
@@ -620,11 +699,26 @@ export class MainView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         document.addEventListener('keydown', this.boundKeydownHandler);
+        this._sessionStoreUnsubscribe = sessionStore.subscribe(state => {
+            this._sessionActive = state.active;
+            this._sessionProvider = state.provider;
+            this._sessionDuration = state.duration;
+            this.requestUpdate();
+        });
+        // Sync initial state
+        const initialState = sessionStore.get();
+        this._sessionActive = initialState.active;
+        this._sessionProvider = initialState.provider;
+        this._sessionDuration = initialState.duration;
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         document.removeEventListener('keydown', this.boundKeydownHandler);
+        if (this._sessionStoreUnsubscribe) {
+            this._sessionStoreUnsubscribe();
+            this._sessionStoreUnsubscribe = null;
+        }
         if (this._animId) cancelAnimationFrame(this._animId);
     }
 
@@ -815,6 +909,25 @@ export class MainView extends LitElement {
         this._aiHearingEnabled = val;
         await cheatingDaddy.storage.updatePreference('aiHearingEnabled', val);
         this.requestUpdate();
+    }
+
+    // ── Session controls ──
+
+    _formatDuration(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    async _endSession() {
+        cheatingDaddy.stopCapture();
+        if (window.require) {
+            const { ipcRenderer } = window.require('electron');
+            await ipcRenderer.invoke('close-session').catch(err => {
+                console.error('Error closing session:', err);
+            });
+        }
+        sessionStore.set({ active: false, connected: false, duration: 0, sessionId: null, isInitializing: false });
     }
 
     // ── Start ──
@@ -1066,6 +1179,20 @@ export class MainView extends LitElement {
         </svg>`;
 
         return html`
+            ${this._sessionActive
+                ? html`
+                      <div class="session-active-panel">
+                          <div class="session-info-line">
+                              <span class="session-active-dot"></span>
+                              Active - ${this._sessionProvider} - ${this._formatDuration(this._sessionDuration)}
+                          </div>
+                          <div class="session-actions">
+                              <button class="session-btn resume" @click=${() => this.onNavigate('assistant')}>Resume Session</button>
+                              <button class="session-btn end" @click=${() => this._endSession()}>End Session</button>
+                          </div>
+                      </div>
+                  `
+                : ''}
             <div class="form-wrapper">
                 ${this._mode === 'local'
                     ? html`

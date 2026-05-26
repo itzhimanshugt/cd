@@ -1,33 +1,35 @@
 {
   "id": "FEAT-003",
   "type": "feat",
-  "description": "Create shared UI components in src/components/ui/ - reusable Lit elements (cd-toggle, cd-slider, cd-select, cd-keybind-input, cd-setting-row) that replace the 5+ different toggle/slider/select implementations across views.",
-  "status": "pending",
+  "description": "Create shared UI components in src/components/ui/ - reusable Lit elements (cd-toggle, cd-slider, cd-select, cd-keybind-input, cd-setting-row) that replace the repetitive implementations across views.",
+  "status": "completed",
   "steps": [
-    "Create src/components/ui/cd-toggle.js - LitElement. Properties: checked (Boolean), label (String), description (String), disabled (Boolean). Renders a styled toggle switch with label. Fires 'change' event with detail: { checked }. Uses CSS custom properties from the design system (--bg-elevated, --accent, --border, --text-primary, --radius-sm, --transition). Import Lit from '../../assets/lit-core-2.7.4.min.js'. Register as customElements.define('cd-toggle', CdToggle).",
-    "Create src/components/ui/cd-slider.js - LitElement. Properties: value (Number), min (Number), max (Number), step (Number), label (String), showValue (Boolean), unit (String), disabled (Boolean). Renders styled range input with label and optional value display. Fires 'input' event with detail: { value }. Style the thumb/track using --text-primary, --border, --bg-elevated. Register as 'cd-slider'.",
-    "Create src/components/ui/cd-select.js - LitElement. Properties: value (String), options (Array of {value, label}), label (String), disabled (Boolean). Renders a styled <select> wrapper. Fires 'change' event with detail: { value }. Register as 'cd-select'.",
-    "Create src/components/ui/cd-keybind-input.js - LitElement. Properties: value (String), label (String), placeholder (String). On focus, captures the next key combination (Ctrl+Shift+X format). Fires 'change' event with detail: { value: keybindString }. Handles modifier keys, arrow keys, special keys. Uses the same keybind capture logic from CustomizeView.js handleKeybindInput(). Register as 'cd-keybind-input'.",
-    "Create src/components/ui/cd-setting-row.js - LitElement. Properties: label (String), description (String). Renders a consistent row layout with label on left, description below, and a <slot> for the control on right. Uses --text-primary, --text-secondary, --border, --space-sm/md. Register as 'cd-setting-row'.",
-    "Create src/components/ui/index.js - ES module that imports all component files to ensure they are registered: import './cd-toggle.js'; import './cd-slider.js'; etc."
+    "Create src/components/ui/cd-toggle.js - LitElement with Shadow DOM. Import { html, css, LitElement } from '../../assets/lit-core-2.7.4.min.js'. Properties: checked (Boolean, reflect: true), label (String), disabled (Boolean). Renders a styled toggle switch (animated sliding dot) with label text. On click toggles checked and fires 'toggle-change' CustomEvent with detail: { checked }. Style with --bg-elevated, --accent, --border, --text-primary, --radius-sm, --transition. Self-register: customElements.define('cd-toggle', CdToggle).",
+    "Create src/components/ui/cd-slider.js - LitElement with Shadow DOM. Import from lit-core. Properties: value (Number), min (Number, default 0), max (Number, default 100), step (Number, default 1), label (String), unit (String), disabled (Boolean). Renders: label on left, value+unit display on right, range input below. Fires 'slider-input' CustomEvent with detail: { value: Number } on input. Style thumb/track with --text-primary, --border, --bg-elevated. Self-register: customElements.define('cd-slider', CdSlider).",
+    "Create src/components/ui/cd-select.js - LitElement with Shadow DOM. Import from lit-core. Properties: value (String), options (Array of {value, label}), label (String), disabled (Boolean). Renders: label + styled <select> dropdown. Fires 'select-change' CustomEvent with detail: { value } on change. Style select with --bg-elevated, --text-primary, --border, --radius-sm. Self-register: customElements.define('cd-select', CdSelect).",
+    "Create src/components/ui/cd-keybind-input.js - LitElement with Shadow DOM. Import from lit-core. Properties: value (String), label (String), placeholder (String, default 'Press key combo...'). Renders: mono-font input showing current keybind value. On focus, captures next key combination (Ctrl+Shift+X format) via keydown handler: builds modifiers array [Ctrl, Cmd, Alt, Shift], captures main key, joins with '+'. Ignores lone modifier presses. Fires 'keybind-change' CustomEvent with detail: { value: keybindString }. Reuse the keybind capture logic pattern from CustomizeView.js handleKeybindInput(). Self-register: customElements.define('cd-keybind-input', CdKeybindInput).",
+    "Create src/components/ui/cd-setting-row.js - LitElement with Shadow DOM. Import from lit-core. Properties: label (String), description (String). Renders: flexbox row with label+description on left, <slot> on right for any control content. Uses --text-primary, --text-secondary, --border, --space-sm, --space-md. Self-register: customElements.define('cd-setting-row', CdSettingRow).",
+    "Create src/components/ui/index.js - ES module barrel that imports all component files to register them: import './cd-toggle.js'; import './cd-slider.js'; import './cd-select.js'; import './cd-keybind-input.js'; import './cd-setting-row.js';"
   ],
   "acceptance_criteria": [
-    "cd-toggle renders a toggle switch and fires 'change' events",
-    "cd-slider renders a range slider with value display and fires 'input' events",
-    "cd-select renders a dropdown and fires 'change' events",
-    "cd-keybind-input captures key combinations and fires 'change' events",
-    "cd-setting-row provides a labeled layout with slot for controls",
-    "All components use CSS custom properties from the existing design system in index.html",
+    "cd-toggle renders a toggle switch and fires 'toggle-change' custom events",
+    "cd-slider renders a range slider with value display and fires 'slider-input' custom events",
+    "cd-select renders a dropdown and fires 'select-change' custom events",
+    "cd-keybind-input captures key combinations and fires 'keybind-change' custom events",
+    "cd-setting-row provides a labeled layout with <slot> for controls on the right",
+    "All components use CSS custom properties from the existing design system (--bg-elevated, --text-primary, --accent, --border, --radius-sm, etc.)",
     "All components import Lit from '../../assets/lit-core-2.7.4.min.js'",
-    "All components are self-registering (customElements.define in their own file)",
-    "index.js imports all component files"
+    "All components are self-registering via customElements.define() in their own file",
+    "All components use Shadow DOM (standard LitElement behavior)",
+    "index.js imports all component files to register them"
   ],
   "verification": [
     "Verify all component files are valid ES module syntax (no CommonJS)",
     "Verify all imports reference the relative path to lit-core-2.7.4.min.js",
     "Verify each component file calls customElements.define()",
-    "Verify no external package imports (no @lit, no npm modules)"
+    "Verify no external package imports (no @lit, no npm modules)",
+    "Run npx prettier --write src/components/ui/ to format all files"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Used bun 1.2.14 for verification (same as FEAT-001/002 - node not installed). All 6 files transpile cleanly. Prettier formatted cd-select.js (arrow function syntax adjustment). All components self-register, import from relative lit-core path, use Shadow DOM, and fire custom events with bubbles:true, composed:true."
 }

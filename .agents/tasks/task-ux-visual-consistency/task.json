@@ -1,7 +1,14 @@
 {
   "task_id": "task-ux-visual-consistency",
   "task_description": "Fix mouse lock bug, apply visual consistency pass (slider/toggle/font), migrate remaining views to shared components, and add styled checkbox CSS class",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001", "FEAT-002"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "All JS files pass node --check syntax validation. No raw range inputs remain in HotkeysView or CustomizeView. styled-checkbox class applied to all checkboxes in DebugView, HistoryView, and MainView. Mouse lock safety added to window.js. cd-slider and cd-toggle have updated consistent dimensions."
+  }
 }

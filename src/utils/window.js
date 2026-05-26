@@ -1,27 +1,28 @@
 const { BrowserWindow, globalShortcut, ipcMain, screen, app } = require('electron');
 const path = require('node:path');
 const storage = require('../storage');
+const screenshot = require('./screenshot');
 
 let mouseEventsIgnored = false;
 
-    // Summary log: show which accelerators were registered (helps debug failures)
-    try {
-        const summary = {};
-        for (const [k, v] of Object.entries(keybinds || {})) {
-            if (k === '_version' || !v) continue;
-            try {
-                summary[k] = { accelerator: v, registered: globalShortcut.isRegistered(v) };
-            } catch (e) {
-                summary[k] = { accelerator: v, registered: false, error: e.message };
-            }
+// Summary log: show which accelerators were registered (helps debug failures)
+try {
+    const summary = {};
+    for (const [k, v] of Object.entries(keybinds || {})) {
+        if (k === '_version' || !v) continue;
+        try {
+            summary[k] = { accelerator: v, registered: globalShortcut.isRegistered(v) };
+        } catch (e) {
+            summary[k] = { accelerator: v, registered: false, error: e.message };
         }
-        console.log('Global shortcuts registration summary:', summary);
-    } catch (e) {
-        // non-fatal
     }
+    console.log('Global shortcuts registration summary:', summary);
+} catch (e) {
+    // non-fatal
+}
 let _programmaticMove = false;
 
-const KEYBINDS_VERSION = 6; // Bumped: add typing control hotkeys
+const KEYBINDS_VERSION = 7; // Bumped: add debug screenshot hotkey
 
 const DEFAULT_MAIN_WINDOW_SIZE = { width: 1100, height: 800 };
 const MIN_WINDOW_SIZE = { width: 400, height: 260 };
@@ -93,6 +94,8 @@ function getDefaultKeybinds() {
         holdToType: isMac ? 'Cmd+Shift+F' : 'Ctrl+Shift+F',
         abortTyping: isMac ? 'Cmd+Shift+X' : 'Ctrl+Shift+X',
         fullResponseType: isMac ? 'Cmd+Shift+G' : 'Ctrl+Shift+G',
+        // ── Debug Screenshot ──
+        debugScreenshot: 'Alt+S',
     };
 }
 
@@ -446,6 +449,15 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
         });
     }
+
+    // ── Debug Screenshot ──
+    tryRegister('debugScreenshot', keybinds.debugScreenshot, () => {
+        screenshot.captureScreenshot(mainWindow).then(result => {
+            if (result.success) {
+                sendToRenderer('debug-screenshot-captured', result.path);
+            }
+        });
+    });
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -618,4 +630,3 @@ module.exports = {
     applyZoom,
     HARD_LIMITS,
 };
-

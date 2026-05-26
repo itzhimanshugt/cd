@@ -2,7 +2,7 @@
     "id": "FEAT-002",
     "type": "feat",
     "description": "Create the dedicated Developer/Debugging sidebar view (DebugView.js) with screenshot system, structured logger, runtime state inspector, performance metrics, and debug snapshot export. Create supporting utilities (screenshot.js, logger.js), add IPC handlers, add debug API to renderer, and wire into the sidebar.",
-    "status": "pending",
+    "status": "in_progress",
     "steps": [
         "Create src/utils/screenshot.js with: captureScreenshot(mainWindow) using webContents.capturePage() saving PNG to screenshots dir with timestamped filenames (screenshot-YYYY-MM-DD-HHmmss.png), copyScreenshotToClipboard(mainWindow) using nativeImage and clipboard, openScreenshotsFolder() using shell.openPath. Use storage.getConfigDir() + '/screenshots' as the directory.",
         "Create src/utils/logger.js with: Singleton Logger class, levels TRACE(0) DEBUG(1) INFO(2) WARN(3) ERROR(4), categories array (startup, rendering, movement, opacity, theme, hotkeys, typing, providers, session, IPC, storage, capture, performance), log entry format {timestamp, level, category, message, data?}, in-memory ring buffer (500 entries), file logging with rolling files (5MB max, 5 files max) in storage.getConfigDir() + '/logs', .child(category) method returning scoped logger, getEntries(filters) method for querying logs.",

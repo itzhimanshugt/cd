@@ -3,11 +3,14 @@ if (require('electron-squirrel-startup')) {
 }
 
 const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const path = require('path');
 const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const apiKeys = require('./utils/apiKeys');
 const storage = require('./storage');
 const { TypingManager } = require('./typing');
+const logger = require('./utils/logger');
+const screenshot = require('./utils/screenshot');
 
 const geminiSessionRef = { current: null };
 let mainWindow = null;
@@ -55,6 +58,7 @@ if (!gotTheLock) {
         setupApiKeysIpcHandlers();
         setupGeneralIpcHandlers();
         setupTypingIpcHandlers();
+        setupDebugIpcHandlers();
 
         // Pre-warm screen capture subsystem to avoid first-session freeze on Windows
         setTimeout(() => {
@@ -568,6 +572,119 @@ function setupTypingIpcHandlers() {
         } catch (error) {
             console.error('Error setting typing settings:', error);
             return { success: false, error: error.message };
+        }
+    });
+}
+
+function setupDebugIpcHandlers() {
+    ipcMain.handle('debug:capture-screenshot', async () => {
+        return screenshot.captureScreenshot(mainWindow);
+    });
+
+    ipcMain.handle('debug:copy-screenshot', async () => {
+        return screenshot.copyScreenshotToClipboard(mainWindow);
+    });
+
+    ipcMain.handle('debug:open-screenshots', async () => {
+        return screenshot.openScreenshotsFolder();
+    });
+
+    ipcMain.handle('debug:get-logs', async (event, filters) => {
+        try {
+            return { success: true, data: logger.getEntries(filters || {}) };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('debug:clear-logs', async () => {
+        logger.clear();
+        return { success: true };
+    });
+
+    ipcMain.handle('debug:export-logs', async () => {
+        try {
+            const filePath = logger.exportToFile();
+            return { success: true, path: filePath };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('debug:set-log-level', async (event, level) => {
+        logger.setLevel(level);
+        return { success: true };
+    });
+
+    ipcMain.handle('debug:get-runtime-state', async () => {
+        try {
+            const keybinds = storage.getKeybinds();
+            const prefs = storage.getPreferences();
+            const winState = storage.getWindowState();
+            const typingSettings = storage.getTypingSettings();
+            const typingStatus = typingManager ? typingManager.getStatus() : { state: 'unavailable' };
+            const bounds = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
+            return {
+                success: true,
+                data: {
+                    keybinds,
+                    preferences: prefs,
+                    windowState: winState,
+                    windowBounds: bounds,
+                    typingSettings,
+                    typingStatus,
+                    memoryUsage: process.memoryUsage(),
+                    platform: process.platform,
+                    arch: process.arch,
+                    pid: process.pid,
+                },
+            };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('debug:get-performance', async () => {
+        try {
+            return {
+                success: true,
+                data: {
+                    uptime: process.uptime(),
+                    memoryUsage: process.memoryUsage(),
+                    cpuUsage: process.cpuUsage(),
+                    versions: process.versions,
+                    pid: process.pid,
+                },
+            };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('debug:export-snapshot', async () => {
+        try {
+            const fs = require('fs');
+            const snapshot = {
+                timestamp: Date.now(),
+                platform: process.platform,
+                arch: process.arch,
+                versions: process.versions,
+                uptime: process.uptime(),
+                memoryUsage: process.memoryUsage(),
+                config: storage.getConfig(),
+                preferences: storage.getPreferences(),
+                windowState: storage.getWindowState(),
+                keybinds: storage.getKeybinds(),
+                typingSettings: storage.getTypingSettings(),
+                typingStatus: typingManager ? typingManager.getStatus() : null,
+                logs: logger.getEntries(),
+            };
+            const dir = storage.getConfigDir();
+            const filePath = path.join(dir, `debug-snapshot-${Date.now()}.json`);
+            fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
+            return { success: true, path: filePath };
+        } catch (e) {
+            return { success: false, error: e.message };
         }
     });
 }

@@ -91,17 +91,44 @@ class AutoHotkeyBackend extends BaseBackend {
     }
 
     /**
+     * Escapes text for safe use in AHK v2 block Send syntax.
+     * Handles braces, backticks, double quotes, backslashes, and newlines.
+     * @private
+     * @param {string} text
+     * @returns {string}
+     */
+    _escapeAhkText(text) {
+        // Escape backtick first (it is the escape character in AHK)
+        let escaped = text.replace(/`/g, '``');
+        // Escape braces (special key syntax in AHK)
+        escaped = escaped.replace(/\{/g, '{{}');
+        escaped = escaped.replace(/\}/g, '{}}');
+        // Escape double quotes
+        escaped = escaped.replace(/"/g, '""');
+        // Escape backslashes (not strictly needed for SendText but for consistency)
+        escaped = escaped.replace(/\\/g, '\\');
+        // Convert newlines to AHK `n (backtick-n) sequences
+        escaped = escaped.replace(/\r\n/g, '`n');
+        escaped = escaped.replace(/\n/g, '`n');
+        escaped = escaped.replace(/\r/g, '`n');
+        return escaped;
+    }
+
+    /**
      * Injects text by generating an AHK v2 script and executing it.
+     * Uses block Send syntax to handle multi-line text safely.
      * @param {string} text - Text to inject
      * @returns {Promise<void>}
      */
     async inject(text) {
         if (!text || !this._ahkPath) return;
 
+        const escaped = this._escapeAhkText(text);
+
         const scriptContent = `#Requires AutoHotkey v2.0
 #SingleInstance Force
 SetKeyDelay 10, 10
-SendText "${text.replace(/\\/g, '\\\\').replace(/"/g, '""').replace(/`/g, '``')}"
+SendText "${escaped}"
 ExitApp`;
 
         const tempFile = path.join(os.tmpdir(), `cd_ahk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.ahk`);
@@ -114,8 +141,6 @@ ExitApp`;
                 windowsHide: true,
                 timeout: 30000,
             });
-        } catch (e) {
-            // AHK execution failed
         } finally {
             this._removeTempFile(tempFile);
         }
@@ -126,6 +151,8 @@ ExitApp`;
      * @returns {Promise<void>}
      */
     async injectKey(keyCode) {
+        if (!Number.isFinite(keyCode) || keyCode < 0 || keyCode > 255) return;
+
         const char = String.fromCharCode(keyCode);
         if (char) {
             await this.inject(char);

@@ -75,14 +75,10 @@ if ($focused -ne $null) {
     }
 }`;
 
-        try {
-            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
-                windowsHide: true,
-                timeout: 30000,
-            });
-        } catch (e) {
-            // UIAutomation injection failed
-        }
+        await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
+            windowsHide: true,
+            timeout: 30000,
+        });
     }
 
     /**
@@ -90,6 +86,8 @@ if ($focused -ne $null) {
      * @returns {Promise<void>}
      */
     async injectKey(keyCode) {
+        if (!Number.isFinite(keyCode) || keyCode < 0 || keyCode > 255) return;
+
         const char = String.fromCharCode(keyCode);
         if (char) {
             await this.inject(char);

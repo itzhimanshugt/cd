@@ -108,14 +108,10 @@ foreach ($c in $text.ToCharArray()) {
     Start-Sleep -Milliseconds ${this._interKeyDelay}
 }`;
 
-        try {
-            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
-                windowsHide: true,
-                timeout: 30000,
-            });
-        } catch (e) {
-            // Silently fail if PowerShell is not available or script errors
-        }
+        await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
+            windowsHide: true,
+            timeout: 30000,
+        });
     }
 
     /**
@@ -124,6 +120,8 @@ foreach ($c in $text.ToCharArray()) {
      * @returns {Promise<void>}
      */
     async injectKey(keyCode) {
+        if (!Number.isFinite(keyCode) || keyCode < 0 || keyCode > 255) return;
+
         const script = `
 Add-Type -TypeDefinition @"
 using System;
@@ -162,14 +160,10 @@ public class KeyHelper {
 "@ -ErrorAction SilentlyContinue
 [KeyHelper]::SendKey(${keyCode})`;
 
-        try {
-            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
-                windowsHide: true,
-                timeout: 10000,
-            });
-        } catch (e) {
-            // Silently fail
-        }
+        await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
+            windowsHide: true,
+            timeout: 10000,
+        });
     }
 }
 

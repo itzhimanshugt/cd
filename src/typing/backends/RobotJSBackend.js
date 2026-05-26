@@ -58,11 +58,7 @@ class RobotJSBackend extends BaseBackend {
     inject(text) {
         if (!text || !this._robot) return;
 
-        try {
-            this._robot.typeString(text);
-        } catch (e) {
-            // robotjs may fail on certain platforms or configurations
-        }
+        this._robot.typeString(text);
     }
 
     /**
@@ -72,12 +68,8 @@ class RobotJSBackend extends BaseBackend {
     injectKey(keyCode) {
         if (!this._robot) return;
 
-        try {
-            const char = String.fromCharCode(keyCode).toLowerCase();
-            this._robot.keyTap(char);
-        } catch (e) {
-            // Best effort
-        }
+        const char = String.fromCharCode(keyCode).toLowerCase();
+        this._robot.keyTap(char);
     }
 }
 

@@ -1,7 +1,7 @@
 'use strict';
 
 const { EventEmitter } = require('events');
-const backends = require('./backends');
+const resolveBackend = require('./backends/resolveBackend');
 
 const DEFAULT_FAILOVER_CHAIN = [
     'win32-sendinput',
@@ -206,47 +206,13 @@ class BackendManager extends EventEmitter {
 
     /**
      * Resolves a backend class by name (supports multiple aliases).
+     * Delegates to the shared resolveBackend module.
      * @private
      * @param {string} name - Backend name (PascalCase or kebab-case)
      * @returns {Function|null}
      */
     _resolveBackendClass(name) {
-        const map = {
-            Win32SendInput: backends.Win32SendInputBackend,
-            'win32-sendinput': backends.Win32SendInputBackend,
-            ClipboardInjection: backends.ClipboardInjectionBackend,
-            clipboard: backends.ClipboardInjectionBackend,
-            PowerShellSendKeys: backends.PowerShellSendKeysBackend,
-            powershell: backends.PowerShellSendKeysBackend,
-            RobotJS: backends.RobotJSBackend,
-            robotjs: backends.RobotJSBackend,
-            AutoHotkey: backends.AutoHotkeyBackend,
-            autohotkey: backends.AutoHotkeyBackend,
-            ahk: backends.AutoHotkeyBackend,
-            NutJS: backends.NutJSBackend,
-            nutjs: backends.NutJSBackend,
-            nut: backends.NutJSBackend,
-            UIAutomation: backends.UIAutomationBackend,
-            'ui-automation': backends.UIAutomationBackend,
-            uiautomation: backends.UIAutomationBackend,
-            ElectronWebContents: backends.ElectronWebContentsBackend,
-            'electron-webcontents': backends.ElectronWebContentsBackend,
-            electron: backends.ElectronWebContentsBackend,
-            VirtualKeyboard: backends.VirtualKeyboardBackend,
-            'virtual-keyboard': backends.VirtualKeyboardBackend,
-            vk: backends.VirtualKeyboardBackend,
-            'keybd-event': backends.VirtualKeyboardBackend,
-            BatchPaste: backends.BatchPasteBackend,
-            'batch-paste': backends.BatchPasteBackend,
-            batch: backends.BatchPasteBackend,
-            HybridTyping: backends.HybridTypingBackend,
-            'hybrid-typing': backends.HybridTypingBackend,
-            hybrid: backends.HybridTypingBackend,
-            PowerShellAddType: backends.PowerShellAddTypeBackend,
-            'powershell-addtype': backends.PowerShellAddTypeBackend,
-            'ps-addtype': backends.PowerShellAddTypeBackend,
-        };
-        return map[name] || null;
+        return resolveBackend(name);
     }
 
     /**

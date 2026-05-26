@@ -137,29 +137,25 @@ class ClipboardInjectionBackend extends BaseBackend {
      * @returns {Promise<void>}
      */
     async _simulatePaste() {
-        try {
-            const { execFile } = require('child_process');
-            const { promisify } = require('util');
-            const execFileAsync = promisify(execFile);
+        const { execFile } = require('child_process');
+        const { promisify } = require('util');
+        const execFileAsync = promisify(execFile);
 
-            if (process.platform === 'win32') {
-                const script = `
+        if (process.platform === 'win32') {
+            const script = `
 Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.SendKeys]::SendWait("^v")`;
-                await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
-                    windowsHide: true,
-                    timeout: 5000,
-                });
-            } else if (process.platform === 'darwin') {
-                await execFileAsync('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], {
-                    timeout: 5000,
-                });
-            } else {
-                // Linux: use xdotool if available
-                await execFileAsync('xdotool', ['key', 'ctrl+v'], { timeout: 5000 });
-            }
-        } catch (e) {
-            // Paste simulation failed - non-fatal
+            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
+                windowsHide: true,
+                timeout: 5000,
+            });
+        } else if (process.platform === 'darwin') {
+            await execFileAsync('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], {
+                timeout: 5000,
+            });
+        } else {
+            // Linux: use xdotool if available
+            await execFileAsync('xdotool', ['key', 'ctrl+v'], { timeout: 5000 });
         }
     }
 }

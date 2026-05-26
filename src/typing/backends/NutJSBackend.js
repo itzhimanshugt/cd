@@ -63,11 +63,7 @@ class NutJSBackend extends BaseBackend {
     async inject(text) {
         if (!text || !this._keyboard) return;
 
-        try {
-            await this._keyboard.type(text);
-        } catch (e) {
-            // nut.js typing failed
-        }
+        await this._keyboard.type(text);
     }
 
     /**
@@ -77,12 +73,8 @@ class NutJSBackend extends BaseBackend {
     async injectKey(keyCode) {
         if (!this._keyboard) return;
 
-        try {
-            await this._keyboard.pressKey(keyCode);
-            await this._keyboard.releaseKey(keyCode);
-        } catch (e) {
-            // Best effort
-        }
+        await this._keyboard.pressKey(keyCode);
+        await this._keyboard.releaseKey(keyCode);
     }
 }
 

@@ -7,8 +7,14 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 
 /**
- * Lighter-weight user32 wrapper that compiles the C# type ONCE and caches it.
- * Uses a flag to skip Add-Type on subsequent calls by checking if the type already exists.
+ * Lighter-weight user32 wrapper that compiles the C# type conditionally.
+ * Uses PSTypeName check to skip Add-Type if the type already exists in the PowerShell session.
+ *
+ * NOTE: The PSTypeName check provides in-process deduplication only. Since each call to inject()
+ * spawns a fresh powershell.exe process, the type is compiled every invocation in practice.
+ * The check is retained for correctness if PowerShell session reuse is added in the future
+ * (e.g., via a persistent background PowerShell process communicating over stdin/stdout).
+ *
  * Text is Base64-encoded for safe transmission to PowerShell.
  */
 class PowerShellAddTypeBackend extends BaseBackend {
@@ -54,8 +60,8 @@ class PowerShellAddTypeBackend extends BaseBackend {
     }
 
     /**
-     * Injects text using a cached Add-Type SendInput wrapper.
-     * The C# type is compiled once and reused on subsequent calls.
+     * Injects text using a conditionally-compiled Add-Type SendInput wrapper.
+     * The C# type is compiled once per PowerShell process via PSTypeName check.
      * @param {string} text - Text to inject
      * @returns {Promise<void>}
      */
@@ -115,15 +121,11 @@ foreach ($c in $text.ToCharArray()) {
     Start-Sleep -Milliseconds ${this._interKeyDelay}
 }`;
 
-        try {
-            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
-                windowsHide: true,
-                timeout: 30000,
-            });
-            this._typeCompiled = true;
-        } catch (e) {
-            // PowerShell AddType injection failed
-        }
+        await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
+            windowsHide: true,
+            timeout: 30000,
+        });
+        this._typeCompiled = true;
     }
 
     /**
@@ -131,6 +133,8 @@ foreach ($c in $text.ToCharArray()) {
      * @returns {Promise<void>}
      */
     async injectKey(keyCode) {
+        if (!Number.isFinite(keyCode) || keyCode < 0 || keyCode > 255) return;
+
         const char = String.fromCharCode(keyCode);
         if (char) {
             await this.inject(char);

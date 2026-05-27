@@ -558,14 +558,22 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
                     if (message.serverContent?.generationComplete) {
                         if (_sessionState.transcription.trim() !== '') {
                             const responseMode = getLiveResponseMode();
-                            sendToRenderer('response-turn-start', { mode: responseMode });
+                            const groqAvailable = hasGroqKey();
 
-                            if (responseMode === 'both') {
+                            // Gracefully fall back to Gemini if user picked Groq/Both but has no Groq key configured.
+                            let effectiveMode = responseMode;
+                            if ((responseMode === 'groq' || responseMode === 'both') && !groqAvailable) {
+                                effectiveMode = 'gemini';
+                            }
+
+                            sendToRenderer('response-turn-start', { mode: effectiveMode });
+
+                            if (effectiveMode === 'both') {
                                 Promise.allSettled([
                                     sendToGemma(_sessionState.transcription, { dualMode: true, emitTyping: true }),
                                     sendToGroq(_sessionState.transcription, { dualMode: true, emitTyping: false }),
                                 ]).catch(() => {});
-                            } else if (responseMode === 'groq') {
+                            } else if (effectiveMode === 'groq') {
                                 sendToGroq(_sessionState.transcription, { dualMode: false, emitTyping: true });
                             } else {
                                 sendToGemma(_sessionState.transcription, { dualMode: false, emitTyping: true });
@@ -912,22 +920,24 @@ async function sendImageToGeminiHttp(base64Data, prompt) {
             // Save screen analysis to history
             saveScreenAnalysis(prompt, fullText, model);
 
+            // Mirror the screen-analysis turn into the Groq conversation buffer so
+            // follow-up text/audio turns have visual context. Capped to last 40 entries.
             if (prompt) {
-                groqConversationHistory.push({
+                _sessionState.groqConversationHistory.push({
                     role: 'user',
                     content: prompt,
                 });
             }
 
             if (fullText.trim()) {
-                groqConversationHistory.push({
+                _sessionState.groqConversationHistory.push({
                     role: 'assistant',
                     content: fullText.trim(),
                 });
             }
 
-            if (groqConversationHistory.length > 40) {
-                groqConversationHistory = groqConversationHistory.slice(-40);
+            if (_sessionState.groqConversationHistory.length > 40) {
+                _sessionState.groqConversationHistory = _sessionState.groqConversationHistory.slice(-40);
             }
 
             return { success: true, text: fullText, model: model };

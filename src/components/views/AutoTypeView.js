@@ -623,33 +623,10 @@ export class AutoTypeView extends LitElement {
                         </div>
                     </div>
 
-                    <!-- Section 7: Keybinds -->
-                    <div class="surface">
-                        <div class="surface-title">Keybinds</div>
-                        <div class="surface-subtitle">Configure keyboard shortcuts for typing control</div>
-                        <div class="form-grid">
-                            <cd-keybind-input
-                                .value=${s.holdToTypeKeybind || ''}
-                                label="Hold-to-Type Key"
-                                @keybind-change=${e => this._updateSetting('holdToTypeKeybind', e.detail.value)}
-                            ></cd-keybind-input>
-                            <cd-keybind-input
-                                .value=${s.abortKeybind || ''}
-                                label="Abort Key"
-                                @keybind-change=${e => this._updateSetting('abortKeybind', e.detail.value)}
-                            ></cd-keybind-input>
-                            <cd-keybind-input
-                                .value=${s.fullResponseKeybind || ''}
-                                label="Full Response Key"
-                                @keybind-change=${e => this._updateSetting('fullResponseKeybind', e.detail.value)}
-                            ></cd-keybind-input>
-                        </div>
-                    </div>
-
-                    <!-- Section 8: Target/Focus -->
+                    <!-- Section 7: Target/Focus -->
                     <div class="surface">
                         <div class="surface-title">Target / Focus Control</div>
-                        <div class="surface-subtitle">Control focus behavior during typing injection</div>
+                        <div class="surface-subtitle">Control focus behavior during typing injection. Global hotkeys are configured in Hotkeys, not here.</div>
                         <div class="form-grid">
                             <div class="toggle-row">
                                 <span class="toggle-label">Target Lock</span>

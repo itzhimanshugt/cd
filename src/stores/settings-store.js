@@ -7,6 +7,7 @@ import { Store } from './Store.js';
 const DEFAULT_SETTINGS = {
     customPrompt: '',
     providerMode: 'byok',
+    responseMode: 'both',
     selectedProfile: 'interview',
     selectedLanguage: 'en-US',
     selectedScreenshotInterval: '5',

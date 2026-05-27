@@ -121,6 +121,7 @@ export class AICustomizeView extends LitElement {
     async _loadFromStorage() {
         try {
             const prefs = await cheatingDaddy.storage.getPreferences();
+            this.selectedProfile = prefs.selectedProfile || this.selectedProfile;
             this._context = prefs.customPrompt || '';
             this.requestUpdate();
         } catch (error) {
@@ -159,6 +160,7 @@ export class AICustomizeView extends LitElement {
             negotiation: 'You are a negotiation expert helping the user achieve favorable outcomes.',
             exam: 'You are an exam assistant helping the user answer questions accurately and efficiently.',
             debug: 'You are a debugging assistant identifying bugs, logical flaws, and exact fixes in code.',
+            custom: this._context.trim() || 'You are a helpful assistant. You follow the instructions provided in the custom prompt to guide your responses.',
         };
         return prompts[profile] || 'You are a helpful assistant.';
     }
@@ -172,6 +174,7 @@ export class AICustomizeView extends LitElement {
             negotiation: 'Strategic responses for deal-making',
             exam: 'Direct, efficient answers for tests',
             debug: 'Identifies bugs and suggests minimal code fixes',
+            custom: 'Uses your saved custom prompt as the full system prompt',
         };
         return descriptions[profile] || '';
     }
@@ -179,9 +182,13 @@ export class AICustomizeView extends LitElement {
     _togglePreview() {
         this._showPreview = !this._showPreview;
         if (this._showPreview) {
-            const profilePrompt = this._getProfilePrompt(this.selectedProfile);
-            const customPart = this._context ? `\n\nCustom Instructions:\n${this._context}` : '';
-            this._previewText = profilePrompt + customPart;
+            if (this.selectedProfile === 'custom') {
+                this._previewText = this._context.trim() || 'You are a helpful assistant.';
+            } else {
+                const profilePrompt = this._getProfilePrompt(this.selectedProfile);
+                const customPart = this._context ? `\n\nCustom Instructions:\n${this._context}` : '';
+                this._previewText = profilePrompt + customPart;
+            }
         }
     }
 
@@ -205,6 +212,7 @@ export class AICustomizeView extends LitElement {
             { value: 'negotiation', label: 'Negotiation' },
             { value: 'exam', label: 'Exam Assistant' },
             { value: 'debug', label: 'Debug / Code Review' },
+            { value: 'custom', label: 'Custom' },
         ];
 
         return html`
@@ -224,15 +232,19 @@ export class AICustomizeView extends LitElement {
                                 <div class="form-help">${this._getProfileDescription(this.selectedProfile)}</div>
                             </div>
                             <div class="form-group vertical">
-                                <label class="form-label">Custom Instructions</label>
+                                <label class="form-label">${this.selectedProfile === 'custom' ? 'Custom Profile Prompt' : 'Custom Instructions'}</label>
                                 <textarea
                                     class="control"
-                                    placeholder="Resume details, role requirements, constraints..."
+                                    placeholder=${this.selectedProfile === 'custom'
+                                        ? 'Write the full custom profile prompt here...'
+                                        : 'Resume details, role requirements, constraints...'}
                                     .value=${this._context}
                                     @input=${e => this._saveContext(e.target.value)}
                                 ></textarea>
                                 <div class="form-help">
-                                    Custom instructions persist across all sessions and are layered on top of your selected profile.
+                                    ${this.selectedProfile === 'custom'
+                                        ? 'This text becomes your saved custom profile and is used as the full system prompt.'
+                                        : 'Custom instructions persist across all sessions and are layered on top of your selected profile.'}
                                 </div>
                             </div>
                         </div>

@@ -247,10 +247,26 @@ function stripThinkingTags(text) {
     return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 }
 
-async function sendToGroq(transcription) {
+function getLiveResponseMode() {
+    const prefs = storage.getPreferences();
+    const mode = prefs.responseMode || 'both';
+    return ['both', 'gemini', 'groq'].includes(mode) ? mode : 'both';
+}
+
+function emitResponseChunk(provider, text, isFirst, dualMode) {
+    if (dualMode) {
+        sendToRenderer(isFirst ? 'new-response' : 'update-response', { provider, text });
+        return;
+    }
+
+    sendToRenderer(isFirst ? 'new-response' : 'update-response', text);
+}
+
+async function sendToGroq(transcription, options = {}) {
+    const { dualMode = false, emitTyping = true } = options;
     if (!transcription || transcription.trim() === '') {
         console.log('Empty transcription, skipping Groq');
-        return;
+        return { success: false, error: 'Empty transcription' };
     }
 
     const readyKeys = storage.listReadyProviderKeys('groq');
@@ -264,7 +280,7 @@ async function sendToGroq(transcription) {
     if (!modelToUse) {
         console.log('All Groq daily limits exhausted');
         sendToRenderer('update-status', 'Groq limits reached for today');
-        return;
+        return { success: false, error: 'Groq limits reached for today' };
     }
 
     console.log(`Sending to Groq (${modelToUse}):`, transcription.substring(0, 100) + '...');
@@ -332,7 +348,7 @@ async function sendToGroq(transcription) {
                                 fullText += token;
                                 const displayText = stripThinkingTags(fullText);
                                 if (displayText) {
-                                    sendToRenderer(isFirst ? 'new-response' : 'update-response', displayText);
+                                    emitResponseChunk('groq', displayText, isFirst, dualMode);
                                     isFirst = false;
                                 }
                             }
@@ -366,10 +382,12 @@ async function sendToGroq(transcription) {
             sendToRenderer('update-status', 'Listening...');
 
             // Notify renderer that a new response is available for typing
-            if (cleanedResponse) {
+            if (cleanedResponse && emitTyping) {
                 sendToRenderer('typing-response-ready', { text: cleanedResponse, sessionId: currentSessionId });
             }
         });
+
+        return { success: true };
     } catch (error) {
         if (error.code === 'NO_READY_KEY' || error.code === 'ALL_KEYS_UNAVAILABLE') {
             console.error('Groq: no usable keys left in pool');
@@ -378,13 +396,16 @@ async function sendToGroq(transcription) {
             console.error('Error calling Groq API:', error);
             sendToRenderer('update-status', 'Groq error: ' + error.message);
         }
+
+        return { success: false, error: error.message };
     }
 }
 
-async function sendToGemma(transcription) {
+async function sendToGemma(transcription, options = {}) {
+    const { dualMode = false, emitTyping = true } = options;
     if (!transcription || transcription.trim() === '') {
         console.log('Empty transcription, skipping Gemma');
-        return;
+        return { success: false, error: 'Empty transcription' };
     }
 
     const readyKeys = storage.listReadyProviderKeys('gemini');
@@ -436,7 +457,7 @@ async function sendToGemma(transcription) {
                 const chunkText = chunk.text;
                 if (chunkText) {
                     fullText += chunkText;
-                    sendToRenderer(isFirst ? 'new-response' : 'update-response', fullText);
+                    emitResponseChunk('gemini', fullText, isFirst, dualMode);
                     isFirst = false;
                 }
             }
@@ -465,10 +486,12 @@ async function sendToGemma(transcription) {
             sendToRenderer('update-status', 'Listening...');
 
             // Notify renderer that a new response is available for typing
-            if (fullText.trim()) {
+            if (fullText.trim() && emitTyping) {
                 sendToRenderer('typing-response-ready', { text: fullText.trim(), sessionId: currentSessionId });
             }
         });
+
+        return { success: true };
     } catch (error) {
         if (error.code === 'NO_READY_KEY' || error.code === 'ALL_KEYS_UNAVAILABLE') {
             console.error('Gemma: no usable Gemini keys left in pool');
@@ -477,6 +500,8 @@ async function sendToGemma(transcription) {
             console.error('Error calling Gemma API:', error);
             sendToRenderer('update-status', 'Gemma error: ' + error.message);
         }
+
+        return { success: false, error: error.message };
     }
 }
 
@@ -550,10 +575,18 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
 
                     if (message.serverContent?.generationComplete) {
                         if (currentTranscription.trim() !== '') {
-                            if (hasGroqKey()) {
-                                sendToGroq(currentTranscription);
+                            const responseMode = getLiveResponseMode();
+                            sendToRenderer('response-turn-start', { mode: responseMode });
+
+                            if (responseMode === 'both') {
+                                Promise.allSettled([
+                                    sendToGemma(currentTranscription, { dualMode: true, emitTyping: true }),
+                                    sendToGroq(currentTranscription, { dualMode: true, emitTyping: false }),
+                                ]).catch(() => {});
+                            } else if (responseMode === 'groq') {
+                                sendToGroq(currentTranscription, { dualMode: false, emitTyping: true });
                             } else {
-                                sendToGemma(currentTranscription);
+                                sendToGemma(currentTranscription, { dualMode: false, emitTyping: true });
                             }
                             currentTranscription = '';
                         }
@@ -896,6 +929,24 @@ async function sendImageToGeminiHttp(base64Data, prompt) {
             // Save screen analysis to history
             saveScreenAnalysis(prompt, fullText, model);
 
+            if (prompt) {
+                groqConversationHistory.push({
+                    role: 'user',
+                    content: prompt,
+                });
+            }
+
+            if (fullText.trim()) {
+                groqConversationHistory.push({
+                    role: 'assistant',
+                    content: fullText.trim(),
+                });
+            }
+
+            if (groqConversationHistory.length > 40) {
+                groqConversationHistory = groqConversationHistory.slice(-40);
+            }
+
             return { success: true, text: fullText, model: model };
         });
     } catch (error) {
@@ -914,7 +965,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
     ipcMain.handle('initialize-cloud', async (event, token, profile, userContext) => {
         try {
             currentProviderMode = 'cloud';
-            initializeNewSession(profile);
+            initializeNewSession(profile, userContext);
             setOnTurnComplete((transcription, response) => {
                 saveConversationTurn(transcription, response);
             });
@@ -1123,13 +1174,10 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             console.log('Sending text message:', text);
 
             if (hasGroqKey()) {
-                sendToGroq(text.trim());
+                return await sendToGroq(text.trim());
             } else {
-                sendToGemma(text.trim());
+                return await sendToGemma(text.trim());
             }
-
-            await geminiSessionRef.current.sendRealtimeInput({ text: text.trim() });
-            return { success: true };
         } catch (error) {
             console.error('Error sending text:', error);
             return { success: false, error: error.message };

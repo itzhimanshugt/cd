@@ -43,6 +43,40 @@ export class AssistantView extends LitElement {
             display: inline-block;
         }
 
+        .dual-response {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .provider-panel {
+            padding: 0;
+        }
+
+        .provider-panel + .provider-panel {
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--border);
+        }
+
+        .provider-title {
+            margin-bottom: var(--space-sm);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-semibold);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .provider-body {
+            min-height: 120px;
+        }
+
+        .response-placeholder {
+            color: var(--text-muted);
+            font-style: italic;
+            margin: 0.6em 0;
+        }
+
         /* ── Markdown ── */
 
         .response-container h1,
@@ -318,6 +352,8 @@ export class AssistantView extends LitElement {
         responses: { type: Array },
         currentResponseIndex: { type: Number },
         selectedProfile: { type: String },
+        responseMode: { type: String },
+        liveResponses: { type: Object },
         onSendText: { type: Function },
         shouldAnimateResponse: { type: Boolean },
         isAnalyzing: { type: Boolean, state: true },
@@ -328,6 +364,8 @@ export class AssistantView extends LitElement {
         this.responses = [];
         this.currentResponseIndex = -1;
         this.selectedProfile = 'interview';
+        this.responseMode = 'both';
+        this.liveResponses = { gemini: '', groq: '' };
         this.onSendText = () => {};
         this.isAnalyzing = false;
         this._animFrame = null;
@@ -341,6 +379,7 @@ export class AssistantView extends LitElement {
             presentation: 'Presentation',
             negotiation: 'Negotiation',
             exam: 'Exam Assistant',
+            custom: 'Custom',
         };
     }
 
@@ -665,7 +704,7 @@ export class AssistantView extends LitElement {
 
     updated(changedProperties) {
         super.updated(changedProperties);
-        if (changedProperties.has('responses') || changedProperties.has('currentResponseIndex')) {
+        if (changedProperties.has('responses') || changedProperties.has('currentResponseIndex') || changedProperties.has('liveResponses') || changedProperties.has('responseMode')) {
             this.updateResponseContent();
         }
 
@@ -687,9 +726,26 @@ export class AssistantView extends LitElement {
     updateResponseContent() {
         const container = this.shadowRoot.querySelector('#responseContainer');
         if (container) {
-            const currentResponse = this.getCurrentResponse();
-            const renderedResponse = this.renderMarkdown(currentResponse);
-            container.innerHTML = renderedResponse;
+            if (this.responseMode === 'both') {
+                const geminiResponse = this.liveResponses?.gemini?.trim() ? this.renderMarkdown(this.liveResponses.gemini) : '<p class="response-placeholder">Waiting for Gemini response...</p>';
+                const groqResponse = this.liveResponses?.groq?.trim() ? this.renderMarkdown(this.liveResponses.groq) : '<p class="response-placeholder">Waiting for Groq response...</p>';
+                container.innerHTML = `
+                    <div class="dual-response">
+                        <section class="provider-panel provider-gemini">
+                            <div class="provider-title">Gemini</div>
+                            <div class="provider-body">${geminiResponse}</div>
+                        </section>
+                        <section class="provider-panel provider-groq">
+                            <div class="provider-title">Groq</div>
+                            <div class="provider-body">${groqResponse}</div>
+                        </section>
+                    </div>
+                `;
+            } else {
+                const currentResponse = this.getCurrentResponse();
+                const renderedResponse = this.renderMarkdown(currentResponse);
+                container.innerHTML = renderedResponse;
+            }
             if (this.shouldAnimateResponse) {
                 this.dispatchEvent(new CustomEvent('response-animation-complete', { bubbles: true, composed: true }));
             }
@@ -697,7 +753,7 @@ export class AssistantView extends LitElement {
     }
 
     render() {
-        const hasMultipleResponses = this.responses.length > 1;
+        const hasMultipleResponses = this.responseMode !== 'both' && this.responses.length > 1;
 
         return html`
             <div class="response-container" id="responseContainer"></div>

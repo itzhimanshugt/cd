@@ -9,7 +9,7 @@ const hotkeyService = new HotkeyService();
 let mouseEventsIgnored = false;
 let _programmaticMove = false;
 
-const KEYBINDS_VERSION = 7; // Bumped: add debug screenshot hotkey
+const KEYBINDS_VERSION = 8; // Bumped: add response mode cycle hotkey
 
 const DEFAULT_MAIN_WINDOW_SIZE = { width: 1100, height: 800 };
 const MIN_WINDOW_SIZE = { width: 400, height: 260 };
@@ -71,6 +71,7 @@ function getDefaultKeybinds() {
         fontSizeUp: isMac ? 'Cmd+Shift+0' : 'Ctrl+Shift+0',
         fontSizeDown: isMac ? 'Cmd+Shift+9' : 'Ctrl+Shift+9',
         aiModeToggle: isMac ? 'Cmd+Shift+U' : 'Ctrl+Shift+U',
+        responseModeToggle: isMac ? 'Cmd+Alt+R' : 'Ctrl+Alt+R',
         // ── Emergency ──
         emergencyQuit: isMac ? 'Cmd+Q' : 'Ctrl+Q',
         // ── Model Management ──
@@ -102,7 +103,8 @@ function createWindow(sendToRenderer, geminiSessionRef, typingManagerRef) {
         y: winState.y ?? undefined,
         minWidth: MIN_WINDOW_SIZE.width,
         minHeight: MIN_WINDOW_SIZE.height,
-        resizable: true,
+        // Keep sizing programmatic to avoid frameless edge-capture quirks on Windows.
+        resizable: false,
         frame: false,
         transparent: true,
         // Native opacity stays at 1.0; transparency is CSS-driven via --bg-app rgba values.
@@ -358,6 +360,15 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         const newMode = current === 'byok' ? 'local' : 'byok';
         storage.updatePreference('providerMode', newMode);
         sendToRenderer('ai-mode-toggled', newMode);
+    };
+
+    handlers.responseModeToggle = () => {
+        const prefs = storage.getPreferences();
+        const modes = ['both', 'gemini', 'groq'];
+        const current = modes.includes(prefs.responseMode) ? prefs.responseMode : 'both';
+        const next = modes[(modes.indexOf(current) + 1) % modes.length];
+        storage.updatePreference('responseMode', next);
+        sendToRenderer('response-mode-toggled', next);
     };
 
     // ── Model Management ──

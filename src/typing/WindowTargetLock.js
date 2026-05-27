@@ -130,6 +130,48 @@ Write-Output "$hwnd"`;
     }
 
     /**
+     * Brings the locked target window to the foreground.
+     * On non-Windows platforms, this is a no-op success.
+     * @returns {Promise<boolean>}
+     */
+    async activate() {
+        if (!this._locked) return false;
+
+        if (process.platform !== 'win32' || !this._targetHandle) {
+            return true;
+        }
+
+        try {
+            const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class FocusActivator {
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")]
+    public static extern bool IsIconic(IntPtr hWnd);
+}
+"@ -ErrorAction SilentlyContinue
+$hwnd = [IntPtr]::new(${this._targetHandle})
+if ([FocusActivator]::IsIconic($hwnd)) {
+    [void][FocusActivator]::ShowWindowAsync($hwnd, 9)
+}
+[void][FocusActivator]::SetForegroundWindow($hwnd)`;
+
+            await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
+                windowsHide: true,
+                timeout: 3000,
+            });
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
      * Gets information about the locked target window.
      * @returns {object|null}
      */

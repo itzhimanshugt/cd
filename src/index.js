@@ -8,7 +8,7 @@ const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const apiKeys = require('./utils/apiKeys');
 const storage = require('./storage');
-const { TypingManager } = require('./typing');
+const { TypingManager, WindowTargetLock } = require('./typing');
 
 // Lazy-loaded modules
 let _logger = null;
@@ -19,6 +19,7 @@ function getScreenshot() { if (!_screenshot) _screenshot = require('./utils/scre
 const geminiSessionRef = { current: null };
 let mainWindow = null;
 let typingManager = null;
+let typingTargetLock = null;
 
 function createMainWindow() {
     mainWindow = createWindow(sendToRenderer, geminiSessionRef, typingManager);
@@ -48,6 +49,7 @@ if (!gotTheLock) {
         }
 
         typingManager = new TypingManager();
+        typingTargetLock = new WindowTargetLock();
         createMainWindow();
 
         // Forward typing events to renderer
@@ -479,6 +481,13 @@ function setupTypingIpcHandlers() {
 
     ipcMain.handle('typing:start', async () => {
         try {
+            const settings = storage.getTypingSettings();
+            if (typingTargetLock && (settings.targetLock || settings.autoRefocus)) {
+                await typingTargetLock.lock();
+            }
+            if (typingTargetLock && settings.autoRefocus) {
+                await typingTargetLock.activate();
+            }
             typingManager.start();
             return { success: true };
         } catch (error) {
@@ -499,6 +508,10 @@ function setupTypingIpcHandlers() {
 
     ipcMain.handle('typing:resume', async () => {
         try {
+            const settings = storage.getTypingSettings();
+            if (typingTargetLock && settings.autoRefocus) {
+                await typingTargetLock.activate();
+            }
             typingManager.resume();
             return { success: true };
         } catch (error) {
@@ -510,6 +523,9 @@ function setupTypingIpcHandlers() {
     ipcMain.handle('typing:abort', async () => {
         try {
             typingManager.abort();
+            if (typingTargetLock) {
+                typingTargetLock.unlock();
+            }
             return { success: true };
         } catch (error) {
             console.error('Error aborting typing:', error);

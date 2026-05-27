@@ -210,7 +210,13 @@ Provide direct exam answers in **markdown format**. Include the question text, t
     },
 };
 
-function buildSystemPrompt(promptParts, customPrompt = '', googleSearchEnabled = true) {
+function buildSystemPrompt(promptParts, customPrompt = '', googleSearchEnabled = true, profile = 'interview') {
+    const customText = (customPrompt || '').trim();
+
+    if (profile === 'custom') {
+        return customText || 'You are a helpful assistant.';
+    }
+
     const sections = [promptParts.intro, '\n\n', promptParts.formatRequirements];
 
     // Only add search usage section if Google Search is enabled
@@ -218,14 +224,14 @@ function buildSystemPrompt(promptParts, customPrompt = '', googleSearchEnabled =
         sections.push('\n\n', promptParts.searchUsage);
     }
 
-    sections.push('\n\n', promptParts.content, '\n\nUser-provided context\n-----\n', customPrompt, '\n-----\n\n', promptParts.outputInstructions);
+    sections.push('\n\n', promptParts.content, '\n\nUser-provided context\n-----\n', customText, '\n-----\n\n', promptParts.outputInstructions);
 
     return sections.join('');
 }
 
 function getSystemPrompt(profile, customPrompt = '', googleSearchEnabled = true) {
     const promptParts = profilePrompts[profile] || profilePrompts.interview;
-    return buildSystemPrompt(promptParts, customPrompt, googleSearchEnabled);
+    return buildSystemPrompt(promptParts, customPrompt, googleSearchEnabled, profile);
 }
 
 module.exports = {

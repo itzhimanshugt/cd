@@ -625,7 +625,9 @@ export class MainView extends LitElement {
         onExternalLink: { type: Function },
         onNavigate: { type: Function },
         selectedProfile: { type: String },
+        responseMode: { type: String },
         onProfileChange: { type: Function },
+        onResponseModeChange: { type: Function },
         isInitializing: { type: Boolean },
         whisperDownloading: { type: Boolean },
         // Internal state
@@ -655,7 +657,9 @@ export class MainView extends LitElement {
         this.onExternalLink = () => {};
         this.onNavigate = () => {};
         this.selectedProfile = 'interview';
+        this.responseMode = 'both';
         this.onProfileChange = () => {};
+        this.onResponseModeChange = () => {};
         this.isInitializing = false;
         this.whisperDownloading = false;
 
@@ -712,6 +716,7 @@ export class MainView extends LitElement {
 
             // Load AI Hearing preference
             this._aiHearingEnabled = prefs.aiHearingEnabled || false;
+            this.responseMode = prefs.responseMode || this.responseMode;
 
             this.requestUpdate();
         } catch (e) {
@@ -865,6 +870,12 @@ export class MainView extends LitElement {
         this._tokenError = false;
         this._keyError = false;
         await cheatingDaddy.storage.updatePreference('providerMode', mode);
+        this.requestUpdate();
+    }
+
+    async _saveResponseMode(mode) {
+        this.responseMode = mode;
+        this.onResponseModeChange(mode);
         this.requestUpdate();
     }
 
@@ -1041,6 +1052,20 @@ export class MainView extends LitElement {
         `;
     }
 
+    _renderResponseModeControl() {
+        return html`
+            <div class="form-group">
+                <label class="form-label">Live Response Mode</label>
+                <select .value=${this.responseMode} @change=${e => this._saveResponseMode(e.target.value)}>
+                    <option value="both">Both</option>
+                    <option value="gemini">Gemini only</option>
+                    <option value="groq">Groq only</option>
+                </select>
+                <div class="form-hint">Both renders Gemini on top and Groq on the bottom. The hotkey cycles these modes during a live session.</div>
+            </div>
+        `;
+    }
+
     // ── Cloud mode ──
     // Cloud UI intentionally disabled. Backend cloud wiring is still present in
     // the codebase, but the renderer no longer exposes this setup path.
@@ -1081,6 +1106,8 @@ export class MainView extends LitElement {
                 />
                 <label for="ai-hearing-byok">Enable AI Hearing</label>
             </div>
+
+            ${this._renderResponseModeControl()}
 
             ${this._renderStartButton()} ${this._renderDivider()}
 
@@ -1147,6 +1174,8 @@ export class MainView extends LitElement {
                 />
                 <label for="ai-hearing-local">Enable AI Hearing</label>
             </div>
+
+            ${this._renderResponseModeControl()}
 
             ${this._renderStartButton()} ${this._renderDivider()}
 

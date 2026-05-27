@@ -225,10 +225,26 @@ function stripThinkingTags(text) {
     return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 }
 
-async function sendToGroq(transcription) {
+function getLiveResponseMode() {
+    const prefs = storage.getPreferences();
+    const mode = prefs.responseMode || 'both';
+    return ['both', 'gemini', 'groq'].includes(mode) ? mode : 'both';
+}
+
+function emitResponseChunk(provider, text, isFirst, dualMode) {
+    if (dualMode) {
+        sendToRenderer(isFirst ? 'new-response' : 'update-response', { provider, text });
+        return;
+    }
+
+    sendToRenderer(isFirst ? 'new-response' : 'update-response', text);
+}
+
+async function sendToGroq(transcription, options = {}) {
+    const { dualMode = false, emitTyping = true } = options;
     if (!transcription || transcription.trim() === '') {
         console.log('Empty transcription, skipping Groq');
-        return;
+        return { success: false, error: 'Empty transcription' };
     }
 
     const readyKeys = storage.listReadyProviderKeys('groq');
@@ -242,7 +258,7 @@ async function sendToGroq(transcription) {
     if (!modelToUse) {
         console.log('All Groq daily limits exhausted');
         sendToRenderer('update-status', 'Groq limits reached for today');
-        return;
+        return { success: false, error: 'Groq limits reached for today' };
     }
 
     console.log(`Sending to Groq (${modelToUse}):`, transcription.substring(0, 100) + '...');
@@ -310,7 +326,7 @@ async function sendToGroq(transcription) {
                                 fullText += token;
                                 const displayText = stripThinkingTags(fullText);
                                 if (displayText) {
-                                    sendToRenderer(isFirst ? 'new-response' : 'update-response', displayText);
+                                    emitResponseChunk('groq', displayText, isFirst, dualMode);
                                     isFirst = false;
                                 }
                             }
@@ -344,10 +360,12 @@ async function sendToGroq(transcription) {
             sendToRenderer('update-status', 'Listening...');
 
             // Notify renderer that a new response is available for typing
-            if (cleanedResponse) {
+            if (cleanedResponse && emitTyping) {
                 sendToRenderer('typing-response-ready', { text: cleanedResponse, sessionId: _sessionState.id });
             }
         });
+
+        return { success: true };
     } catch (error) {
         if (error.code === 'NO_READY_KEY' || error.code === 'ALL_KEYS_UNAVAILABLE') {
             console.error('Groq: no usable keys left in pool');
@@ -356,13 +374,16 @@ async function sendToGroq(transcription) {
             console.error('Error calling Groq API:', error);
             sendToRenderer('update-status', 'Groq error: ' + error.message);
         }
+
+        return { success: false, error: error.message };
     }
 }
 
-async function sendToGemma(transcription) {
+async function sendToGemma(transcription, options = {}) {
+    const { dualMode = false, emitTyping = true } = options;
     if (!transcription || transcription.trim() === '') {
         console.log('Empty transcription, skipping Gemma');
-        return;
+        return { success: false, error: 'Empty transcription' };
     }
 
     const readyKeys = storage.listReadyProviderKeys('gemini');
@@ -414,7 +435,7 @@ async function sendToGemma(transcription) {
                 const chunkText = chunk.text;
                 if (chunkText) {
                     fullText += chunkText;
-                    sendToRenderer(isFirst ? 'new-response' : 'update-response', fullText);
+                    emitResponseChunk('gemini', fullText, isFirst, dualMode);
                     isFirst = false;
                 }
             }
@@ -443,10 +464,12 @@ async function sendToGemma(transcription) {
             sendToRenderer('update-status', 'Listening...');
 
             // Notify renderer that a new response is available for typing
-            if (fullText.trim()) {
+            if (fullText.trim() && emitTyping) {
                 sendToRenderer('typing-response-ready', { text: fullText.trim(), sessionId: _sessionState.id });
             }
         });
+
+        return { success: true };
     } catch (error) {
         if (error.code === 'NO_READY_KEY' || error.code === 'ALL_KEYS_UNAVAILABLE') {
             console.error('Gemma: no usable Gemini keys left in pool');
@@ -455,6 +478,8 @@ async function sendToGemma(transcription) {
             console.error('Error calling Gemma API:', error);
             sendToRenderer('update-status', 'Gemma error: ' + error.message);
         }
+
+        return { success: false, error: error.message };
     }
 }
 
@@ -532,10 +557,26 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
 
                     if (message.serverContent?.generationComplete) {
                         if (_sessionState.transcription.trim() !== '') {
-                            if (hasGroqKey()) {
-                                sendToGroq(_sessionState.transcription);
+                            const responseMode = getLiveResponseMode();
+                            const groqAvailable = hasGroqKey();
+
+                            // Gracefully fall back to Gemini if user picked Groq/Both but has no Groq key configured.
+                            let effectiveMode = responseMode;
+                            if ((responseMode === 'groq' || responseMode === 'both') && !groqAvailable) {
+                                effectiveMode = 'gemini';
+                            }
+
+                            sendToRenderer('response-turn-start', { mode: effectiveMode });
+
+                            if (effectiveMode === 'both') {
+                                Promise.allSettled([
+                                    sendToGemma(_sessionState.transcription, { dualMode: true, emitTyping: true }),
+                                    sendToGroq(_sessionState.transcription, { dualMode: true, emitTyping: false }),
+                                ]).catch(() => {});
+                            } else if (effectiveMode === 'groq') {
+                                sendToGroq(_sessionState.transcription, { dualMode: false, emitTyping: true });
                             } else {
-                                sendToGemma(_sessionState.transcription);
+                                sendToGemma(_sessionState.transcription, { dualMode: false, emitTyping: true });
                             }
                             _sessionState.transcription = '';
                         }
@@ -879,6 +920,26 @@ async function sendImageToGeminiHttp(base64Data, prompt) {
             // Save screen analysis to history
             saveScreenAnalysis(prompt, fullText, model);
 
+            // Mirror the screen-analysis turn into the Groq conversation buffer so
+            // follow-up text/audio turns have visual context. Capped to last 40 entries.
+            if (prompt) {
+                _sessionState.groqConversationHistory.push({
+                    role: 'user',
+                    content: prompt,
+                });
+            }
+
+            if (fullText.trim()) {
+                _sessionState.groqConversationHistory.push({
+                    role: 'assistant',
+                    content: fullText.trim(),
+                });
+            }
+
+            if (_sessionState.groqConversationHistory.length > 40) {
+                _sessionState.groqConversationHistory = _sessionState.groqConversationHistory.slice(-40);
+            }
+
             return { success: true, text: fullText, model: model };
         });
     } catch (error) {
@@ -900,7 +961,8 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             // Apply debug profile override if debug mode is enabled
             const prefs = storage.getPreferences();
             const effectiveProfile = (prefs.debugModeEnabled && profile !== 'debug') ? 'debug' : profile;
-            initializeNewSession(effectiveProfile);
+            // Persist userContext on the session so prompts/follow-ups have it.
+            initializeNewSession(effectiveProfile, userContext);
             setOnTurnComplete((transcription, response) => {
                 saveConversationTurn(transcription, response);
             });
@@ -1115,13 +1177,10 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             console.log('Sending text message:', text);
 
             if (hasGroqKey()) {
-                sendToGroq(text.trim());
+                return await sendToGroq(text.trim());
             } else {
-                sendToGemma(text.trim());
+                return await sendToGemma(text.trim());
             }
-
-            await geminiSessionRef.current.sendRealtimeInput({ text: text.trim() });
-            return { success: true };
         } catch (error) {
             console.error('Error sending text:', error);
             return { success: false, error: error.message };

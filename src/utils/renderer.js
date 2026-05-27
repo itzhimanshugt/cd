@@ -186,6 +186,7 @@ const windowControls = {
             fontSizeUp: isMac ? 'Cmd+Shift+0' : 'Ctrl+Shift+0',
             fontSizeDown: isMac ? 'Cmd+Shift+9' : 'Ctrl+Shift+9',
             aiModeToggle: isMac ? 'Cmd+Shift+U' : 'Ctrl+Shift+U',
+            responseModeToggle: isMac ? 'Cmd+Alt+R' : 'Ctrl+Alt+R',
             emergencyQuit: isMac ? 'Cmd+Q' : 'Ctrl+Q',
             debugToggle: 'Alt+D',
             cycleSolutionModel: isMac ? 'Cmd+Y' : 'Ctrl+Y',
@@ -1345,6 +1346,11 @@ ipcRenderer.on('bg-opacity-change', debounce(async (_, delta) => {
 ipcRenderer.on('ai-mode-toggled', (_, newMode) => {
     _eventBus.dispatchEvent(new CustomEvent('ai-mode-toggled', { detail: { mode: newMode } }));
     showToast(`AI Mode: ${newMode}`);
+});
+
+ipcRenderer.on('response-mode-toggled', (_, newMode) => {
+    _eventBus.dispatchEvent(new CustomEvent('response-mode-toggled', { detail: { mode: newMode } }));
+    showToast(`Response Mode: ${newMode}`);
 });
 
 ipcRenderer.on('debug-mode-toggled', (_, enabled) => {

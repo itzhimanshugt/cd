@@ -103,6 +103,7 @@ function getAutoModel(context = {}) {
 const DEFAULT_PREFERENCES = {
     customPrompt: '',
     providerMode: 'byok',
+    responseMode: 'both',
     selectedProfile: 'interview',
     selectedLanguage: 'en-US',
     selectedScreenshotInterval: '5',

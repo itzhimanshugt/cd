@@ -96,6 +96,49 @@ export class AssistantView extends LitElement {
             border-bottom-right-radius: 4px;
         }
 
+        /* ── Dual-provider live bubble (responseMode === 'both') ── */
+
+        .message-bubble.ai.dual-live {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .message-row.ai.dual-live {
+            max-width: 100%;
+            align-self: stretch;
+        }
+
+        .provider-panel {
+            padding: 0;
+        }
+
+        .provider-panel + .provider-panel {
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--border);
+        }
+
+        .provider-title {
+            margin-bottom: var(--space-sm);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-semibold);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .provider-body {
+            min-height: 60px;
+        }
+
+        .response-placeholder {
+            color: var(--text-muted);
+            font-style: italic;
+            margin: 0.4em 0;
+        }
+
         .message-timestamp {
             font-size: 11px;
             color: var(--text-muted);
@@ -361,6 +404,8 @@ export class AssistantView extends LitElement {
         responses: { type: Array },
         currentResponseIndex: { type: Number },
         selectedProfile: { type: String },
+        responseMode: { type: String },
+        liveResponses: { type: Object },
         onSendText: { type: Function },
         shouldAnimateResponse: { type: Boolean },
         _analysisState: { type: String, state: true },
@@ -373,6 +418,8 @@ export class AssistantView extends LitElement {
         this.responses = [];
         this.currentResponseIndex = -1;
         this.selectedProfile = 'interview';
+        this.responseMode = 'both';
+        this.liveResponses = { gemini: '', groq: '' };
         this.onSendText = () => {};
         this._analysisState = 'idle';
         this._analysisTimeout = null;
@@ -390,6 +437,7 @@ export class AssistantView extends LitElement {
             presentation: 'Presentation',
             negotiation: 'Negotiation',
             exam: 'Exam Assistant',
+            custom: 'Custom',
         };
     }
 
@@ -746,6 +794,14 @@ export class AssistantView extends LitElement {
     updated(changedProperties) {
         super.updated(changedProperties);
 
+        // Auto-scroll when streaming dual-provider live responses
+        if (
+            this.responseMode === 'both' &&
+            (changedProperties.has('liveResponses') || changedProperties.has('responseMode'))
+        ) {
+            this._scrollToBottom();
+        }
+
         if (changedProperties.has('_analysisState')) {
             const isActive = this._analysisState === 'capturing' || this._analysisState === 'processing';
             const wasActive = (() => {
@@ -815,10 +871,43 @@ export class AssistantView extends LitElement {
         return -1;
     }
 
+    /**
+     * Render a special "live" AI bubble while in dual-provider (`responseMode === 'both'`) mode.
+     * Shows Gemini on top and Groq below, each streaming independently. The bubble itself
+     * is not committed into `_pages` history — `liveResponses` is reset on every new turn
+     * via the `response-turn-start` IPC event.
+     */
+    _renderDualLiveBubble() {
+        const gem = (this.liveResponses && this.liveResponses.gemini) || '';
+        const groq = (this.liveResponses && this.liveResponses.groq) || '';
+        const gemHtml = gem.trim() ? this.renderMarkdown(gem) : '<p class="response-placeholder">Waiting for Gemini response...</p>';
+        const groqHtml = groq.trim() ? this.renderMarkdown(groq) : '<p class="response-placeholder">Waiting for Groq response...</p>';
+
+        return html`
+            <div class="message-row ai dual-live">
+                <div class="message-bubble ai dual-live">
+                    <section class="provider-panel provider-gemini">
+                        <div class="provider-title">Gemini</div>
+                        <div class="provider-body" .innerHTML=${gemHtml}></div>
+                    </section>
+                    <section class="provider-panel provider-groq">
+                        <div class="provider-title">Groq</div>
+                        <div class="provider-body" .innerHTML=${groqHtml}></div>
+                    </section>
+                </div>
+            </div>
+        `;
+    }
+
     render() {
         const profileNames = this.getProfileNames();
         const currentMessages = this._pages[this._currentPage] || [];
-        const hasMessages = currentMessages.length > 0;
+        const isDualMode = this.responseMode === 'both';
+        const hasLiveDual =
+            isDualMode &&
+            ((this.liveResponses && this.liveResponses.gemini && this.liveResponses.gemini.trim()) ||
+                (this.liveResponses && this.liveResponses.groq && this.liveResponses.groq.trim()));
+        const hasMessages = currentMessages.length > 0 || hasLiveDual;
 
         return html`
             ${hasMessages
@@ -834,6 +923,7 @@ export class AssistantView extends LitElement {
                                   </div>
                               `
                           )}
+                          ${hasLiveDual ? this._renderDualLiveBubble() : ''}
                       </div>
                   `
                 : html` <div class="listening-placeholder">Listening to your ${profileNames[this.selectedProfile] || 'session'}...</div> `}

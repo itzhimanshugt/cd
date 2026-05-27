@@ -523,11 +523,13 @@ export class CheatingDaddyApp extends LitElement {
         sessionActive: { type: Boolean },
         selectedProfile: { type: String },
         selectedLanguage: { type: String },
+        responseMode: { type: String },
         responses: { type: Array },
         currentResponseIndex: { type: Number },
         selectedScreenshotInterval: { type: String },
         selectedImageQuality: { type: String },
         layoutMode: { type: String },
+        liveResponses: { type: Object },
         _viewInstances: { type: Object, state: true },
         _isClickThrough: { state: true },
         _awaitingNewResponse: { state: true },
@@ -556,11 +558,13 @@ export class CheatingDaddyApp extends LitElement {
         this.sessionActive = false;
         this.selectedProfile = 'interview';
         this.selectedLanguage = 'en-US';
+        this.responseMode = 'both';
         this.selectedScreenshotInterval = '5';
-        this.selectedImageQuality = 'medium';
+        this.selectedImageQuality = 'low';
         this.layoutMode = 'normal';
         this.responses = [];
         this.currentResponseIndex = -1;
+        this.liveResponses = { gemini: '', groq: '' };
         this._viewInstances = new Map();
         this._isClickThrough = false;
         this._awaitingNewResponse = false;
@@ -623,6 +627,7 @@ export class CheatingDaddyApp extends LitElement {
             this.currentView = config.onboarded ? 'main' : 'onboarding';
             this.selectedProfile = prefs.selectedProfile || 'interview';
             this.selectedLanguage = prefs.selectedLanguage || 'en-US';
+            this.responseMode = prefs.responseMode || 'both';
             this.selectedScreenshotInterval = prefs.selectedScreenshotInterval || '5';
             this.selectedImageQuality = prefs.selectedImageQuality || 'medium';
             this.layoutMode = config.layout || 'normal';
@@ -659,6 +664,12 @@ export class CheatingDaddyApp extends LitElement {
         };
         window.cheatingDaddy.events.addEventListener('debug-mode-toggled', this._debugModeHandler);
 
+        this._responseModeHandler = e => {
+            this.responseMode = e.detail.mode;
+            this.requestUpdate();
+        };
+        window.cheatingDaddy.events.addEventListener('response-mode-toggled', this._responseModeHandler);
+
         // Listen for model changes on the global event bus
         this._modelChangeHandler = e => {
             const { task, model } = e.detail;
@@ -678,6 +689,10 @@ export class CheatingDaddyApp extends LitElement {
 
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
+            this._ipcResponseTurnStart = () => {
+                this.liveResponses = { gemini: '', groq: '' };
+                this.requestUpdate();
+            };
             this._ipcNewResponse = (_, response) => this.addNewResponse(response);
             this._ipcUpdateResponse = (_, response) => this.updateCurrentResponse(response);
             this._ipcUpdateStatus = (_, status) => this.setStatus(status);
@@ -689,6 +704,7 @@ export class CheatingDaddyApp extends LitElement {
                 this._whisperDownloading = downloading;
             };
 
+            ipcRenderer.on('response-turn-start', this._ipcResponseTurnStart);
             ipcRenderer.on('new-response', this._ipcNewResponse);
             ipcRenderer.on('update-response', this._ipcUpdateResponse);
             ipcRenderer.on('update-status', this._ipcUpdateStatus);
@@ -713,10 +729,12 @@ export class CheatingDaddyApp extends LitElement {
         }
         window.cheatingDaddy.events.removeEventListener('ai-mode-toggled', this._aiModeHandler);
         window.cheatingDaddy.events.removeEventListener('debug-mode-toggled', this._debugModeHandler);
+        window.cheatingDaddy.events.removeEventListener('response-mode-toggled', this._responseModeHandler);
         window.cheatingDaddy.events.removeEventListener('model-changed', this._modelChangeHandler);
         window.cheatingDaddy.events.removeEventListener('continue-session', this._continueSessionHandler);
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
+            ipcRenderer.removeListener('response-turn-start', this._ipcResponseTurnStart);
             ipcRenderer.removeListener('new-response', this._ipcNewResponse);
             ipcRenderer.removeListener('update-response', this._ipcUpdateResponse);
             ipcRenderer.removeListener('update-status', this._ipcUpdateStatus);
@@ -764,6 +782,16 @@ export class CheatingDaddyApp extends LitElement {
     }
 
     addNewResponse(response) {
+        if (response && typeof response === 'object' && response.provider) {
+            const provider = response.provider;
+            this.liveResponses = {
+                ...(this.liveResponses || { gemini: '', groq: '' }),
+                [provider]: response.text || '',
+            };
+            this.requestUpdate();
+            return;
+        }
+
         const wasOnLatest = this.currentResponseIndex === this.responses.length - 1;
         this.responses = [...this.responses, response];
         if (wasOnLatest || this.currentResponseIndex === -1) {
@@ -774,6 +802,16 @@ export class CheatingDaddyApp extends LitElement {
     }
 
     updateCurrentResponse(response) {
+        if (response && typeof response === 'object' && response.provider) {
+            const provider = response.provider;
+            this.liveResponses = {
+                ...(this.liveResponses || { gemini: '', groq: '' }),
+                [provider]: response.text || '',
+            };
+            this.requestUpdate();
+            return;
+        }
+
         if (this.responses.length > 0) {
             this.responses = [...this.responses.slice(0, -1), response];
         } else {
@@ -1002,6 +1040,11 @@ export class CheatingDaddyApp extends LitElement {
         await cheatingDaddy.storage.updatePreference('selectedLanguage', language);
     }
 
+    async handleResponseModeChange(mode) {
+        this.responseMode = mode;
+        await cheatingDaddy.storage.updatePreference('responseMode', mode);
+    }
+
     async handleScreenshotIntervalChange(interval) {
         this.selectedScreenshotInterval = interval;
         await cheatingDaddy.storage.updatePreference('selectedScreenshotInterval', interval);
@@ -1091,7 +1134,9 @@ export class CheatingDaddyApp extends LitElement {
                 return html`
                     <main-view
                         .selectedProfile=${this.selectedProfile}
+                        .responseMode=${this.responseMode}
                         .onProfileChange=${p => this.handleProfileChange(p)}
+                        .onResponseModeChange=${mode => this.handleResponseModeChange(mode)}
                         .onStart=${() => this.handleStart()}
                         .onExternalLink=${url => this.handleExternalLinkClick(url)}
                         .onNavigate=${view => this.navigate(view)}
@@ -1148,6 +1193,8 @@ export class CheatingDaddyApp extends LitElement {
                         .responses=${this.responses}
                         .currentResponseIndex=${this.currentResponseIndex}
                         .selectedProfile=${this.selectedProfile}
+                        .responseMode=${this.responseMode}
+                        .liveResponses=${this.liveResponses || { gemini: '', groq: '' }}
                         .onSendText=${msg => this.handleSendText(msg)}
                         .shouldAnimateResponse=${this.shouldAnimateResponse}
                         @response-index-changed=${this.handleResponseIndexChanged}

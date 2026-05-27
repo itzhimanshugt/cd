@@ -539,6 +539,7 @@ export class HistoryView extends LitElement {
             negotiation: 'Negotiation',
             exam: 'Exam Assistant',
             debug: 'Debug / Code Review',
+            custom: 'Custom',
         };
     }
 

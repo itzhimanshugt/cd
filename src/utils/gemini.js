@@ -422,7 +422,7 @@ async function sendToGemma(transcription) {
             ];
 
             const response = await ai.models.generateContentStream({
-                model: prefs.modelExtraction || 'gemma-3-27b-it',
+                model: prefs.modelExtraction || 'gemma-4-26b-a4b-it',
                 contents: messagesWithSystem,
             });
 
@@ -446,7 +446,7 @@ async function sendToGemma(transcription) {
             const inputChars = systemPromptChars + historyChars;
             const outputChars = fullText.length;
 
-            incrementCharUsage('gemini', prefs.modelExtraction || 'gemma-3-27b-it', inputChars + outputChars);
+            incrementCharUsage('gemini', prefs.modelExtraction || 'gemma-4-26b-a4b-it', inputChars + outputChars);
 
             if (fullText.trim()) {
                 groqConversationHistory.push({
@@ -527,7 +527,7 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
 
     try {
         const session = await client.live.connect({
-            model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+            model: 'gemini-3.1-flash-live-preview',
             callbacks: {
                 onopen: function () {
                     sendToRenderer('update-status', 'Live session connected');

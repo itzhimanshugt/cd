@@ -816,7 +816,7 @@ export class CheatingDaddyApp extends LitElement {
             'gemini-2.5-pro': 'Gem 2.5 Pro',
             'gemini-2.0-flash': 'Gem 2.0 Flash',
             'gemini-2.0-flash-lite': 'Gem 2.0 Lite',
-            'gemma-3-27b-it': 'Gemma 27B',
+            'gemma-4-26b-a4b-it': 'Gemma 26B',
         };
         return map[modelId] || modelId;
     }

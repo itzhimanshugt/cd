@@ -31,7 +31,7 @@ const GEMINI_MODELS = [
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', shortName: 'Gem 2.5 Pro' },
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', shortName: 'Gem 2.0 Flash' },
     { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', shortName: 'Gem 2.0 Lite' },
-    { id: 'gemma-3-27b-it', name: 'Gemma 3 27B', shortName: 'Gemma 27B' },
+    { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B', shortName: 'Gemma 26B' },
 ];
 
 const DEFAULT_PREFERENCES = {
@@ -132,7 +132,7 @@ const DEFAULT_WINDOW_STATE = {
 };
 
 const DEFAULT_LIMITS = {
-    data: [], // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'qwen3-32b': { chars, limit }, 'gpt-oss-120b': { chars, limit }, 'gpt-oss-20b': { chars, limit } }, gemini: { 'gemma-3-27b-it': { chars } } }
+    data: [], // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'qwen3-32b': { chars, limit }, 'gpt-oss-120b': { chars, limit }, 'gpt-oss-20b': { chars, limit } }, gemini: { 'gemma-4-26b-a4b-it': { chars } } }
 };
 
 // Get the config directory path based on OS
@@ -612,7 +612,7 @@ function getTodayLimits() {
         }
         if (!todayEntry.gemini) {
             todayEntry.gemini = {
-                'gemma-3-27b-it': { chars: 0 },
+                'gemma-4-26b-a4b-it': { chars: 0 },
             };
         }
         setLimits(limits);
@@ -632,7 +632,7 @@ function getTodayLimits() {
             'kimi-k2-instruct': { chars: 0, limit: 600000 },
         },
         gemini: {
-            'gemma-3-27b-it': { chars: 0 },
+            'gemma-4-26b-a4b-it': { chars: 0 },
         },
     };
     limits.data.push(newEntry);

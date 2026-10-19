@@ -404,7 +404,7 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
                 typingManagerRef.pause();
             } else if (status.state === 'paused') {
                 typingManagerRef.resume();
-            } else if (status.state === 'idle' || status.state === 'completed') {
+            } else if (status.state === 'idle' || status.state === 'completed' || status.state === 'aborted') {
                 const lastResponse = typingManagerRef.getLastResponse();
                 if (!lastResponse) {
                     sendToRenderer('typing-status-changed', typingManagerRef.getStatus());

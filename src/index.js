@@ -42,7 +42,13 @@ if (!gotTheLock) {
             desktopCapturer.getSources({ types: ['screen'] }).catch(() => {});
         }
 
-        typingManager = new TypingManager();
+        const typingSettings = storage.getTypingSettings();
+        typingManager = new TypingManager({
+            backend: typingSettings.backend,
+            speed: typingSettings.typingSpeed,
+            granularity: typingSettings.granularity,
+            failoverChain: typingSettings.failoverChain,
+        });
         createMainWindow();
 
         // Forward typing events to renderer
@@ -548,6 +554,17 @@ function setupTypingIpcHandlers() {
         }
     });
 
+    ipcMain.handle('typing:test-backend', async (event, name) => {
+        try {
+            const health = typingManager.getBackendHealth();
+            const available = typeof name === 'string' && Boolean(health[name] && health[name].available);
+            return { success: true, data: { backend: name, available } };
+        } catch (error) {
+            console.error('Error testing typing backend:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     ipcMain.handle('typing:get-settings', async () => {
         try {
             return { success: true, data: storage.getTypingSettings() };
@@ -567,6 +584,9 @@ function setupTypingIpcHandlers() {
             }
             if (patch.backend !== undefined) {
                 typingManager.setBackend(settings.backend);
+            }
+            if (patch.failoverChain !== undefined) {
+                typingManager.setFailoverChain(settings.failoverChain);
             }
             return { success: true };
         } catch (error) {

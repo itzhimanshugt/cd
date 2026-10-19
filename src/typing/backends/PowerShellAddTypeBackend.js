@@ -82,8 +82,12 @@ public class CachedSendInput {
     }
     [StructLayout(LayoutKind.Explicit)]
     public struct INPUTUNION {
+        [FieldOffset(0)] public MOUSEINPUT mi;
         [FieldOffset(0)] public KEYBDINPUT ki;
     }
+    // Union must include MOUSEINPUT so SizeOf(INPUT) matches native (40 bytes on x64)
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
     [StructLayout(LayoutKind.Sequential)]
     public struct KEYBDINPUT {
         public ushort wVk;
@@ -104,11 +108,12 @@ public class CachedSendInput {
         inputs[1].u.ki.wVk = 0;
         inputs[1].u.ki.wScan = (ushort)c;
         inputs[1].u.ki.dwFlags = 0x0004 | 0x0002;
-        SendInput(2, inputs, Marshal.SizeOf(typeof(INPUT)));
+        if (SendInput(2, inputs, Marshal.SizeOf(typeof(INPUT))) != 2) throw new Exception("SendInput failed, error " + Marshal.GetLastWin32Error());
     }
 }`;
 
         const script = `
+$ErrorActionPreference = 'Stop'
 if (-not ([System.Management.Automation.PSTypeName]'CachedSendInput').Type) {
     Add-Type -TypeDefinition @"
 ${typeDefinition}

@@ -8,6 +8,7 @@ const InjectionScheduler = require('./InjectionScheduler');
 const TypingAbortController = require('./AbortController');
 const resolveBackend = require('./backends/resolveBackend');
 const BackendManager = require('./BackendManager');
+const stripMarkdown = require('./stripMarkdown');
 
 const STATES = {
     IDLE: 'idle',
@@ -65,7 +66,7 @@ class TypingManager extends EventEmitter {
             this.abort();
         }
 
-        const buffer = ResponseBuffer.create(text);
+        const buffer = ResponseBuffer.create(stripMarkdown(text));
         this._queue.load(buffer);
         this._lastResponse = text;
         this._abortController.reset();
@@ -82,6 +83,13 @@ class TypingManager extends EventEmitter {
         }
 
         if (this._state === STATES.TYPING) return;
+
+        // After an abort or a finished run, restart from the beginning.
+        // An aborted queue refuses to start, which made the scheduler re-inject the first chunk forever.
+        const buffer = this._queue.getBuffer();
+        if (this._queue.getState() === TypingQueue.STATES.ABORTED || this._queue.getPosition() >= buffer.length) {
+            this._queue.load(buffer);
+        }
 
         this._abortController.reset();
         this._createScheduler();

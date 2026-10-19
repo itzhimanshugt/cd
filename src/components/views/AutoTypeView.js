@@ -308,9 +308,10 @@ export class AutoTypeView extends LitElement {
         this._updateSetting('backend', e.target.value);
     }
 
-    _onTestBackend() {
+    async _onTestBackend() {
         try {
-            window.cheatingDaddy.typing.testBackend(this._settings.backend || 'win32-sendinput');
+            const result = await window.cheatingDaddy.typing.testBackend(this._settings.backend || 'win32-sendinput');
+            console.log('Backend test:', result);
         } catch (e) {
             console.error('Backend test failed:', e);
         }

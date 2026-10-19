@@ -896,6 +896,11 @@ async function sendImageToGeminiHttp(base64Data, prompt) {
             // Save screen analysis to history
             saveScreenAnalysis(prompt, fullText, model);
 
+            // Notify renderer that a new response is available for typing
+            if (fullText.trim()) {
+                sendToRenderer('typing-response-ready', { text: fullText.trim(), sessionId: currentSessionId });
+            }
+
             return { success: true, text: fullText, model: model };
         });
     } catch (error) {

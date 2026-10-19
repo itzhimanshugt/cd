@@ -222,6 +222,9 @@ const typingControls = {
     async skipSentence() {
         return ipcRenderer.invoke('typing:skip-sentence');
     },
+    async testBackend(name) {
+        return ipcRenderer.invoke('typing:test-backend', name);
+    },
     async getSettings() {
         return ipcRenderer.invoke('typing:get-settings');
     },
@@ -747,10 +750,51 @@ async function captureScreenshot(imageQuality = 'medium', isManual = false) {
     );
 }
 
-const MANUAL_SCREENSHOT_PROMPT = `Help me on this page, give me the answer no bs, complete answer.
-So if its a code question, give me the approach in few bullet points, then the entire code. Also if theres anything else i need to know, tell me.
-If its a question about the website, give me the answer no bs, complete answer.
-If its a mcq question, give me the answer no bs, complete answer.`;
+const MANUAL_SCREENSHOT_PROMPT = `Look at the screenshot and answer it. Detect what kind of question this is, then follow the matching rule below. Output only what that rule asks for.
+
+## Rule 1 - MCQ / multiple choice
+Trigger: the question shows selectable options (A/B/C/D, 1/2/3/4, radio buttons, checkboxes, or a list of candidate values).
+Output ONLY the correct option, exactly as it appears, in bold so it stands out:
+- "**1) Hello**"
+- "**D) Hi**"
+- "**Option B**"
+One line. Nothing before or after it.
+
+## Rule 2 - Short factual / fill-in-the-blank
+Trigger: the question expects a word, number, name, date, or short phrase.
+Output ONLY that value. One line.
+
+## Rule 2b - Subjective / descriptive
+Trigger: the question asks to explain, describe, define, differentiate, discuss, or justify in words.
+- Write the minimum that fully satisfies the question: answer every part it asks for, nothing more.
+- If a word limit or marks are shown, size the answer to match them.
+- Use short bullet points or a few sentences. No intro, no conclusion, no background, no examples unless asked.
+
+## Rule 3 - Coding problem (write code from scratch)
+Trigger: there is a problem statement, plus a boilerplate/starter template, and/or visible test cases.
+- Before writing anything, read the full question, every requirement/constraint (input/output format, limits, edge cases), the boilerplate, and any test cases. Only then write the code.
+- The code must satisfy every stated requirement and fit into the boilerplate as given (do not rename or change provided signatures, classes, or I/O handling).
+- Detect the language from the boilerplate (shebang, file extension in the tab, import/package syntax, class/interface signatures, language-specific keywords like \`def\`/\`func\`/\`fn\`/\`public static\`). If it is ambiguous, ask which language instead of guessing.
+- Write the complete solution in that same language, matching the boilerplate's structure and signature exactly.
+- Output the code inside one fenced code block. Include every line needed to run.
+- NO comments inside the code. No comment-only preamble above the block.
+- NO explanation of the algorithm, complexity, or approach.
+- Output only the code block.
+
+## Rule 4 - Debugging existing code
+Trigger: the screenshot contains code you already wrote together with an error message, a stack trace, a failing test, or a visible wrong output.
+- Identify the specific line or lines causing the failure.
+- Return the complete corrected code in one fenced code block, in the same language.
+- Immediately after the block, add a short "Line N:" note for each fix you made, stating the bug and the change in one sentence.
+- Keep those notes to one sentence each. No analogies, no tutorials.
+
+## Universal rules (apply to every rule above)
+- Never use analogies, metaphors, "think of it like", or "imagine". Answer directly.
+- Never explain why the other options are wrong unless I explicitly ask.
+- Never add a "Why:", "Reasoning:", or "Explanation:" section unless I explicitly ask for it.
+- Never restate the question back to me.
+- Never add preamble like "Sure!", "Here's the answer", or "Based on the screenshot".
+- Output the answer and stop. If you are unsure whether something is an MCQ, treat it as Rule 2 or Rule 3, not as something to discuss.`;
 
 async function captureManualScreenshot(imageQuality = null) {
     console.log('Manual screenshot triggered');

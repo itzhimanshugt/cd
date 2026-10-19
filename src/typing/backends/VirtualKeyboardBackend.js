@@ -63,6 +63,7 @@ class VirtualKeyboardBackend extends BaseBackend {
         const base64Text = Buffer.from(text, 'utf16le').toString('base64');
 
         const script = `
+$ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
@@ -74,8 +75,12 @@ public class VKSendInputHelper {
     }
     [StructLayout(LayoutKind.Explicit)]
     public struct INPUTUNION {
+        [FieldOffset(0)] public MOUSEINPUT mi;
         [FieldOffset(0)] public KEYBDINPUT ki;
     }
+    // Union must include MOUSEINPUT so SizeOf(INPUT) matches native (40 bytes on x64)
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
     [StructLayout(LayoutKind.Sequential)]
     public struct KEYBDINPUT {
         public ushort wVk;
@@ -98,7 +103,7 @@ public class VKSendInputHelper {
         inputs[1].u.ki.wVk = 0;
         inputs[1].u.ki.wScan = (ushort)c;
         inputs[1].u.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
-        SendInput(2, inputs, Marshal.SizeOf(typeof(INPUT)));
+        if (SendInput(2, inputs, Marshal.SizeOf(typeof(INPUT))) != 2) throw new Exception("SendInput failed, error " + Marshal.GetLastWin32Error());
     }
 }
 "@ -ErrorAction SilentlyContinue

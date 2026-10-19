@@ -41,7 +41,9 @@ class TypingQueue extends EventEmitter {
      * @param {number} count - Number of characters to advance
      */
     advance(count) {
-        if (this._state !== STATES.TYPING) {
+        // PAUSED is allowed so a chunk already in flight when pause() hit is counted,
+        // otherwise it would be typed again on resume.
+        if (this._state !== STATES.TYPING && this._state !== STATES.PAUSED) {
             return;
         }
 

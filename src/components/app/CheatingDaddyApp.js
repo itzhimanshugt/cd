@@ -436,7 +436,8 @@ export class CheatingDaddyApp extends LitElement {
         this._modelDebugging = 'gemini-3.8-flash';
 
         this._loadFromStorage();
-        setTimeout(() => this._checkForUpdates(), 10000);
+        // Defer update check to avoid competing with initial render for network/CPU
+        setTimeout(() => this._checkForUpdates(), 2000);
     }
 
     async _checkForUpdates() {
@@ -653,7 +654,7 @@ export class CheatingDaddyApp extends LitElement {
         }
     }
 
-    // ── Session start ──
+    // ── Session start (optimized: non-blocking UI transition) ──
 
     async handleStart() {
         const prefs = await cheatingDaddy.storage.getPreferences();

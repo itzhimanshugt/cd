@@ -105,6 +105,7 @@ function createWindow(sendToRenderer, geminiSessionRef, typingManagerRef) {
         // Native opacity stays at 1.0; transparency is CSS-driven via --bg-app rgba values.
         hasShadow: false,
         alwaysOnTop: true,
+        show: false,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,

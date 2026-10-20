@@ -422,7 +422,7 @@ async function sendToGemma(transcription) {
             ];
 
             const response = await ai.models.generateContentStream({
-                model: prefs.modelExtraction || 'gemma-4-26b-a4b-it',
+                model: prefs.modelExtraction || 'gemini-3.8-flash',
                 contents: messagesWithSystem,
             });
 
@@ -446,7 +446,7 @@ async function sendToGemma(transcription) {
             const inputChars = systemPromptChars + historyChars;
             const outputChars = fullText.length;
 
-            incrementCharUsage('gemini', prefs.modelExtraction || 'gemma-4-26b-a4b-it', inputChars + outputChars);
+            incrementCharUsage('gemini', prefs.modelExtraction || 'gemini-3.8-flash', inputChars + outputChars);
 
             if (fullText.trim()) {
                 groqConversationHistory.push({
@@ -527,7 +527,7 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
 
     try {
         const session = await client.live.connect({
-            model: 'gemini-3.1-flash-live-preview',
+            model: 'gemini-3.8-live',
             callbacks: {
                 onopen: function () {
                     sendToRenderer('update-status', 'Live session connected');
@@ -843,7 +843,7 @@ async function sendImageToGeminiHttp(base64Data, prompt) {
     // Use solution model from preferences; fall back to rate-limited model selection
     const prefs = storage.getPreferences();
     const debugMode = prefs.debugModeEnabled || false;
-    const model = debugMode ? prefs.modelDebugging || 'gemini-2.5-flash' : prefs.modelSolution || getAvailableModel();
+    const model = debugMode ? prefs.modelDebugging || 'gemini-3.8-flash' : prefs.modelSolution || getAvailableModel();
 
     // Pick a ready key; fall back to legacy single-key for users that haven't migrated yet.
     const readyKeys = storage.listReadyProviderKeys('gemini');

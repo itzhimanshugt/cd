@@ -26,12 +26,13 @@ const API_KEY_PROVIDERS = ['gemini', 'groq'];
 
 // Available Gemini models for pipeline task assignment
 const GEMINI_MODELS = [
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', shortName: 'Gem 3.8 Flash' },
+    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', shortName: 'Gem 3.6 Flash' },
+    { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite', shortName: 'Gem 3.5 Lite' },
+    { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', shortName: 'Gem 3.1 Lite' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', shortName: 'Gem 2.5 Flash' },
     { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', shortName: 'Gem 2.5 Lite' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', shortName: 'Gem 2.5 Pro' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', shortName: 'Gem 2.0 Flash' },
-    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', shortName: 'Gem 2.0 Lite' },
-    { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B', shortName: 'Gemma 26B' },
 ];
 
 const DEFAULT_PREFERENCES = {
@@ -51,9 +52,9 @@ const DEFAULT_PREFERENCES = {
     whisperModel: 'Xenova/whisper-small',
     aiHearingEnabled: false,
     // Model assignments per pipeline task
-    modelExtraction: 'gemini-2.5-flash',
-    modelSolution: 'gemini-2.5-flash',
-    modelDebugging: 'gemini-2.5-flash',
+    modelExtraction: 'gemini-3.8-flash',
+    modelSolution: 'gemini-3.8-flash',
+    modelDebugging: 'gemini-3.8-flash',
     debugModeEnabled: false,
     hotkeyToastsEnabled: true,
     fontWeight: 400,
@@ -132,7 +133,7 @@ const DEFAULT_WINDOW_STATE = {
 };
 
 const DEFAULT_LIMITS = {
-    data: [], // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'qwen3-32b': { chars, limit }, 'gpt-oss-120b': { chars, limit }, 'gpt-oss-20b': { chars, limit } }, gemini: { 'gemma-4-26b-a4b-it': { chars } } }
+    data: [], // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'qwen3-32b': { chars, limit }, 'gpt-oss-120b': { chars, limit }, 'gpt-oss-20b': { chars, limit } }, gemini: { 'gemini-3.8-flash': { chars } } }
 };
 
 // Get the config directory path based on OS
@@ -612,7 +613,7 @@ function getTodayLimits() {
         }
         if (!todayEntry.gemini) {
             todayEntry.gemini = {
-                'gemma-4-26b-a4b-it': { chars: 0 },
+                'gemini-3.8-flash': { chars: 0 },
             };
         }
         setLimits(limits);
@@ -632,7 +633,7 @@ function getTodayLimits() {
             'kimi-k2-instruct': { chars: 0, limit: 600000 },
         },
         gemini: {
-            'gemma-4-26b-a4b-it': { chars: 0 },
+            'gemini-3.8-flash': { chars: 0 },
         },
     };
     limits.data.push(newEntry);

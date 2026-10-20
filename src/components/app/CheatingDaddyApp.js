@@ -431,9 +431,9 @@ export class CheatingDaddyApp extends LitElement {
         this._localVersion = '';
         this._aiMode = 'byok';
         this._debugMode = false;
-        this._modelExtraction = 'gemini-2.5-flash';
-        this._modelSolution = 'gemini-2.5-flash';
-        this._modelDebugging = 'gemini-2.5-flash';
+        this._modelExtraction = 'gemini-3.8-flash';
+        this._modelSolution = 'gemini-3.8-flash';
+        this._modelDebugging = 'gemini-3.8-flash';
 
         this._loadFromStorage();
         setTimeout(() => this._checkForUpdates(), 10000);
@@ -474,9 +474,9 @@ export class CheatingDaddyApp extends LitElement {
             this.layoutMode = config.layout || 'normal';
             this._aiMode = prefs.providerMode || 'byok';
             this._debugMode = prefs.debugModeEnabled || false;
-            this._modelExtraction = prefs.modelExtraction || 'gemini-2.5-flash';
-            this._modelSolution = prefs.modelSolution || 'gemini-2.5-flash';
-            this._modelDebugging = prefs.modelDebugging || 'gemini-2.5-flash';
+            this._modelExtraction = prefs.modelExtraction || 'gemini-3.8-flash';
+            this._modelSolution = prefs.modelSolution || 'gemini-3.8-flash';
+            this._modelDebugging = prefs.modelDebugging || 'gemini-3.8-flash';
 
             this._storageLoaded = true;
             this.requestUpdate();
@@ -811,12 +811,13 @@ export class CheatingDaddyApp extends LitElement {
 
     _getModelShortName(modelId) {
         const map = {
+            'gemini-3.8-flash': 'Gem 3.8 Flash',
+            'gemini-3.6-flash': 'Gem 3.6 Flash',
+            'gemini-3.5-flash-lite': 'Gem 3.5 Lite',
+            'gemini-3.1-flash-lite': 'Gem 3.1 Lite',
             'gemini-2.5-flash': 'Gem 2.5 Flash',
             'gemini-2.5-flash-lite': 'Gem 2.5 Lite',
             'gemini-2.5-pro': 'Gem 2.5 Pro',
-            'gemini-2.0-flash': 'Gem 2.0 Flash',
-            'gemini-2.0-flash-lite': 'Gem 2.0 Lite',
-            'gemma-4-26b-a4b-it': 'Gemma 26B',
         };
         return map[modelId] || modelId;
     }

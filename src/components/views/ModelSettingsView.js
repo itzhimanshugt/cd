@@ -116,9 +116,9 @@ export class ModelSettingsView extends LitElement {
     constructor() {
         super();
         this._models = [];
-        this._modelExtraction = 'gemini-2.5-flash';
-        this._modelSolution = 'gemini-2.5-flash';
-        this._modelDebugging = 'gemini-2.5-flash';
+        this._modelExtraction = 'gemini-3.8-flash';
+        this._modelSolution = 'gemini-3.8-flash';
+        this._modelDebugging = 'gemini-3.8-flash';
         this._debugMode = false;
         this._loadModels();
     }
@@ -134,9 +134,9 @@ export class ModelSettingsView extends LitElement {
             }
 
             const prefs = await cheatingDaddy.storage.getPreferences();
-            this._modelExtraction = prefs.modelExtraction || 'gemini-2.5-flash';
-            this._modelSolution = prefs.modelSolution || 'gemini-2.5-flash';
-            this._modelDebugging = prefs.modelDebugging || 'gemini-2.5-flash';
+            this._modelExtraction = prefs.modelExtraction || 'gemini-3.8-flash';
+            this._modelSolution = prefs.modelSolution || 'gemini-3.8-flash';
+            this._modelDebugging = prefs.modelDebugging || 'gemini-3.8-flash';
             this._debugMode = prefs.debugModeEnabled || false;
             this.requestUpdate();
         } catch (err) {

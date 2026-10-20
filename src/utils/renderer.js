@@ -106,13 +106,186 @@ const storage = {
     async getTodayLimits() {
         const result = await ipcRenderer.invoke('storage:get-today-limits');
         return result.success ? result.data : { flash: { count: 0 }, flashLite: { count: 0 } };
-    }
+    },
+};
+
+// ============ WINDOW CONTROLS API ============
+// Wraps all window:* IPC channels for use from components
+
+const windowControls = {
+    async getState() {
+        const r = await ipcRenderer.invoke('window:get-state');
+        return r;
+    },
+    async setState(patch) {
+        return ipcRenderer.invoke('window:set-state', patch);
+    },
+    async setScale(v) {
+        return ipcRenderer.invoke('window:set-scale', v);
+    },
+    async setZoom(v) {
+        return ipcRenderer.invoke('window:set-zoom', v);
+    },
+    async setVoice(enabled) {
+        return ipcRenderer.invoke('window:set-voice', enabled);
+    },
+    async updateKeybinds(kb) {
+        return ipcRenderer.invoke('window:update-keybinds', kb);
+    },
+    async resetKeybinds() {
+        return ipcRenderer.invoke('window:reset-keybinds');
+    },
+    async getDefaultKeybinds() {
+        // Derive defaults from current platform in renderer
+        const isMac = isMacOS;
+        return {
+            moveUp: isMac ? 'Alt+Up' : 'Ctrl+Up',
+            moveDown: isMac ? 'Alt+Down' : 'Ctrl+Down',
+            moveLeft: isMac ? 'Alt+Left' : 'Ctrl+Left',
+            moveRight: isMac ? 'Alt+Right' : 'Ctrl+Right',
+            toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
+            toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
+            scaleUp: isMac ? 'Cmd+Shift+=' : 'Ctrl+Shift+=',
+            scaleDown: isMac ? 'Cmd+Shift+-' : 'Ctrl+Shift+-',
+            zoomIn: isMac ? 'Cmd+=' : 'Ctrl+=',
+            zoomOut: isMac ? 'Cmd+-' : 'Ctrl+-',
+            zoomReset: isMac ? 'Cmd+0' : 'Ctrl+0',
+            fontOpacityUp: isMac ? 'Cmd+]' : 'Ctrl+]',
+            fontOpacityDown: isMac ? 'Cmd+[' : 'Ctrl+[',
+            bgOpacityUp: isMac ? 'Cmd+Shift+]' : 'Ctrl+Shift+]',
+            bgOpacityDown: isMac ? 'Cmd+Shift+[' : 'Ctrl+Shift+[',
+            nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
+            previousResponse: isMac ? 'Cmd+Shift+Left' : 'Ctrl+Shift+Left',
+            nextResponse: isMac ? 'Cmd+Shift+Right' : 'Ctrl+Shift+Right',
+            scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
+            scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
+            toggleVoice: isMac ? 'Cmd+Shift+L' : 'Ctrl+Shift+L',
+            reloadApp: isMac ? 'Cmd+Shift+R' : 'Ctrl+Shift+R',
+            devRefresh: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
+            themeToggle: isMac ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
+            fontSizeUp: isMac ? 'Cmd+Shift+0' : 'Ctrl+Shift+0',
+            fontSizeDown: isMac ? 'Cmd+Shift+9' : 'Ctrl+Shift+9',
+            aiModeToggle: isMac ? 'Cmd+Shift+U' : 'Ctrl+Shift+U',
+            emergencyQuit: isMac ? 'Cmd+Q' : 'Ctrl+Q',
+            debugToggle: 'Alt+D',
+            cycleSolutionModel: isMac ? 'Cmd+Y' : 'Ctrl+Y',
+            cycleExtractionModel: isMac ? "Cmd+'" : "Ctrl+'",
+            holdToType: isMac ? 'Cmd+Shift+F' : 'Ctrl+Shift+F',
+            abortTyping: isMac ? 'Cmd+Shift+X' : 'Ctrl+Shift+X',
+            fullResponseType: isMac ? 'Cmd+Shift+G' : 'Ctrl+Shift+G',
+        };
+    },
+    // Subscribe to state change events. Returns an unsubscribe function.
+    onScaleChanged(fn) {
+        const l = (_, v) => fn(v);
+        ipcRenderer.on('scale-changed', l);
+        return () => ipcRenderer.removeListener('scale-changed', l);
+    },
+    onZoomChanged(fn) {
+        const l = (_, v) => fn(v);
+        ipcRenderer.on('zoom-changed', l);
+        return () => ipcRenderer.removeListener('zoom-changed', l);
+    },
+    onVoiceToggled(fn) {
+        const l = (_, v) => fn(v);
+        ipcRenderer.on('voice-toggled', l);
+        return () => ipcRenderer.removeListener('voice-toggled', l);
+    },
+};
+
+// ============ TYPING CONTROLS API ============
+const typingControls = {
+    async loadResponse(text) {
+        return ipcRenderer.invoke('typing:load-response', text);
+    },
+    async start() {
+        return ipcRenderer.invoke('typing:start');
+    },
+    async pause() {
+        return ipcRenderer.invoke('typing:pause');
+    },
+    async resume() {
+        return ipcRenderer.invoke('typing:resume');
+    },
+    async abort() {
+        return ipcRenderer.invoke('typing:abort');
+    },
+    async setSpeed(wpm) {
+        return ipcRenderer.invoke('typing:set-speed', wpm);
+    },
+    async setBackend(name) {
+        return ipcRenderer.invoke('typing:set-backend', name);
+    },
+    async getStatus() {
+        return ipcRenderer.invoke('typing:get-status');
+    },
+    async skipSentence() {
+        return ipcRenderer.invoke('typing:skip-sentence');
+    },
+    async testBackend(name) {
+        return ipcRenderer.invoke('typing:test-backend', name);
+    },
+    async getSettings() {
+        return ipcRenderer.invoke('typing:get-settings');
+    },
+    async setSettings(patch) {
+        return ipcRenderer.invoke('typing:set-settings', patch);
+    },
+};
+
+// ============ API KEYS API ============
+// Wrapper for multi-key / state-aware management of provider API keys.
+// The main process returns sanitized entries (masked key only). The raw key
+// value never leaves the main process once it's been added.
+const apiKeys = {
+    async list(provider) {
+        const result = await ipcRenderer.invoke('api-keys:list', provider);
+        return result.success ? result.data : [];
+    },
+    async listAll() {
+        const result = await ipcRenderer.invoke('api-keys:list-all');
+        return result.success ? result.data : {};
+    },
+    async add(provider, key, label = '') {
+        return ipcRenderer.invoke('api-keys:add', provider, key, label);
+    },
+    async remove(provider, id) {
+        return ipcRenderer.invoke('api-keys:remove', provider, id);
+    },
+    async revalidate(provider, id) {
+        return ipcRenderer.invoke('api-keys:revalidate', provider, id);
+    },
+    async revalidateAll(provider) {
+        return ipcRenderer.invoke('api-keys:revalidate-all', provider);
+    },
+    // Subscribe to updates. Returns an unsubscribe function.
+    onUpdated(handler) {
+        const listener = (_event, payload) => handler(payload);
+        ipcRenderer.on('api-keys:updated', listener);
+        return () => ipcRenderer.removeListener('api-keys:updated', listener);
+    },
+    onFailover(handler) {
+        const listener = (_event, payload) => handler(payload);
+        ipcRenderer.on('api-keys:failover', listener);
+        return () => ipcRenderer.removeListener('api-keys:failover', listener);
+    },
+    onAllFailed(handler) {
+        const listener = (_event, payload) => handler(payload);
+        ipcRenderer.on('api-keys:all-failed', listener);
+        return () => ipcRenderer.removeListener('api-keys:all-failed', listener);
+    },
 };
 
 // Cache for preferences to avoid async calls in hot paths
 let preferencesCache = null;
 
 async function loadPreferencesCache() {
+    if (preferencesCache !== null) return preferencesCache;
+    preferencesCache = await storage.getPreferences();
+    return preferencesCache;
+}
+
+async function refreshPreferencesCache() {
     preferencesCache = await storage.getPreferences();
     return preferencesCache;
 }
@@ -195,7 +368,7 @@ ipcRenderer.on('update-status', (event, status) => {
     cheatingDaddy.setStatus(status);
 });
 
-async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'medium') {
+async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'medium', aiHearingEnabled = true) {
     // Store the image quality for manual screenshots
     currentImageQuality = imageQuality;
 
@@ -208,10 +381,12 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
             // On macOS, use SystemAudioDump for audio and getDisplayMedia for screen
             console.log('Starting macOS capture with SystemAudioDump...');
 
-            // Start macOS audio capture
-            const audioResult = await ipcRenderer.invoke('start-macos-audio');
-            if (!audioResult.success) {
-                throw new Error('Failed to start macOS audio capture: ' + audioResult.error);
+            // Start macOS audio capture only if AI hearing is enabled
+            if (aiHearingEnabled) {
+                const audioResult = await ipcRenderer.invoke('start-macos-audio');
+                if (!audioResult.success) {
+                    throw new Error('Failed to start macOS audio capture: ' + audioResult.error);
+                }
             }
 
             // Get screen capture for screenshots
@@ -226,7 +401,7 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
 
             console.log('macOS screen capture started - audio handled by SystemAudioDump');
 
-            if (audioMode === 'mic_only' || audioMode === 'both') {
+            if (aiHearingEnabled && (audioMode === 'mic_only' || audioMode === 'both')) {
                 let micStream = null;
                 try {
                     micStream = await navigator.mediaDevices.getUserMedia({
@@ -247,31 +422,43 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
             }
         } else if (isLinux) {
             // Linux - use display media for screen capture and try to get system audio
-            try {
-                // First try to get system audio via getDisplayMedia (works on newer browsers)
-                mediaStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        frameRate: 1,
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                    },
-                    audio: {
-                        sampleRate: SAMPLE_RATE,
-                        channelCount: 1,
-                        echoCancellation: false, // Don't cancel system audio
-                        noiseSuppression: false,
-                        autoGainControl: false,
-                    },
-                });
+            if (aiHearingEnabled) {
+                try {
+                    // First try to get system audio via getDisplayMedia (works on newer browsers)
+                    mediaStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: {
+                            frameRate: 1,
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 },
+                        },
+                        audio: {
+                            sampleRate: SAMPLE_RATE,
+                            channelCount: 1,
+                            echoCancellation: false, // Don't cancel system audio
+                            noiseSuppression: false,
+                            autoGainControl: false,
+                        },
+                    });
 
-                console.log('Linux system audio capture via getDisplayMedia succeeded');
+                    console.log('Linux system audio capture via getDisplayMedia succeeded');
 
-                // Setup audio processing for Linux system audio
-                setupLinuxSystemAudioProcessing();
-            } catch (systemAudioError) {
-                console.warn('System audio via getDisplayMedia failed, trying screen-only capture:', systemAudioError);
+                    // Setup audio processing for Linux system audio
+                    setupLinuxSystemAudioProcessing();
+                } catch (systemAudioError) {
+                    console.warn('System audio via getDisplayMedia failed, trying screen-only capture:', systemAudioError);
 
-                // Fallback to screen-only capture
+                    // Fallback to screen-only capture
+                    mediaStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: {
+                            frameRate: 1,
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 },
+                        },
+                        audio: false,
+                    });
+                }
+            } else {
+                // No audio needed, screen-only capture
                 mediaStream = await navigator.mediaDevices.getDisplayMedia({
                     video: {
                         frameRate: 1,
@@ -283,7 +470,7 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
             }
 
             // Additionally get microphone input for Linux based on audio mode
-            if (audioMode === 'mic_only' || audioMode === 'both') {
+            if (aiHearingEnabled && (audioMode === 'mic_only' || audioMode === 'both')) {
                 let micStream = null;
                 try {
                     micStream = await navigator.mediaDevices.getUserMedia({
@@ -310,27 +497,40 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
             console.log('Linux capture started - system audio:', mediaStream.getAudioTracks().length > 0, 'microphone mode:', audioMode);
         } else {
             // Windows - use display media with loopback for system audio
-            mediaStream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    frameRate: 1,
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                },
-                audio: {
-                    sampleRate: SAMPLE_RATE,
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                },
-            });
+            if (aiHearingEnabled) {
+                mediaStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        frameRate: 1,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                    },
+                    audio: {
+                        sampleRate: SAMPLE_RATE,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    },
+                });
 
-            console.log('Windows capture started with loopback audio');
+                console.log('Windows capture started with loopback audio');
 
-            // Setup audio processing for Windows loopback audio only
-            setupWindowsLoopbackProcessing();
+                // Setup audio processing for Windows loopback audio only
+                setupWindowsLoopbackProcessing();
+            } else {
+                mediaStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        frameRate: 1,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                    },
+                    audio: false,
+                });
 
-            if (audioMode === 'mic_only' || audioMode === 'both') {
+                console.log('Windows capture started without audio (AI hearing disabled)');
+            }
+
+            if (aiHearingEnabled && (audioMode === 'mic_only' || audioMode === 'both')) {
                 let micStream = null;
                 try {
                     micStream = await navigator.mediaDevices.getUserMedia({
@@ -479,7 +679,7 @@ async function captureScreenshot(imageQuality = 'medium', isManual = false) {
         offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = hiddenVideo.videoWidth;
         offscreenCanvas.height = hiddenVideo.videoHeight;
-        offscreenContext = offscreenCanvas.getContext('2d');
+        offscreenContext = offscreenCanvas.getContext('2d', { willReadFrequently: true });
     }
 
     // Check if video is ready
@@ -550,10 +750,51 @@ async function captureScreenshot(imageQuality = 'medium', isManual = false) {
     );
 }
 
-const MANUAL_SCREENSHOT_PROMPT = `Help me on this page, give me the answer no bs, complete answer.
-So if its a code question, give me the approach in few bullet points, then the entire code. Also if theres anything else i need to know, tell me.
-If its a question about the website, give me the answer no bs, complete answer.
-If its a mcq question, give me the answer no bs, complete answer.`;
+const MANUAL_SCREENSHOT_PROMPT = `Look at the screenshot and answer it. Detect what kind of question this is, then follow the matching rule below. Output only what that rule asks for.
+
+## Rule 1 - MCQ / multiple choice
+Trigger: the question shows selectable options (A/B/C/D, 1/2/3/4, radio buttons, checkboxes, or a list of candidate values).
+Output ONLY the correct option, exactly as it appears, in bold so it stands out:
+- "**1) Hello**"
+- "**D) Hi**"
+- "**Option B**"
+One line. Nothing before or after it.
+
+## Rule 2 - Short factual / fill-in-the-blank
+Trigger: the question expects a word, number, name, date, or short phrase.
+Output ONLY that value. One line.
+
+## Rule 2b - Subjective / descriptive
+Trigger: the question asks to explain, describe, define, differentiate, discuss, or justify in words.
+- Write the minimum that fully satisfies the question: answer every part it asks for, nothing more.
+- If a word limit or marks are shown, size the answer to match them.
+- Use short bullet points or a few sentences. No intro, no conclusion, no background, no examples unless asked.
+
+## Rule 3 - Coding problem (write code from scratch)
+Trigger: there is a problem statement, plus a boilerplate/starter template, and/or visible test cases.
+- Before writing anything, read the full question, every requirement/constraint (input/output format, limits, edge cases), the boilerplate, and any test cases. Only then write the code.
+- The code must satisfy every stated requirement and fit into the boilerplate as given (do not rename or change provided signatures, classes, or I/O handling).
+- Detect the language from the boilerplate (shebang, file extension in the tab, import/package syntax, class/interface signatures, language-specific keywords like \`def\`/\`func\`/\`fn\`/\`public static\`). If it is ambiguous, ask which language instead of guessing.
+- Write the complete solution in that same language, matching the boilerplate's structure and signature exactly.
+- Output the code inside one fenced code block. Include every line needed to run.
+- NO comments inside the code. No comment-only preamble above the block.
+- NO explanation of the algorithm, complexity, or approach.
+- Output only the code block.
+
+## Rule 4 - Debugging existing code
+Trigger: the screenshot contains code you already wrote together with an error message, a stack trace, a failing test, or a visible wrong output.
+- Identify the specific line or lines causing the failure.
+- Return the complete corrected code in one fenced code block, in the same language.
+- Immediately after the block, add a short "Line N:" note for each fix you made, stating the bug and the change in one sentence.
+- Keep those notes to one sentence each. No analogies, no tutorials.
+
+## Universal rules (apply to every rule above)
+- Never use analogies, metaphors, "think of it like", or "imagine". Answer directly.
+- Never explain why the other options are wrong unless I explicitly ask.
+- Never add a "Why:", "Reasoning:", or "Explanation:" section unless I explicitly ask for it.
+- Never restate the question back to me.
+- Never add preamble like "Sure!", "Here's the answer", or "Based on the screenshot".
+- Output the answer and stop. If you are unsure whether something is an MCQ, treat it as Rule 2 or Rule 3, not as something to discuss.`;
 
 async function captureManualScreenshot(imageQuality = null) {
     console.log('Manual screenshot triggered');
@@ -581,7 +822,7 @@ async function captureManualScreenshot(imageQuality = null) {
         offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = hiddenVideo.videoWidth;
         offscreenCanvas.height = hiddenVideo.videoHeight;
-        offscreenContext = offscreenCanvas.getContext('2d');
+        offscreenContext = offscreenCanvas.getContext('2d', { willReadFrequently: true });
     }
 
     // Check if video is ready
@@ -741,7 +982,7 @@ ipcRenderer.on('save-session-context', async (event, data) => {
     try {
         await storage.saveSession(data.sessionId, {
             profile: data.profile,
-            customPrompt: data.customPrompt
+            customPrompt: data.customPrompt,
         });
         console.log('Session context saved:', data.sessionId, 'profile:', data.profile);
     } catch (error) {
@@ -755,7 +996,7 @@ ipcRenderer.on('save-screen-analysis', async (event, data) => {
         await storage.saveSession(data.sessionId, {
             screenAnalysisHistory: data.fullHistory,
             profile: data.profile,
-            customPrompt: data.customPrompt
+            customPrompt: data.customPrompt,
         });
         console.log('Screen analysis saved:', data.sessionId);
     } catch (error) {
@@ -771,13 +1012,24 @@ ipcRenderer.on('clear-sensitive-data', async () => {
 
 // Handle shortcuts based on current view
 function handleShortcut(shortcutKey) {
-    const currentView = cheatingDaddy.getCurrentView();
-
     if (shortcutKey === 'ctrl+enter' || shortcutKey === 'cmd+enter') {
-        if (currentView === 'main') {
-            cheatingDaddy.element().handleStart();
-        } else {
+        const appEl = cheatingDaddy.element();
+        if (!appEl) return;
+
+        if (appEl.sessionActive) {
+            // Session running — trigger manual screenshot/analysis
             captureManualScreenshot();
+            _eventBus.dispatchEvent(new CustomEvent('analyze-triggered'));
+        } else {
+            // No session — start one via button click for full animation
+            const mainView = appEl.shadowRoot.querySelector('main-view');
+            if (mainView) {
+                const btn = mainView.shadowRoot.querySelector('.start-button');
+                if (btn) btn.click();
+                else appEl.handleStart();
+            } else {
+                appEl.handleStart();
+            }
         }
     }
 }
@@ -790,75 +1042,31 @@ const theme = {
     themes: {
         dark: {
             background: '#101010',
-            text: '#e0e0e0', textSecondary: '#a0a0a0', textMuted: '#6b6b6b',
-            border: '#2a2a2a', accent: '#ffffff',
-            btnPrimaryBg: '#ffffff', btnPrimaryText: '#000000', btnPrimaryHover: '#e0e0e0',
-            tooltipBg: '#1a1a1a', tooltipText: '#ffffff',
-            keyBg: 'rgba(255,255,255,0.1)'
+            text: '#e0e0e0',
+            textSecondary: '#a0a0a0',
+            textMuted: '#6b6b6b',
+            border: '#2a2a2a',
+            accent: '#ffffff',
+            btnPrimaryBg: '#ffffff',
+            btnPrimaryText: '#000000',
+            btnPrimaryHover: '#e0e0e0',
+            tooltipBg: '#1a1a1a',
+            tooltipText: '#ffffff',
+            keyBg: 'rgba(255,255,255,0.1)',
         },
         light: {
             background: '#ffffff',
-            text: '#1a1a1a', textSecondary: '#555555', textMuted: '#888888',
-            border: '#e0e0e0', accent: '#000000',
-            btnPrimaryBg: '#1a1a1a', btnPrimaryText: '#ffffff', btnPrimaryHover: '#333333',
-            tooltipBg: '#1a1a1a', tooltipText: '#ffffff',
-            keyBg: 'rgba(0,0,0,0.1)'
-        },
-        midnight: {
-            background: '#0d1117',
-            text: '#c9d1d9', textSecondary: '#8b949e', textMuted: '#6e7681',
-            border: '#30363d', accent: '#58a6ff',
-            btnPrimaryBg: '#58a6ff', btnPrimaryText: '#0d1117', btnPrimaryHover: '#79b8ff',
-            tooltipBg: '#161b22', tooltipText: '#c9d1d9',
-            keyBg: 'rgba(88,166,255,0.15)'
-        },
-        sepia: {
-            background: '#f4ecd8',
-            text: '#5c4b37', textSecondary: '#7a6a56', textMuted: '#998875',
-            border: '#d4c8b0', accent: '#8b4513',
-            btnPrimaryBg: '#5c4b37', btnPrimaryText: '#f4ecd8', btnPrimaryHover: '#7a6a56',
-            tooltipBg: '#5c4b37', tooltipText: '#f4ecd8',
-            keyBg: 'rgba(92,75,55,0.15)'
-        },
-        catppuccin: {
-            background: '#1e1e2e',
-            text: '#cdd6f4', textSecondary: '#a6adc8', textMuted: '#585b70',
-            border: '#313244', accent: '#cba6f7',
-            btnPrimaryBg: '#cba6f7', btnPrimaryText: '#1e1e2e', btnPrimaryHover: '#b4befe',
-            tooltipBg: '#313244', tooltipText: '#cdd6f4',
-            keyBg: 'rgba(203,166,247,0.12)'
-        },
-        gruvbox: {
-            background: '#1d2021',
-            text: '#ebdbb2', textSecondary: '#a89984', textMuted: '#665c54',
-            border: '#3c3836', accent: '#fe8019',
-            btnPrimaryBg: '#fe8019', btnPrimaryText: '#1d2021', btnPrimaryHover: '#fabd2f',
-            tooltipBg: '#3c3836', tooltipText: '#ebdbb2',
-            keyBg: 'rgba(254,128,25,0.12)'
-        },
-        rosepine: {
-            background: '#191724',
-            text: '#e0def4', textSecondary: '#908caa', textMuted: '#6e6a86',
-            border: '#26233a', accent: '#ebbcba',
-            btnPrimaryBg: '#ebbcba', btnPrimaryText: '#191724', btnPrimaryHover: '#f6c177',
-            tooltipBg: '#26233a', tooltipText: '#e0def4',
-            keyBg: 'rgba(235,188,186,0.12)'
-        },
-        solarized: {
-            background: '#002b36',
-            text: '#93a1a1', textSecondary: '#839496', textMuted: '#586e75',
-            border: '#073642', accent: '#2aa198',
-            btnPrimaryBg: '#2aa198', btnPrimaryText: '#002b36', btnPrimaryHover: '#268bd2',
-            tooltipBg: '#073642', tooltipText: '#93a1a1',
-            keyBg: 'rgba(42,161,152,0.12)'
-        },
-        tokyonight: {
-            background: '#1a1b26',
-            text: '#c0caf5', textSecondary: '#9aa5ce', textMuted: '#565f89',
-            border: '#292e42', accent: '#7aa2f7',
-            btnPrimaryBg: '#7aa2f7', btnPrimaryText: '#1a1b26', btnPrimaryHover: '#bb9af7',
-            tooltipBg: '#292e42', tooltipText: '#c0caf5',
-            keyBg: 'rgba(122,162,247,0.12)'
+            text: '#1a1a1a',
+            textSecondary: '#555555',
+            textMuted: '#888888',
+            border: '#e0e0e0',
+            accent: '#000000',
+            btnPrimaryBg: '#1a1a1a',
+            btnPrimaryText: '#ffffff',
+            btnPrimaryHover: '#333333',
+            tooltipBg: '#1a1a1a',
+            tooltipText: '#ffffff',
+            keyBg: 'rgba(0,0,0,0.1)',
         },
     },
 
@@ -872,35 +1080,30 @@ const theme = {
         const names = {
             dark: 'Dark',
             light: 'Light',
-            midnight: 'Midnight Blue',
-            sepia: 'Sepia',
-            catppuccin: 'Catppuccin Mocha',
-            gruvbox: 'Gruvbox Dark',
-            rosepine: 'Ros\u00e9 Pine',
-            solarized: 'Solarized Dark',
-            tokyonight: 'Tokyo Night'
         };
         return Object.keys(this.themes).map(key => ({
             value: key,
             name: names[key] || key,
-            colors: this.themes[key]
+            colors: this.themes[key],
         }));
     },
 
     hexToRgb(hex) {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-        } : { r: 30, g: 30, b: 30 };
+        return result
+            ? {
+                  r: parseInt(result[1], 16),
+                  g: parseInt(result[2], 16),
+                  b: parseInt(result[3], 16),
+              }
+            : { r: 30, g: 30, b: 30 };
     },
 
     lightenColor(rgb, amount) {
         return {
             r: Math.min(255, rgb.r + amount),
             g: Math.min(255, rgb.g + amount),
-            b: Math.min(255, rgb.b + amount)
+            b: Math.min(255, rgb.b + amount),
         };
     },
 
@@ -908,7 +1111,7 @@ const theme = {
         return {
             r: Math.max(0, rgb.r - amount),
             g: Math.max(0, rgb.g - amount),
-            b: Math.max(0, rgb.b - amount)
+            b: Math.max(0, rgb.b - amount),
         };
     },
 
@@ -994,6 +1197,19 @@ const theme = {
             const themeName = prefs.theme || 'dark';
             const alpha = prefs.backgroundTransparency ?? 0.8;
             this.apply(themeName, alpha);
+            // Restore persisted font opacity
+            const fontOpacity = prefs.fontOpacity ?? 1.0;
+            if (fontOpacity < 1.0) {
+                const root = document.documentElement;
+                const colors = this.get(themeName);
+                const textRgb = this.hexToRgb(colors.text);
+                const secRgb = this.hexToRgb(colors.textSecondary);
+                root.style.setProperty('--font-opacity', String(fontOpacity));
+                root.style.setProperty('--text-primary', `rgba(${textRgb.r}, ${textRgb.g}, ${textRgb.b}, ${fontOpacity})`);
+                root.style.setProperty('--text-secondary', `rgba(${secRgb.r}, ${secRgb.g}, ${secRgb.b}, ${fontOpacity})`);
+                const mutedRgb = this.hexToRgb(colors.textMuted);
+                root.style.setProperty('--text-muted', `rgba(${mutedRgb.r}, ${mutedRgb.g}, ${mutedRgb.b}, ${Math.max(0.3, fontOpacity * 0.6)})`);
+            }
             return themeName;
         } catch (err) {
             this.apply('dark');
@@ -1003,9 +1219,253 @@ const theme = {
 
     async save(themeName) {
         await storage.updatePreference('theme', themeName);
-        this.apply(themeName);
-    }
+        // Preserve current backgroundTransparency and fontOpacity across theme changes
+        const prefs = await storage.getPreferences();
+        const alpha = prefs.backgroundTransparency ?? 0.8;
+        this.apply(themeName, alpha);
+        // Re-apply font opacity if it was set
+        const fontOpacity = prefs.fontOpacity ?? 1.0;
+        if (fontOpacity < 1.0) {
+            const root = document.documentElement;
+            const colors = this.get(themeName);
+            const textRgb = this.hexToRgb(colors.text);
+            const secRgb = this.hexToRgb(colors.textSecondary);
+            root.style.setProperty('--font-opacity', String(fontOpacity));
+            root.style.setProperty('--text-primary', `rgba(${textRgb.r}, ${textRgb.g}, ${textRgb.b}, ${fontOpacity})`);
+            root.style.setProperty('--text-secondary', `rgba(${secRgb.r}, ${secRgb.g}, ${secRgb.b}, ${fontOpacity})`);
+            const mutedRgb = this.hexToRgb(colors.textMuted);
+            root.style.setProperty('--text-muted', `rgba(${mutedRgb.r}, ${mutedRgb.g}, ${mutedRgb.b}, ${Math.max(0.3, fontOpacity * 0.6)})`);
+        }
+    },
 };
+
+// ============ TOAST NOTIFICATION SYSTEM ============
+
+let _toastContainer = null;
+let _toastTimeout = null;
+let _hotkeyToastsEnabled = true;
+
+// Cache the preference on load
+(async () => {
+    try {
+        const prefs = await storage.getPreferences();
+        _hotkeyToastsEnabled = prefs.hotkeyToastsEnabled !== false;
+    } catch (_) {}
+})();
+
+function _ensureToastContainer() {
+    if (_toastContainer) return _toastContainer;
+    _toastContainer = document.createElement('div');
+    _toastContainer.id = 'hotkey-toast-container';
+    _toastContainer.style.cssText =
+        'position:fixed;bottom:16px;right:16px;z-index:99999;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:6px;';
+    document.body.appendChild(_toastContainer);
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes toastIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes toastOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-4px); } }
+        .hotkey-toast {
+            background:rgba(20,20,20,0.92);color:#e0e0e0;font-size:12px;font-family:system-ui,-apple-system,sans-serif;
+            padding:6px 12px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.4);
+            animation:toastIn 0.2s ease forwards;white-space:nowrap;
+        }
+        .hotkey-toast.fade-out { animation:toastOut 0.3s ease forwards; }
+    `;
+    document.head.appendChild(style);
+    return _toastContainer;
+}
+
+function showToast(message) {
+    if (!_hotkeyToastsEnabled) return;
+    const container = _ensureToastContainer();
+    if (_toastTimeout) clearTimeout(_toastTimeout);
+    container.innerHTML = '';
+    const el = document.createElement('div');
+    el.className = 'hotkey-toast';
+    el.textContent = message;
+    container.appendChild(el);
+    _toastTimeout = setTimeout(() => {
+        el.classList.add('fade-out');
+        setTimeout(() => {
+            if (el.parentNode) el.parentNode.removeChild(el);
+        }, 300);
+    }, 1500);
+}
+
+function setHotkeyToastsEnabled(enabled) {
+    _hotkeyToastsEnabled = enabled;
+}
+
+// ============ HOTKEY IPC LISTENERS ============
+
+ipcRenderer.on('theme-toggled', () => {
+    const next = theme.current === 'dark' ? 'light' : 'dark';
+    theme.save(next);
+    showToast(`Theme: ${next}`);
+});
+
+ipcRenderer.on('font-size-changed', (_, newSize) => {
+    document.documentElement.style.setProperty('--response-font-size', `${newSize}px`);
+    _eventBus.dispatchEvent(new CustomEvent('font-size-changed', { detail: { size: newSize } }));
+    showToast(`Font Size: ${newSize}px`);
+});
+
+// Font opacity: changes text color alpha only (Ctrl+[ / Ctrl+])
+ipcRenderer.on('font-opacity-change', (_, delta) => {
+    const root = document.documentElement;
+    const current = parseFloat(root.style.getPropertyValue('--font-opacity') || '1');
+    const next = Math.max(0.1, Math.min(1.0, parseFloat((current + delta).toFixed(2))));
+    root.style.setProperty('--font-opacity', String(next));
+    const colors = theme.get(theme.current);
+    const textRgb = theme.hexToRgb(colors.text);
+    const secRgb = theme.hexToRgb(colors.textSecondary);
+    root.style.setProperty('--text-primary', `rgba(${textRgb.r}, ${textRgb.g}, ${textRgb.b}, ${next})`);
+    root.style.setProperty('--text-secondary', `rgba(${secRgb.r}, ${secRgb.g}, ${secRgb.b}, ${next})`);
+    const mutedRgb = theme.hexToRgb(colors.textMuted);
+    root.style.setProperty('--text-muted', `rgba(${mutedRgb.r}, ${mutedRgb.g}, ${mutedRgb.b}, ${Math.max(0.3, next * 0.6)})`);
+    storage.updatePreference('fontOpacity', next);
+    _eventBus.dispatchEvent(new CustomEvent('font-opacity-changed', { detail: { value: next } }));
+    showToast(`Font Opacity: ${Math.round(next * 100)}%`);
+});
+
+// Background opacity: hooks into existing backgroundTransparency preference (Ctrl+Shift+[ / Ctrl+Shift+])
+// This is the SAME value the Settings slider controls -- single source of truth.
+ipcRenderer.on('bg-opacity-change', async (_, delta) => {
+    const prefs = await storage.getPreferences();
+    const current = prefs.backgroundTransparency ?? 0.8;
+    const next = Math.max(0.0, Math.min(1.0, parseFloat((current + delta).toFixed(2))));
+    await storage.updatePreference('backgroundTransparency', next);
+    const colors = theme.get(theme.current);
+    theme.applyBackgrounds(colors.background, next);
+    const app = document.querySelector('cheating-daddy-app');
+    if (app) {
+        app.dispatchEvent(new CustomEvent('bg-opacity-updated', { detail: { value: next } }));
+    }
+    _eventBus.dispatchEvent(new CustomEvent('bg-opacity-changed', { detail: { value: next } }));
+    showToast(`Background: ${Math.round(next * 100)}%`);
+});
+
+ipcRenderer.on('ai-mode-toggled', (_, newMode) => {
+    const app = document.querySelector('cheating-daddy-app');
+    if (app) {
+        app.dispatchEvent(new CustomEvent('ai-mode-changed', { detail: { mode: newMode } }));
+    }
+    _eventBus.dispatchEvent(new CustomEvent('ai-mode-toggled', { detail: { mode: newMode } }));
+    showToast(`AI Mode: ${newMode}`);
+});
+
+ipcRenderer.on('debug-mode-toggled', (_, enabled) => {
+    const app = document.querySelector('cheating-daddy-app');
+    if (app) {
+        app.dispatchEvent(new CustomEvent('debug-mode-changed', { detail: { enabled } }));
+    }
+    _eventBus.dispatchEvent(new CustomEvent('debug-mode-toggled', { detail: { enabled } }));
+});
+
+ipcRenderer.on('model-changed', (_, data) => {
+    const app = document.querySelector('cheating-daddy-app');
+    if (app) {
+        app.dispatchEvent(new CustomEvent('model-changed', { detail: data }));
+    }
+    _eventBus.dispatchEvent(new CustomEvent('model-changed', { detail: data }));
+    const shortName = data.model ? data.model.split('/').pop().split('-').slice(0, 3).join('-') : data.model;
+    showToast(`Model: ${shortName}`);
+});
+
+ipcRenderer.on('scale-changed', (_, val) => {
+    showToast(`Scale: ${val}`);
+});
+
+ipcRenderer.on('zoom-changed', (_, val) => {
+    showToast(`Zoom: ${Math.round(val * 100)}%`);
+});
+
+ipcRenderer.on('voice-toggled', (_, enabled) => {
+    _eventBus.dispatchEvent(new CustomEvent('voice-toggled', { detail: { enabled } }));
+    showToast(`Voice: ${enabled ? 'On' : 'Off'}`);
+});
+
+// ============ API KEY FAILOVER NOTIFICATIONS ============
+
+ipcRenderer.on('api-keys:failover', (_, payload) => {
+    const { from, to, reason, crossProvider } = payload;
+    let message;
+    if (crossProvider) {
+        message = `All ${from.provider} keys failed, switched to ${to.provider} "${to.label}"`;
+    } else {
+        message = `Switched from "${from.label}" to "${to.label}" (${reason})`;
+    }
+    showToast(message);
+    _eventBus.dispatchEvent(new CustomEvent('api-key-failover', { detail: payload }));
+});
+
+ipcRenderer.on('api-keys:all-failed', (_, payload) => {
+    const { providers, reason } = payload;
+    showToast(`All ${providers.join(' and ')} API keys failed`);
+    _eventBus.dispatchEvent(new CustomEvent('api-keys-all-failed', { detail: payload }));
+});
+
+// ============ TYPING EVENT LISTENERS ============
+
+ipcRenderer.on('typing-status-changed', (_, status) => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-status-changed', { detail: status }));
+    showToast(`Typing: ${status.state}`);
+});
+ipcRenderer.on('typing-progress-changed', (_, progress) => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-progress-changed', { detail: progress }));
+});
+ipcRenderer.on('typing-started', () => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-started'));
+    showToast('Typing started');
+});
+ipcRenderer.on('typing-paused', () => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-paused'));
+    showToast('Typing paused');
+});
+ipcRenderer.on('typing-completed', () => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-completed'));
+    showToast('Typing complete');
+});
+ipcRenderer.on('typing-aborted', () => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-aborted'));
+    showToast('Typing aborted');
+});
+ipcRenderer.on('typing-response-ready', (_, data) => {
+    _eventBus.dispatchEvent(new CustomEvent('typing-response-ready', { detail: data }));
+    // Auto-load the response into TypingManager so it is ready for typing
+    // Load the response first
+    ipcRenderer.invoke('typing:auto-load', data.text).catch(() => {});
+
+    // If user has enabled auto-typing in settings, start typing after configured delay
+    (async () => {
+        try {
+            const res = await ipcRenderer.invoke('typing:get-settings');
+            const settings = res && res.data ? res.data : res;
+            if (settings && settings.enabled) {
+                const delay = typeof settings.startupDelay === 'number' ? settings.startupDelay : 200;
+                setTimeout(
+                    () => {
+                        ipcRenderer.invoke('typing:start').catch(() => {});
+                    },
+                    Math.max(0, delay)
+                );
+            }
+        } catch (err) {
+            // Non-fatal - ignore
+        }
+    })();
+});
+
+// ============ DEBUG EVENT LISTENERS ============
+
+ipcRenderer.on('debug-screenshot-captured', (_, filePath) => {
+    showToast(`Screenshot saved: ${filePath.split(/[\\/]/).pop()}`);
+    _eventBus.dispatchEvent(new CustomEvent('debug-screenshot-captured', { detail: { path: filePath } }));
+});
+
+// ============ GLOBAL EVENT BUS ============
+// Allows components to subscribe to state changes triggered by hotkeys
+const _eventBus = new EventTarget();
 
 // Consolidated cheatingDaddy object - all functions in one place
 const cheatingDaddy = {
@@ -1037,11 +1497,67 @@ const cheatingDaddy = {
     // Storage API
     storage,
 
+    // API Keys API (multi-key management)
+    apiKeys,
+
+    // Window Controls API
+    window: windowControls,
+
+    // Typing Controls API
+    typing: typingControls,
+
+    // Debug/Developer API
+    debug: {
+        async captureScreenshot() {
+            return ipcRenderer.invoke('debug:capture-screenshot');
+        },
+        async copyScreenshot() {
+            return ipcRenderer.invoke('debug:copy-screenshot');
+        },
+        async captureAndCopy() {
+            return ipcRenderer.invoke('debug:capture-and-copy');
+        },
+        async openScreenshots() {
+            return ipcRenderer.invoke('debug:open-screenshots');
+        },
+        async getLogs(filters) {
+            const result = await ipcRenderer.invoke('debug:get-logs', filters);
+            return result.success ? result.data : [];
+        },
+        async clearLogs() {
+            return ipcRenderer.invoke('debug:clear-logs');
+        },
+        async exportLogs() {
+            return ipcRenderer.invoke('debug:export-logs');
+        },
+        async setLogLevel(level) {
+            return ipcRenderer.invoke('debug:set-log-level', level);
+        },
+        async getRuntimeState() {
+            const result = await ipcRenderer.invoke('debug:get-runtime-state');
+            return result.success ? result.data : {};
+        },
+        async getPerformance() {
+            const result = await ipcRenderer.invoke('debug:get-performance');
+            return result.success ? result.data : {};
+        },
+        async exportSnapshot() {
+            return ipcRenderer.invoke('debug:export-snapshot');
+        },
+    },
+
     // Theme API
     theme,
 
     // Refresh preferences cache (call after updating preferences)
-    refreshPreferencesCache: loadPreferencesCache,
+    refreshPreferencesCache: refreshPreferencesCache,
+
+    // Toast system
+    showToast,
+    setHotkeyToastsEnabled,
+
+    // Event bus for cross-component state sync
+    events: _eventBus,
 
     // Platform detection
     isLinux: isLinux,
@@ -1051,9 +1567,33 @@ const cheatingDaddy = {
 // Make it globally available
 window.cheatingDaddy = cheatingDaddy;
 
+// Apply persisted font size CSS variable on load
+async function applyPersistedFontSize() {
+    try {
+        const prefs = await storage.getPreferences();
+        const fontSize = typeof prefs.fontSize === 'number' ? prefs.fontSize : 20;
+        document.documentElement.style.setProperty('--response-font-size', `${fontSize}px`);
+    } catch (_) {}
+}
+
+// Apply persisted font weight CSS variable on load
+async function applyPersistedFontWeight() {
+    try {
+        const prefs = await storage.getPreferences();
+        const fontWeight = typeof prefs.fontWeight === 'number' ? prefs.fontWeight : 400;
+        document.documentElement.style.setProperty('--response-font-weight', String(fontWeight));
+    } catch (_) {}
+}
+
 // Load theme after DOM is ready
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => theme.load());
+    document.addEventListener('DOMContentLoaded', () => {
+        theme.load();
+        applyPersistedFontSize();
+        applyPersistedFontWeight();
+    });
 } else {
     theme.load();
+    applyPersistedFontSize();
+    applyPersistedFontWeight();
 }

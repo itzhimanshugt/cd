@@ -1,0 +1,26 @@
+{
+    "project_type": "Electron app with Lit web components, no build step, plain JS loaded via script tags",
+    "language": "JavaScript",
+    "build_system": "electron-forge (no transpilation, nodeIntegration: true, contextIsolation: false)",
+    "test_framework": "None - no automated tests exist",
+    "build_command": "npm install (no build step needed, plain JS)",
+    "test_command": "No test command available - manual validation only",
+    "verification_instructions": "Run npx prettier --check . to verify code style. Ensure no syntax errors by checking imports/exports manually.",
+    "snapshot_or_generated_files": null,
+    "setup_instructions": "npm install in /projects/sandbox/cd",
+    "environment_constraints": "No display/GUI available - cannot run electron app. Validation is AST/syntax-level. No Docker daemon.",
+    "contribution_requirements": "Run prettier before committing. No linting. No automated tests yet.",
+    "key_patterns": "Lit components import from ../../assets/lit-core-2.7.4.min.js. Views use unifiedPageStyles from sharedPageStyles.js. Sidebar items defined in renderSidebar() of CheatingDaddyApp.js. IPC is direct ipcRenderer/ipcMain (no context isolation). Renderer API exposed on window.cheatingDaddy object. Storage is file-based JSON (storage.js). Typing system in src/typing/ with BackendManager, TypingManager. Views are custom elements with static styles and properties.",
+    "relevant_files": [
+        "src/components/app/CheatingDaddyApp.js",
+        "src/components/views/TypingSettingsView.js",
+        "src/components/views/sharedPageStyles.js",
+        "src/utils/renderer.js",
+        "src/utils/window.js",
+        "src/index.js",
+        "src/storage.js",
+        "src/typing/BackendManager.js",
+        "src/typing/TypingManager.js"
+    ],
+    "directory_structure": "src/components/app/ (main app shell), src/components/views/ (page views), src/utils/ (renderer.js, window.js, gemini.js), src/typing/ (typing system with backends/), src/assets/ (bundled libs), src/storage.js (file-based config)"
+}

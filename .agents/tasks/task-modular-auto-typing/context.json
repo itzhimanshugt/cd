@@ -1,0 +1,25 @@
+{
+  "project_type": "Electron desktop app (Node.js main process + Lit web components renderer, stealth overlay)",
+  "language": "JavaScript (plain, no TypeScript compilation)",
+  "build_system": "Electron Forge - no build step for source code, JS loaded directly via script tags. `npm start` runs `electron-forge start`.",
+  "test_framework": "No test framework configured. AGENTS.md says 'No automated tests yet'. npm run lint just echoes 'No linting configured'.",
+  "build_command": "No build command needed - plain JS. Validation: `node -e \"require('./src/index.js')\"` will partially verify syntax (Electron-specific requires will fail but syntax is checked).",
+  "test_command": "No test command exists. Validation is AST/syntax-based only.",
+  "verification_instructions": "1. Run `node --check` on all new/modified JS files to verify syntax. 2. Run `node -e` require tests where possible (non-Electron modules). 3. Run prettier to verify formatting. Since this is an Electron app and we cannot run Electron in this sandbox, we rely on syntax validation and static analysis.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "1. Install mise node (done - v24.16.0 at /root/.local/share/mise/installs/node/24.16.0/bin). 2. npm install (requires network). 3. npm start (requires Electron/display).",
+  "environment_constraints": "No Electron runtime in sandbox (no display server). Cannot run the app. Validation limited to: node --check for syntax, node -e require() for non-Electron modules, prettier formatting. npm install may or may not work depending on network mode.",
+  "contribution_requirements": "Run npx prettier --write . before committing (4-space indent, 150 print width, semicolons, single quotes). No linting. AGENTS.md mentions aspirational TypeScript migration but current code is plain JS.",
+  "key_patterns": "Main process: CommonJS require/module.exports. Renderer: ES module imports from vendored Lit library. IPC: ipcMain.handle/ipcMain.on in main, ipcRenderer.invoke/ipcRenderer.on in renderer. Global state: window.cheatingDaddy object exposes all renderer APIs. Settings: storage.js reads/writes JSON files. Hotkeys: globalShortcut.register in window.js. Toast notifications: showToast() in renderer.js. Event bus: window.cheatingDaddy.events (EventTarget).",
+  "relevant_files": [
+    "src/utils/window.js",
+    "src/utils/renderer.js",
+    "src/utils/gemini.js",
+    "src/storage.js",
+    "src/index.js",
+    "src/components/views/HotkeysView.js",
+    "src/components/views/CustomizeView.js",
+    "src/components/app/CheatingDaddyApp.js"
+  ],
+  "directory_structure": "src/index.js - main process entry. src/utils/window.js - window creation, globalShortcut hotkeys. src/utils/gemini.js - AI session management, response streaming. src/utils/renderer.js - renderer utilities, storage wrapper, toast system, IPC listeners, global cheatingDaddy object. src/storage.js - JSON file persistence for all settings. src/components/ - Lit web components (views and app shell). src/assets/ - vendored libs (Lit, marked, highlight.js)."
+}

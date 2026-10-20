@@ -1,0 +1,21 @@
+{
+  "project_type": "Electron desktop app with Lit web components frontend",
+  "language": "JavaScript",
+  "build_system": "Electron Forge - no compilation step needed, plain JS loaded via script tags",
+  "test_framework": "None - no automated tests exist yet",
+  "build_command": "npm install (no build step beyond dependency install)",
+  "test_command": "No test suite available - validate by running npx prettier --check src/",
+  "verification_instructions": "1. Run npm install to ensure deps resolve. 2. Run npx prettier --check src/ to validate formatting. 3. Manually verify no syntax errors with node -e \"require('./src/utils/window.js')\" and node -e \"require('./src/storage.js')\"",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install",
+  "environment_constraints": "Electron app - cannot run npm start without display. Use AST validation (require checks) for main process files. Renderer files use ES module imports and cannot be required directly.",
+  "contribution_requirements": "Run npx prettier --write . before committing. Prettier uses 4-space indent, 150 print width, semicolons, single quotes.",
+  "key_patterns": "Main process: CommonJS require/module.exports. Renderer: ES modules with Lit web components. IPC communication between main/renderer via ipcMain.handle/ipcRenderer.invoke. Window state persisted via storage.js JSON files. Theme system uses CSS custom properties on document.documentElement.",
+  "relevant_files": [
+    "src/utils/window.js",
+    "src/utils/renderer.js",
+    "src/components/views/HotkeysView.js",
+    "src/storage.js"
+  ],
+  "directory_structure": "src/index.js (main process entry), src/utils/window.js (window creation + hotkeys), src/utils/renderer.js (renderer process globals + theme + toasts), src/components/views/ (Lit web component views), src/storage.js (JSON file-based persistence)"
+}

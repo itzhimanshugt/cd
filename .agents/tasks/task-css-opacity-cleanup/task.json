@@ -1,0 +1,14 @@
+{
+  "task_id": "task-css-opacity-cleanup",
+  "task_description": "Remove native window opacity dead code and consolidate to CSS-only transparency architecture. Remove applyOpacity/setOpacity from window.js, fix HotkeysView to use new split font/bg opacity actions, and fix renderer.js getDefaultKeybinds to match window.js.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "skipped",
+    "docker_build": "skipped",
+    "summary": "All prettier formatting checks pass. All grep verifications confirm old native opacity code is removed and new split keybinds are in place. No test suite exists for this project. 65 lines removed, 11 lines added across 3 files. Semantic review v1 approved with informational notes only."
+  }
+}

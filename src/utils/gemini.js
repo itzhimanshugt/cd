@@ -4,6 +4,8 @@ const { spawn } = require('child_process');
 const { saveDebugAudio } = require('../audioUtils');
 const { getSystemPrompt } = require('./prompts');
 const { getAvailableModel, incrementLimitCount, getApiKey, getGroqApiKey, incrementCharUsage, getModelForToday } = require('../storage');
+const storage = require('../storage');
+const apiKeys = require('./apiKeys');
 const { connectCloud, sendCloudAudio, sendCloudText, sendCloudImage, closeCloud, isCloudActive, setOnTurnComplete } = require('./cloud');
 
 // Lazy-loaded to avoid circular dependency (localai.js imports from gemini.js)
@@ -27,6 +29,7 @@ let screenAnalysisHistory = [];
 let currentProfile = null;
 let currentCustomPrompt = null;
 let isInitializingSession = false;
+let _sessionAborted = false;
 let currentSystemPrompt = null;
 
 function formatSpeakerResults(results) {
@@ -45,7 +48,6 @@ module.exports.formatSpeakerResults = formatSpeakerResults;
 // Audio capture variables
 let systemAudioProc = null;
 let messageBuffer = '';
-
 
 // Reconnection variables
 let isUserClosing = false;
@@ -68,9 +70,7 @@ function buildContextMessage() {
 
     if (validTurns.length === 0) return null;
 
-    const contextLines = validTurns.map(turn =>
-        `[Interviewer]: ${turn.transcription.trim()}\n[Your answer]: ${turn.ai_response.trim()}`
-    );
+    const contextLines = validTurns.map(turn => `[Interviewer]: ${turn.transcription.trim()}\n[Your answer]: ${turn.ai_response.trim()}`);
 
     return `Session reconnected. Here's the conversation so far:\n\n${contextLines.join('\n\n')}\n\nContinue from here.`;
 }
@@ -91,9 +91,17 @@ function initializeNewSession(profile = null, customPrompt = null) {
         sendToRenderer('save-session-context', {
             sessionId: currentSessionId,
             profile: profile,
-            customPrompt: customPrompt || ''
+            customPrompt: customPrompt || '',
         });
     }
+
+    // Persist initial session immediately
+    storage.saveSession(currentSessionId, {
+        profile: profile,
+        customPrompt: customPrompt || '',
+        conversationHistory: [],
+        screenAnalysisHistory: [],
+    });
 }
 
 function saveConversationTurn(transcription, aiResponse) {
@@ -116,6 +124,9 @@ function saveConversationTurn(transcription, aiResponse) {
         turn: conversationTurn,
         fullHistory: conversationHistory,
     });
+
+    // Also persist directly to ensure data is saved regardless of renderer state
+    storage.saveSession(currentSessionId, { conversationHistory: conversationHistory });
 }
 
 function saveScreenAnalysis(prompt, response, model) {
@@ -127,7 +138,7 @@ function saveScreenAnalysis(prompt, response, model) {
         timestamp: Date.now(),
         prompt: prompt,
         response: response.trim(),
-        model: model
+        model: model,
     };
 
     screenAnalysisHistory.push(analysisEntry);
@@ -139,7 +150,14 @@ function saveScreenAnalysis(prompt, response, model) {
         analysis: analysisEntry,
         fullHistory: screenAnalysisHistory,
         profile: currentProfile,
-        customPrompt: currentCustomPrompt
+        customPrompt: currentCustomPrompt,
+    });
+
+    // Also persist directly to ensure data is saved regardless of renderer state
+    storage.saveSession(currentSessionId, {
+        screenAnalysisHistory: screenAnalysisHistory,
+        profile: currentProfile,
+        customPrompt: currentCustomPrompt,
     });
 }
 
@@ -184,20 +202,23 @@ async function getStoredSetting(key, defaultValue) {
 
 // helper to check if groq has been configured
 function hasGroqKey() {
+    // Any Groq key at all in the pool — even exhausted ones count as "configured".
+    const pool = storage.listProviderKeys('groq') || [];
+    if (pool.length > 0) return true;
     const key = getGroqApiKey();
-    return key && key.trim() != ''
+    return key && key.trim() != '';
 }
 
-function trimConversationHistoryForGemma(history, maxChars=42000) {
-    if(!history || history.length === 0) return [];
+function trimConversationHistoryForGemma(history, maxChars = 42000) {
+    if (!history || history.length === 0) return [];
     let totalChars = 0;
     const trimmed = [];
 
-    for(let i = history.length - 1; i >= 0; i--) {
+    for (let i = history.length - 1; i >= 0; i--) {
         const turn = history[i];
         const turnChars = (turn.content || '').length;
 
-        if(totalChars + turnChars > maxChars) break;
+        if (totalChars + turnChars > maxChars) break;
         totalChars += turnChars;
         trimmed.unshift(turn);
     }
@@ -209,14 +230,15 @@ function stripThinkingTags(text) {
 }
 
 async function sendToGroq(transcription) {
-    const groqApiKey = getGroqApiKey();
-    if (!groqApiKey) {
-        console.log('No Groq API key configured, skipping Groq response');
+    if (!transcription || transcription.trim() === '') {
+        console.log('Empty transcription, skipping Groq');
         return;
     }
 
-    if (!transcription || transcription.trim() === '') {
-        console.log('Empty transcription, skipping Groq');
+    const readyKeys = storage.listReadyProviderKeys('groq');
+    const legacyKey = getGroqApiKey();
+    if (readyKeys.length === 0 && !legacyKey) {
+        console.log('No Groq API key configured, skipping Groq response');
         return;
     }
 
@@ -231,7 +253,7 @@ async function sendToGroq(transcription) {
 
     groqConversationHistory.push({
         role: 'user',
-        content: transcription.trim()
+        content: transcription.trim(),
     });
 
     if (groqConversationHistory.length > 20) {
@@ -239,103 +261,118 @@ async function sendToGroq(transcription) {
     }
 
     try {
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${groqApiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: modelToUse,
-                messages: [
-                    { role: 'system', content: currentSystemPrompt || 'You are a helpful assistant.' },
-                    ...groqConversationHistory
-                ],
-                stream: true,
-                temperature: 0.7,
-                max_tokens: 1024
-            })
-        });
+        await apiKeys.withKeyRotation('groq', async (groqApiKey, entry) => {
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${groqApiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: modelToUse,
+                    messages: [{ role: 'system', content: currentSystemPrompt || 'You are a helpful assistant.' }, ...groqConversationHistory],
+                    stream: true,
+                    temperature: 0.7,
+                    max_tokens: 1024,
+                }),
+            });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Groq API error:', response.status, errorText);
-            sendToRenderer('update-status', `Groq error: ${response.status}`);
-            return;
-        }
+            if (!response.ok) {
+                const errorText = await response.text().catch(() => '');
+                // Mark the key invalid/exhausted based on the status, then throw to let
+                // withKeyRotation classify + move on to the next key.
+                apiKeys.handleKeyFailure('groq', entry.id, response.status, errorText);
+                const err = new Error(`Groq API error ${response.status}: ${errorText.slice(0, 200)}`);
+                err.status = response.status;
+                throw err;
+            }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-        let isFirst = true;
+            // On success: mark key ready (recovered from prior exhausted/unknown).
+            apiKeys.markKeyReady('groq', entry.id);
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = '';
+            let isFirst = true;
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(line => line.trim() !== '');
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-                    if (data === '[DONE]') continue;
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n').filter(line => line.trim() !== '');
 
-                    try {
-                        const json = JSON.parse(data);
-                        const token = json.choices?.[0]?.delta?.content || '';
-                        if (token) {
-                            fullText += token;
-                            const displayText = stripThinkingTags(fullText);
-                            if (displayText) {
-                                sendToRenderer(isFirst ? 'new-response' : 'update-response', displayText);
-                                isFirst = false;
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const json = JSON.parse(data);
+                            const token = json.choices?.[0]?.delta?.content || '';
+                            if (token) {
+                                fullText += token;
+                                const displayText = stripThinkingTags(fullText);
+                                if (displayText) {
+                                    sendToRenderer(isFirst ? 'new-response' : 'update-response', displayText);
+                                    isFirst = false;
+                                }
                             }
+                        } catch (parseError) {
+                            // Skip invalid JSON chunks
                         }
-                    } catch (parseError) {
-                        // Skip invalid JSON chunks
                     }
                 }
             }
-        }
 
-        const cleanedResponse = stripThinkingTags(fullText);
-        const modelKey = modelToUse.split('/').pop();
+            const cleanedResponse = stripThinkingTags(fullText);
+            const modelKey = modelToUse.split('/').pop();
 
-        const systemPromptChars = (currentSystemPrompt || 'You are a helpful assistant.').length;
-        const historyChars = groqConversationHistory.reduce((sum, msg) => sum + (msg.content || '').length, 0);
-        const inputChars = systemPromptChars + historyChars;
-        const outputChars = cleanedResponse.length;
+            const systemPromptChars = (currentSystemPrompt || 'You are a helpful assistant.').length;
+            const historyChars = groqConversationHistory.reduce((sum, msg) => sum + (msg.content || '').length, 0);
+            const inputChars = systemPromptChars + historyChars;
+            const outputChars = cleanedResponse.length;
 
-        incrementCharUsage('groq', modelKey, inputChars + outputChars);
+            incrementCharUsage('groq', modelKey, inputChars + outputChars);
 
-        if (cleanedResponse) {
-            groqConversationHistory.push({
-                role: 'assistant',
-                content: cleanedResponse
-            });
+            if (cleanedResponse) {
+                groqConversationHistory.push({
+                    role: 'assistant',
+                    content: cleanedResponse,
+                });
 
-            saveConversationTurn(transcription, cleanedResponse);
-        }
+                saveConversationTurn(transcription, cleanedResponse);
+            }
 
-        console.log(`Groq response completed (${modelToUse})`);
-        sendToRenderer('update-status', 'Listening...');
+            console.log(`Groq response completed (${modelToUse})`);
+            sendToRenderer('update-status', 'Listening...');
 
+            // Notify renderer that a new response is available for typing
+            if (cleanedResponse) {
+                sendToRenderer('typing-response-ready', { text: cleanedResponse, sessionId: currentSessionId });
+            }
+        });
     } catch (error) {
-        console.error('Error calling Groq API:', error);
-        sendToRenderer('update-status', 'Groq error: ' + error.message);
+        if (error.code === 'NO_READY_KEY' || error.code === 'ALL_KEYS_UNAVAILABLE') {
+            console.error('Groq: no usable keys left in pool');
+            sendToRenderer('update-status', 'All Groq API keys exhausted or invalid');
+        } else {
+            console.error('Error calling Groq API:', error);
+            sendToRenderer('update-status', 'Groq error: ' + error.message);
+        }
     }
 }
 
 async function sendToGemma(transcription) {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-        console.log('No Gemini API key configured');
+    if (!transcription || transcription.trim() === '') {
+        console.log('Empty transcription, skipping Gemma');
         return;
     }
 
-    if (!transcription || transcription.trim() === '') {
-        console.log('Empty transcription, skipping Gemma');
+    const readyKeys = storage.listReadyProviderKeys('gemini');
+    const legacyKey = getApiKey();
+    if (readyKeys.length === 0 && !legacyKey) {
+        console.log('No Gemini API key configured');
         return;
     }
 
@@ -343,73 +380,93 @@ async function sendToGemma(transcription) {
 
     groqConversationHistory.push({
         role: 'user',
-        content: transcription.trim()
+        content: transcription.trim(),
     });
 
     const trimmedHistory = trimConversationHistoryForGemma(groqConversationHistory, 42000);
 
+    const prefs = storage.getPreferences();
+
     try {
-        const ai = new GoogleGenAI({ apiKey: apiKey });
+        await apiKeys.withKeyRotation('gemini', async (apiKey, entry) => {
+            const ai = new GoogleGenAI({ apiKey: apiKey });
 
-        const messages = trimmedHistory.map(msg => ({
-            role: msg.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: msg.content }]
-        }));
+            const messages = trimmedHistory.map(msg => ({
+                role: msg.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: msg.content }],
+            }));
 
-        const systemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
-        const messagesWithSystem = [
-            { role: 'user', parts: [{ text: systemPrompt }] },
-            { role: 'model', parts: [{ text: 'Understood. I will follow these instructions.' }] },
-            ...messages
-        ];
+            const systemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
+            const messagesWithSystem = [
+                { role: 'user', parts: [{ text: systemPrompt }] },
+                { role: 'model', parts: [{ text: 'Understood. I will follow these instructions.' }] },
+                ...messages,
+            ];
 
-        const response = await ai.models.generateContentStream({
-            model: 'gemma-3-27b-it',
-            contents: messagesWithSystem,
-        });
-
-        let fullText = '';
-        let isFirst = true;
-
-        for await (const chunk of response) {
-            const chunkText = chunk.text;
-            if (chunkText) {
-                fullText += chunkText;
-                sendToRenderer(isFirst ? 'new-response' : 'update-response', fullText);
-                isFirst = false;
-            }
-        }
-
-        const systemPromptChars = (currentSystemPrompt || 'You are a helpful assistant.').length;
-        const historyChars = trimmedHistory.reduce((sum, msg) => sum + (msg.content || '').length, 0);
-        const inputChars = systemPromptChars + historyChars;
-        const outputChars = fullText.length;
-
-        incrementCharUsage('gemini', 'gemma-3-27b-it', inputChars + outputChars);
-
-        if (fullText.trim()) {
-            groqConversationHistory.push({
-                role: 'assistant',
-                content: fullText.trim()
+            const response = await ai.models.generateContentStream({
+                model: prefs.modelExtraction || 'gemini-3.8-flash',
+                contents: messagesWithSystem,
             });
 
-            if (groqConversationHistory.length > 40) {
-                groqConversationHistory = groqConversationHistory.slice(-40);
+            // On success: mark this key ready (recovered from prior exhausted/unknown).
+            apiKeys.markKeyReady('gemini', entry.id);
+
+            let fullText = '';
+            let isFirst = true;
+
+            for await (const chunk of response) {
+                const chunkText = chunk.text;
+                if (chunkText) {
+                    fullText += chunkText;
+                    sendToRenderer(isFirst ? 'new-response' : 'update-response', fullText);
+                    isFirst = false;
+                }
             }
 
-            saveConversationTurn(transcription, fullText);
-        }
+            const systemPromptChars = (currentSystemPrompt || 'You are a helpful assistant.').length;
+            const historyChars = trimmedHistory.reduce((sum, msg) => sum + (msg.content || '').length, 0);
+            const inputChars = systemPromptChars + historyChars;
+            const outputChars = fullText.length;
 
-        console.log('Gemma response completed');
-        sendToRenderer('update-status', 'Listening...');
+            incrementCharUsage('gemini', prefs.modelExtraction || 'gemini-3.8-flash', inputChars + outputChars);
 
+            if (fullText.trim()) {
+                groqConversationHistory.push({
+                    role: 'assistant',
+                    content: fullText.trim(),
+                });
+
+                if (groqConversationHistory.length > 40) {
+                    groqConversationHistory = groqConversationHistory.slice(-40);
+                }
+
+                saveConversationTurn(transcription, fullText);
+            }
+
+            console.log('Gemma response completed');
+            sendToRenderer('update-status', 'Listening...');
+
+            // Notify renderer that a new response is available for typing
+            if (fullText.trim()) {
+                sendToRenderer('typing-response-ready', { text: fullText.trim(), sessionId: currentSessionId });
+            }
+        });
     } catch (error) {
-        console.error('Error calling Gemma API:', error);
-        sendToRenderer('update-status', 'Gemma error: ' + error.message);
+        if (error.code === 'NO_READY_KEY' || error.code === 'ALL_KEYS_UNAVAILABLE') {
+            console.error('Gemma: no usable Gemini keys left in pool');
+            sendToRenderer('update-status', 'All Gemini API keys exhausted or invalid');
+        } else {
+            console.error('Error calling Gemma API:', error);
+            sendToRenderer('update-status', 'Gemma error: ' + error.message);
+        }
     }
 }
 
 async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'interview', language = 'en-US', isReconnect = false) {
+    if (_sessionAborted) {
+        _sessionAborted = false;
+        return null;
+    }
     if (isInitializingSession) {
         console.log('Session initialization already in progress');
         return false;
@@ -439,6 +496,12 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
     const systemPrompt = getSystemPrompt(profile, customPrompt, googleSearchEnabled);
     currentSystemPrompt = systemPrompt; // Store for Groq
 
+    // Append cross-session context for AI memory
+    const sessionContext = storage.getRecentSessionContext();
+    if (sessionContext) {
+        currentSystemPrompt += sessionContext;
+    }
+
     // Initialize new conversation session only on first connect
     if (!isReconnect) {
         initializeNewSession(profile, customPrompt);
@@ -446,7 +509,7 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
 
     try {
         const session = await client.live.connect({
-            model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+            model: 'gemini-3.8-live',
             callbacks: {
                 onopen: function () {
                     sendToRenderer('update-status', 'Live session connected');
@@ -759,57 +822,74 @@ async function sendAudioToGemini(base64Data, geminiSessionRef) {
 }
 
 async function sendImageToGeminiHttp(base64Data, prompt) {
-    // Get available model based on rate limits
-    const model = getAvailableModel();
+    // Use solution model from preferences; fall back to rate-limited model selection
+    const prefs = storage.getPreferences();
+    const debugMode = prefs.debugModeEnabled || false;
+    const model = debugMode ? prefs.modelDebugging || 'gemini-3.8-flash' : prefs.modelSolution || getAvailableModel();
 
-    const apiKey = getApiKey();
-    if (!apiKey) {
+    // Pick a ready key; fall back to legacy single-key for users that haven't migrated yet.
+    const readyKeys = storage.listReadyProviderKeys('gemini');
+    const legacyKey = getApiKey();
+    if (readyKeys.length === 0 && !legacyKey) {
         return { success: false, error: 'No API key configured' };
     }
 
     try {
-        const ai = new GoogleGenAI({ apiKey: apiKey });
+        return await apiKeys.withKeyRotation('gemini', async (apiKey, entry) => {
+            const ai = new GoogleGenAI({ apiKey: apiKey });
 
-        const contents = [
-            {
-                inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: base64Data,
+            const contents = [
+                {
+                    inlineData: {
+                        mimeType: 'image/jpeg',
+                        data: base64Data,
+                    },
                 },
-            },
-            { text: prompt },
-        ];
+                { text: prompt },
+            ];
 
-        console.log(`Sending image to ${model} (streaming)...`);
-        const response = await ai.models.generateContentStream({
-            model: model,
-            contents: contents,
-        });
+            console.log(`Sending image to ${model} (streaming)...`);
+            const response = await ai.models.generateContentStream({
+                model: model,
+                contents: contents,
+            });
 
-        // Increment count after successful call
-        incrementLimitCount(model);
+            // Increment count after successful call
+            incrementLimitCount(model);
 
-        // Stream the response
-        let fullText = '';
-        let isFirst = true;
-        for await (const chunk of response) {
-            const chunkText = chunk.text;
-            if (chunkText) {
-                fullText += chunkText;
-                // Send to renderer - new response for first chunk, update for subsequent
-                sendToRenderer(isFirst ? 'new-response' : 'update-response', fullText);
-                isFirst = false;
+            // Stream the response
+            let fullText = '';
+            let isFirst = true;
+            for await (const chunk of response) {
+                const chunkText = chunk.text;
+                if (chunkText) {
+                    fullText += chunkText;
+                    // Send to renderer - new response for first chunk, update for subsequent
+                    sendToRenderer(isFirst ? 'new-response' : 'update-response', fullText);
+                    isFirst = false;
+                }
             }
-        }
 
-        console.log(`Image response completed from ${model}`);
+            // Recovered — mark ready.
+            apiKeys.markKeyReady('gemini', entry.id);
 
-        // Save screen analysis to history
-        saveScreenAnalysis(prompt, fullText, model);
+            console.log(`Image response completed from ${model}`);
 
-        return { success: true, text: fullText, model: model };
+            // Save screen analysis to history
+            saveScreenAnalysis(prompt, fullText, model);
+
+            // Notify renderer that a new response is available for typing
+            if (fullText.trim()) {
+                sendToRenderer('typing-response-ready', { text: fullText.trim(), sessionId: currentSessionId });
+            }
+
+            return { success: true, text: fullText, model: model };
+        });
     } catch (error) {
         console.error('Error sending image to Gemini HTTP:', error);
+        if (error.code === 'ALL_KEYS_UNAVAILABLE' || error.code === 'NO_READY_KEY') {
+            return { success: false, error: 'All Gemini API keys exhausted or invalid' };
+        }
         return { success: false, error: error.message };
     }
 }
@@ -839,10 +919,45 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
     ipcMain.handle('initialize-gemini', async (event, apiKey, customPrompt, profile = 'interview', language = 'en-US') => {
         currentProviderMode = 'byok';
-        const session = await initializeGeminiSession(apiKey, customPrompt, profile, language);
-        if (session) {
-            geminiSessionRef.current = session;
-            return true;
+
+        // Prefer the pool; fall back to any apiKey the renderer passed (for back-compat).
+        const readyKeys = storage.listReadyProviderKeys('gemini');
+        const candidates = readyKeys.length > 0 ? readyKeys : apiKey ? [{ id: null, key: apiKey }] : [];
+
+        if (candidates.length === 0) {
+            console.error('initialize-gemini: no ready Gemini API keys');
+            return false;
+        }
+
+        let lastError = null;
+        for (const entry of candidates) {
+            try {
+                const session = await initializeGeminiSession(entry.key, customPrompt, profile, language);
+                if (session) {
+                    geminiSessionRef.current = session;
+                    if (entry.id) {
+                        apiKeys.markKeyReady('gemini', entry.id);
+                    }
+                    return true;
+                }
+            } catch (err) {
+                lastError = err;
+                const verdict = apiKeys.classifyError(err);
+                if (entry.id && (verdict === 'invalid' || verdict === 'rate_limited')) {
+                    if (verdict === 'invalid') {
+                        apiKeys.markKeyInvalid('gemini', entry.id, err.message);
+                    } else {
+                        apiKeys.markKeyFailed('gemini', entry.id, err.message);
+                    }
+                    continue;
+                }
+                // Transient — bail out
+                break;
+            }
+        }
+
+        if (lastError) {
+            console.error('initialize-gemini failed:', lastError);
         }
         return false;
     });
@@ -1037,6 +1152,8 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
     ipcMain.handle('close-session', async event => {
         try {
+            _sessionAborted = true; // Signal any in-progress initialization to stop
+            isInitializingSession = false;
             stopMacOSAudioCapture();
 
             if (currentProviderMode === 'cloud') {

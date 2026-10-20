@@ -8,13 +8,32 @@ const CONFIG_VERSION = 1;
 const DEFAULT_CONFIG = {
     configVersion: CONFIG_VERSION,
     onboarded: false,
-    layout: 'normal'
+    layout: 'normal',
 };
 
 const DEFAULT_CREDENTIALS = {
+    // Legacy single-key fields (kept for backwards compatibility; mirror the active key from the pool)
     apiKey: '',
-    groqApiKey: ''
+    groqApiKey: '',
+    // Provider key pools. Each entry:
+    //   { id, key, label, state: 'ready'|'failed'|'invalid'|'unknown',
+    //     lastCheckedAt, failedAt, errorReason, createdAt }
+    geminiKeys: [],
+    groqKeys: [],
 };
+
+const API_KEY_PROVIDERS = ['gemini', 'groq'];
+
+// Available Gemini models for pipeline task assignment
+const GEMINI_MODELS = [
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', shortName: 'Gem 3.8 Flash' },
+    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', shortName: 'Gem 3.6 Flash' },
+    { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite', shortName: 'Gem 3.5 Lite' },
+    { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', shortName: 'Gem 3.1 Lite' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', shortName: 'Gem 2.5 Flash' },
+    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', shortName: 'Gem 2.5 Lite' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', shortName: 'Gem 2.5 Pro' },
+];
 
 const DEFAULT_PREFERENCES = {
     customPrompt: '',
@@ -25,18 +44,96 @@ const DEFAULT_PREFERENCES = {
     selectedImageQuality: 'medium',
     advancedMode: false,
     audioMode: 'speaker_only',
-    fontSize: 'medium',
+    fontSize: 20,
     backgroundTransparency: 0.8,
     googleSearchEnabled: false,
     ollamaHost: 'http://127.0.0.1:11434',
     ollamaModel: 'llama3.1',
     whisperModel: 'Xenova/whisper-small',
+    aiHearingEnabled: false,
+    // Model assignments per pipeline task
+    modelExtraction: 'gemini-3.8-flash',
+    modelSolution: 'gemini-3.8-flash',
+    modelDebugging: 'gemini-3.8-flash',
+    debugModeEnabled: false,
+    hotkeyToastsEnabled: true,
+    fontWeight: 400,
 };
 
-const DEFAULT_KEYBINDS = null; // null means use system defaults
+const DEFAULT_KEYBINDS = null; // null means use defaults from getDefaultKeybinds()
+
+// Default typing settings
+const DEFAULT_TYPING_SETTINGS = {
+    enabled: false,
+    backend: 'win32-sendinput',
+    typingSpeed: 80,
+    startupDelay: 200,
+    burstSize: 3,
+    punctuationDelay: 150,
+    sentenceDelay: 300,
+    jitterRange: 0.3,
+    holdToTypeKeybind: 'CapsLock',
+    abortKeybind: 'Escape',
+    fullResponseKeybind: 'Ctrl+Shift+T',
+    pasteMode: false,
+    granularity: 'character',
+    sentenceBySentence: false,
+    failoverChain: [
+        'win32-sendinput',
+        'virtual-keyboard',
+        'powershell-addtype',
+        'clipboard',
+        'powershell',
+        'autohotkey',
+        'batch-paste',
+        'hybrid-typing',
+        'nutjs',
+        'robotjs',
+        'ui-automation',
+        'electron-webcontents',
+    ],
+};
+
+// Default window state — persisted across restarts
+const DEFAULT_WINDOW_STATE = {
+    // Position (null = center on screen at startup)
+    x: null,
+    y: null,
+    // Window size scale (1.0 = default size, 0.5 = half, 2.0 = double)
+    scale: 1.0,
+    scaleMin: 0.3,
+    scaleMax: 1.5, // Reduced from 3.0 to prevent GPU overload
+    scaleStep: 0.1,
+    // Content zoom (Electron webContents zoomFactor, 1.0 = 100%)
+    zoom: 1.0,
+    zoomMin: 0.5,
+    zoomMax: 2.0, // Reduced from 3.0 to prevent GPU overload
+    zoomStep: 0.1,
+    // Window opacity (0.0–1.0)
+    opacity: 1.0,
+    opacityMin: 0.0, // Allow fully transparent
+    opacityMax: 1.0,
+    opacityStep: 0.05,
+    // Visibility
+    visible: true,
+    // Window movement step in pixels
+    moveStep: 60,
+    moveSteMin: 1,
+    moveStepMax: 500,
+    // Voice listening enabled
+    voiceEnabled: true,
+    // Feature toggles
+    scaleEnabled: true,
+    zoomEnabled: true,
+    opacityEnabled: true,
+    moveEnabled: true,
+    voiceToggleEnabled: true,
+    sessionEnabled: true,
+    reloadEnabled: true,
+};
 
 const DEFAULT_LIMITS = {
-    data: [] // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'qwen3-32b': { chars, limit }, 'gpt-oss-120b': { chars, limit }, 'gpt-oss-20b': { chars, limit } }, gemini: { 'gemma-3-27b-it': { chars } } }
+    data: [], // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'qwen3-32b': { chars, limit }, 'gpt-oss-120b': { chars, limit }, 'gpt-oss-20b': { chars, limit } }, gemini: { 'gemini-3.8-flash': { chars } } }
 };
 
 // Get the config directory path based on OS
@@ -190,19 +287,229 @@ function setCredentials(credentials) {
 }
 
 function getApiKey() {
+    // Prefer the active ready key from the pool; fall back to legacy single field
+    const active = getActiveProviderKey('gemini');
+    if (active) return active.key;
     return getCredentials().apiKey || '';
 }
 
 function setApiKey(apiKey) {
+    // Mirror into legacy field; callers that actually want to manage the pool should use addProviderKey
     return setCredentials({ apiKey });
 }
 
 function getGroqApiKey() {
+    const active = getActiveProviderKey('groq');
+    if (active) return active.key;
     return getCredentials().groqApiKey || '';
 }
 
 function setGroqApiKey(groqApiKey) {
     return setCredentials({ groqApiKey });
+}
+
+// ============ PROVIDER KEY POOLS ============
+
+function _poolField(provider) {
+    if (provider === 'gemini') return 'geminiKeys';
+    if (provider === 'groq') return 'groqKeys';
+    throw new Error(`Unknown provider: ${provider}`);
+}
+
+function _legacyField(provider) {
+    if (provider === 'gemini') return 'apiKey';
+    if (provider === 'groq') return 'groqApiKey';
+    return null;
+}
+
+function _genId() {
+    // Not cryptographically secure; fine for local identifiers
+    return `k_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function _redact(key) {
+    if (!key) return '';
+    const s = String(key);
+    if (s.length <= 8) return '•'.repeat(s.length);
+    return `${s.slice(0, 4)}…${s.slice(-4)}`;
+}
+
+function _sanitizeEntry(entry) {
+    return {
+        id: entry.id,
+        label: entry.label || '',
+        masked: _redact(entry.key),
+        state: entry.state || 'unknown',
+        lastCheckedAt: entry.lastCheckedAt || null,
+        failedAt: entry.failedAt || null,
+        errorReason: entry.errorReason || null,
+        createdAt: entry.createdAt || null,
+    };
+}
+
+// Migrate legacy single-key field into the pool the first time we read it.
+// Returns { credentials, migrated } without persisting on the "not migrated" path.
+function _ensureMigrated(credentials) {
+    let changed = false;
+
+    for (const provider of API_KEY_PROVIDERS) {
+        const field = _poolField(provider);
+        if (!Array.isArray(credentials[field])) {
+            credentials[field] = [];
+            changed = true;
+        }
+    }
+
+    // Seed pool from legacy single-key fields if pool is empty
+    for (const provider of API_KEY_PROVIDERS) {
+        const poolField = _poolField(provider);
+        const legacyField = _legacyField(provider);
+        const legacyValue = (credentials[legacyField] || '').trim();
+        if (legacyValue && credentials[poolField].length === 0) {
+            credentials[poolField].push({
+                id: _genId(),
+                key: legacyValue,
+                label: 'Primary',
+                state: 'unknown',
+                lastCheckedAt: null,
+                failedAt: null,
+                errorReason: null,
+                createdAt: Date.now(),
+            });
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        writeJsonFile(getCredentialsPath(), credentials);
+    }
+    return credentials;
+}
+
+function _readCredentialsMigrated() {
+    return _ensureMigrated(getCredentials());
+}
+
+function _saveCredentials(credentials) {
+    return writeJsonFile(getCredentialsPath(), credentials);
+}
+
+function _syncLegacyMirror(credentials, provider) {
+    // Point the legacy single-key field at the currently active (ready) key
+    // so code paths that still read getApiKey()/getGroqApiKey() directly stay working.
+    const legacyField = _legacyField(provider);
+    if (!legacyField) return;
+    const pool = credentials[_poolField(provider)] || [];
+    const active = pool.find(k => k.state === 'ready') || pool[0];
+    credentials[legacyField] = active ? active.key : '';
+}
+
+function listProviderKeys(provider) {
+    const creds = _readCredentialsMigrated();
+    return (creds[_poolField(provider)] || []).map(_sanitizeEntry);
+}
+
+function getProviderKeyRaw(provider, id) {
+    const creds = _readCredentialsMigrated();
+    return (creds[_poolField(provider)] || []).find(k => k.id === id) || null;
+}
+
+function getActiveProviderKey(provider) {
+    // Does NOT migrate here to avoid recursion from getApiKey()/getGroqApiKey().
+    const creds = readJsonFile(getCredentialsPath(), DEFAULT_CREDENTIALS);
+    const pool = creds[_poolField(provider)] || [];
+    // Return first key that is 'ready' or 'unknown' (available for use).
+    return pool.find(k => k.state === 'ready' || k.state === 'unknown') || pool.find(k => k.state === 'failed') || null;
+}
+
+function listReadyProviderKeys(provider) {
+    // Returns keys available for rotation — 'ready' and 'unknown' states.
+    const creds = _readCredentialsMigrated();
+    const pool = creds[_poolField(provider)] || [];
+    return pool.filter(k => k.state === 'ready' || k.state === 'unknown');
+}
+
+function listAllProviderKeysRaw(provider) {
+    const creds = _readCredentialsMigrated();
+    return creds[_poolField(provider)] || [];
+}
+
+function addProviderKey(provider, key, label = '') {
+    const trimmed = (key || '').trim();
+    if (!trimmed) {
+        return { ok: false, error: 'Key is empty' };
+    }
+    const creds = _readCredentialsMigrated();
+    const field = _poolField(provider);
+    const pool = creds[field] || [];
+    if (pool.some(k => k.key === trimmed)) {
+        return { ok: false, error: 'Key already exists' };
+    }
+    const entry = {
+        id: _genId(),
+        key: trimmed,
+        label: (label || '').trim(),
+        state: 'unknown',
+        lastCheckedAt: null,
+        failedAt: null,
+        errorReason: null,
+        createdAt: Date.now(),
+    };
+    pool.push(entry);
+    creds[field] = pool;
+    _syncLegacyMirror(creds, provider);
+    _saveCredentials(creds);
+    return { ok: true, id: entry.id, entry: _sanitizeEntry(entry) };
+}
+
+function removeProviderKey(provider, id) {
+    const creds = _readCredentialsMigrated();
+    const field = _poolField(provider);
+    const before = creds[field] || [];
+    const after = before.filter(k => k.id !== id);
+    if (after.length === before.length) {
+        return { ok: false, error: 'Key not found' };
+    }
+    creds[field] = after;
+    _syncLegacyMirror(creds, provider);
+    _saveCredentials(creds);
+    return { ok: true };
+}
+
+function updateProviderKey(provider, id, patch) {
+    const creds = _readCredentialsMigrated();
+    const field = _poolField(provider);
+    const pool = creds[field] || [];
+    const idx = pool.findIndex(k => k.id === id);
+    if (idx === -1) {
+        return { ok: false, error: 'Key not found' };
+    }
+    const current = pool[idx];
+    const allowed = ['label', 'state', 'lastCheckedAt', 'failedAt', 'errorReason'];
+    for (const k of allowed) {
+        if (Object.prototype.hasOwnProperty.call(patch, k)) {
+            current[k] = patch[k];
+        }
+    }
+    pool[idx] = current;
+    creds[field] = pool;
+    _syncLegacyMirror(creds, provider);
+    _saveCredentials(creds);
+    return { ok: true, entry: _sanitizeEntry(current) };
+}
+
+function markProviderKeyState(provider, id, state, opts = {}) {
+    const patch = {
+        state,
+        lastCheckedAt: Date.now(),
+        errorReason: opts.errorReason || null,
+        failedAt: state === 'failed' ? Date.now() : null,
+    };
+    return updateProviderKey(provider, id, patch);
+}
+
+function sanitizeProviderKeyEntry(entry) {
+    return _sanitizeEntry(entry);
 }
 
 // ============ PREFERENCES ============
@@ -234,6 +541,44 @@ function setKeybinds(keybinds) {
     return writeJsonFile(getKeybindsPath(), keybinds);
 }
 
+// ============ WINDOW STATE ============
+
+function getWindowStatePath() {
+    return path.join(getConfigDir(), 'window-state.json');
+}
+
+function getWindowState() {
+    return { ...DEFAULT_WINDOW_STATE, ...readJsonFile(getWindowStatePath(), {}) };
+}
+
+function setWindowState(state) {
+    const current = getWindowState();
+    const updated = { ...current, ...state };
+    return writeJsonFile(getWindowStatePath(), updated);
+}
+
+function updateWindowState(key, value) {
+    const state = getWindowState();
+    state[key] = value;
+    return writeJsonFile(getWindowStatePath(), state);
+}
+
+// ============ TYPING SETTINGS ============
+
+function getTypingSettingsPath() {
+    return path.join(getConfigDir(), 'typing-settings.json');
+}
+
+function getTypingSettings() {
+    return { ...DEFAULT_TYPING_SETTINGS, ...readJsonFile(getTypingSettingsPath(), {}) };
+}
+
+function setTypingSettings(patch) {
+    const current = getTypingSettings();
+    const updated = { ...current, ...patch };
+    return writeJsonFile(getTypingSettingsPath(), updated);
+}
+
 // ============ LIMITS (Rate Limiting) ============
 
 function getLimits() {
@@ -258,17 +603,17 @@ function getTodayLimits() {
 
     if (todayEntry) {
         // ensure new fields exist
-        if(!todayEntry.groq) {
+        if (!todayEntry.groq) {
             todayEntry.groq = {
                 'qwen3-32b': { chars: 0, limit: 1500000 },
                 'gpt-oss-120b': { chars: 0, limit: 600000 },
                 'gpt-oss-20b': { chars: 0, limit: 600000 },
-                'kimi-k2-instruct': { chars: 0, limit: 600000 }
+                'kimi-k2-instruct': { chars: 0, limit: 600000 },
             };
         }
-        if(!todayEntry.gemini) {
+        if (!todayEntry.gemini) {
             todayEntry.gemini = {
-                'gemma-3-27b-it': { chars: 0 }
+                'gemini-3.8-flash': { chars: 0 },
             };
         }
         setLimits(limits);
@@ -285,11 +630,11 @@ function getTodayLimits() {
             'qwen3-32b': { chars: 0, limit: 1500000 },
             'gpt-oss-120b': { chars: 0, limit: 600000 },
             'gpt-oss-20b': { chars: 0, limit: 600000 },
-            'kimi-k2-instruct': { chars: 0, limit: 600000 }
+            'kimi-k2-instruct': { chars: 0, limit: 600000 },
         },
         gemini: {
-            'gemma-3-27b-it': { chars: 0 }
-        }
+            'gemini-3.8-flash': { chars: 0 },
+        },
     };
     limits.data.push(newEntry);
     setLimits(limits);
@@ -310,7 +655,7 @@ function incrementLimitCount(model) {
         todayEntry = {
             date: today,
             flash: { count: 0 },
-            flashLite: { count: 0 }
+            flashLite: { count: 0 },
         };
         limits.data.push(todayEntry);
     } else {
@@ -336,7 +681,7 @@ function incrementCharUsage(provider, model, charCount) {
     const today = getTodayDateString();
     const todayEntry = limits.data.find(entry => entry.date === today);
 
-    if(todayEntry[provider] && todayEntry[provider][model]) {
+    if (todayEntry[provider] && todayEntry[provider][model]) {
         todayEntry[provider][model].chars += charCount;
         setLimits(limits);
     }
@@ -396,11 +741,11 @@ function saveSession(sessionId, data) {
         createdAt: existingSession?.createdAt || parseInt(sessionId),
         lastUpdated: Date.now(),
         // Profile context - set once when session starts
-        profile: data.profile || existingSession?.profile || null,
-        customPrompt: data.customPrompt || existingSession?.customPrompt || null,
+        profile: data.profile !== undefined ? data.profile : (existingSession?.profile ?? null),
+        customPrompt: data.customPrompt !== undefined ? data.customPrompt : (existingSession?.customPrompt ?? null),
         // Conversation data
-        conversationHistory: data.conversationHistory || existingSession?.conversationHistory || [],
-        screenAnalysisHistory: data.screenAnalysisHistory || existingSession?.screenAnalysisHistory || []
+        conversationHistory: data.conversationHistory !== undefined ? data.conversationHistory : (existingSession?.conversationHistory ?? []),
+        screenAnalysisHistory: data.screenAnalysisHistory !== undefined ? data.screenAnalysisHistory : (existingSession?.screenAnalysisHistory ?? []),
     };
     return writeJsonFile(sessionPath, sessionData);
 }
@@ -417,7 +762,8 @@ function getAllSessions() {
             return [];
         }
 
-        const files = fs.readdirSync(historyDir)
+        const files = fs
+            .readdirSync(historyDir)
             .filter(f => f.endsWith('.json'))
             .sort((a, b) => {
                 // Sort by timestamp descending (newest first)
@@ -426,22 +772,24 @@ function getAllSessions() {
                 return tsB - tsA;
             });
 
-        return files.map(file => {
-            const sessionId = file.replace('.json', '');
-            const data = readJsonFile(path.join(historyDir, file), null);
-            if (data) {
-                return {
-                    sessionId,
-                    createdAt: data.createdAt,
-                    lastUpdated: data.lastUpdated,
-                    messageCount: data.conversationHistory?.length || 0,
-                    screenAnalysisCount: data.screenAnalysisHistory?.length || 0,
-                    profile: data.profile || null,
-                    customPrompt: data.customPrompt || null
-                };
-            }
-            return null;
-        }).filter(Boolean);
+        return files
+            .map(file => {
+                const sessionId = file.replace('.json', '');
+                const data = readJsonFile(path.join(historyDir, file), null);
+                if (data) {
+                    return {
+                        sessionId,
+                        createdAt: data.createdAt,
+                        lastUpdated: data.lastUpdated,
+                        messageCount: data.conversationHistory?.length || 0,
+                        screenAnalysisCount: data.screenAnalysisHistory?.length || 0,
+                        profile: data.profile || null,
+                        customPrompt: data.customPrompt || null,
+                    };
+                }
+                return null;
+            })
+            .filter(Boolean);
     } catch (error) {
         console.error('Error reading sessions:', error.message);
         return [];
@@ -477,6 +825,55 @@ function deleteAllSessions() {
     }
 }
 
+// ============ AI CONTEXT (Cross-session memory) ============
+
+function getRecentSessionContext(maxSessions = 3, maxTurnsPerSession = 5) {
+    const sessions = getAllSessions();
+    if (!sessions || sessions.length === 0) return '';
+
+    const recentSessions = sessions.slice(0, maxSessions);
+    const contextParts = [];
+
+    for (const sessionMeta of recentSessions) {
+        const session = readJsonFile(getSessionPath(sessionMeta.sessionId), null);
+        if (!session) continue;
+
+        const turns = (session.conversationHistory || []).slice(-maxTurnsPerSession);
+        if (turns.length === 0 && (!session.screenAnalysisHistory || session.screenAnalysisHistory.length === 0)) continue;
+
+        const sessionDate = new Date(session.createdAt || parseInt(sessionMeta.sessionId)).toLocaleDateString();
+        const profileLabel = session.profile || 'general';
+        let sessionContext = `[Session: ${profileLabel} on ${sessionDate}]`;
+
+        for (const turn of turns) {
+            if (turn.transcription) {
+                sessionContext += `\nQ: ${turn.transcription.substring(0, 200)}`;
+            }
+            if (turn.ai_response) {
+                sessionContext += `\nA: ${turn.ai_response.substring(0, 300)}`;
+            }
+        }
+
+        // Include last screen analysis if any
+        const screenItems = (session.screenAnalysisHistory || []).slice(-2);
+        for (const item of screenItems) {
+            if (item.response) {
+                sessionContext += `\n[Screen Analysis]: ${item.response.substring(0, 200)}`;
+            }
+        }
+
+        contextParts.push(sessionContext);
+    }
+
+    if (contextParts.length === 0) return '';
+    const fullContext = '\n\n--- Previous Session Context ---\n' + contextParts.join('\n\n');
+    // Cap at ~4000 characters to avoid consuming too much of the model's context window
+    if (fullContext.length > 4000) {
+        return fullContext.substring(0, 4000) + '\n[...truncated]';
+    }
+    return fullContext;
+}
+
 // ============ CLEAR ALL DATA ============
 
 function clearAllData() {
@@ -502,6 +899,20 @@ module.exports = {
     getGroqApiKey,
     setGroqApiKey,
 
+    // Provider key pools
+    API_KEY_PROVIDERS,
+    GEMINI_MODELS,
+    listProviderKeys,
+    listAllProviderKeysRaw,
+    listReadyProviderKeys,
+    getProviderKeyRaw,
+    getActiveProviderKey,
+    addProviderKey,
+    removeProviderKey,
+    updateProviderKey,
+    markProviderKeyState,
+    sanitizeProviderKeyEntry,
+
     // Preferences
     getPreferences,
     setPreferences,
@@ -510,6 +921,17 @@ module.exports = {
     // Keybinds
     getKeybinds,
     setKeybinds,
+
+    // Window State
+    getWindowState,
+    setWindowState,
+    updateWindowState,
+    DEFAULT_WINDOW_STATE,
+
+    // Typing Settings
+    getTypingSettings,
+    setTypingSettings,
+    DEFAULT_TYPING_SETTINGS,
 
     // Limits (Rate Limiting)
     getLimits,
@@ -524,9 +946,10 @@ module.exports = {
     saveSession,
     getSession,
     getAllSessions,
+    getRecentSessionContext,
     deleteSession,
     deleteAllSessions,
 
     // Clear all
-    clearAllData
+    clearAllData,
 };

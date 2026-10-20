@@ -1,0 +1,31 @@
+{
+  "project_type": "Electron desktop app (Node.js main process + Lit web components renderer)",
+  "language": "JavaScript (plain, no transpilation)",
+  "build_system": "Electron Forge - no build step, plain JS loaded via script tags. nodeIntegration: true, contextIsolation: false",
+  "test_framework": "No automated test suite - validation is via node --check for syntax and manual runtime testing",
+  "build_command": "node -e \"const files = require('glob').sync('src/**/*.js'); files.forEach(f => { try { require('./' + f) } catch(e) { if (e instanceof SyntaxError) { console.error(f, e.message); process.exit(1); } } })\" OR find src -name '*.js' -exec node --check {} +",
+  "test_command": "find src -name '*.js' -exec node --check {} + (syntax validation only)",
+  "verification_instructions": "1. Run node --check on all .js files in src/typing/ to verify no syntax errors. 2. Verify require() resolution by loading src/typing/index.js in node. 3. Verify all new backends extend BaseBackend and implement required methods.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install (but no new dependencies needed - all backends use built-in Node.js modules and PowerShell/system executables)",
+  "environment_constraints": "Cannot run Electron app in sandbox. Cannot run PowerShell (not Windows). Validation limited to AST/syntax checks and module resolution testing. No Docker daemon available.",
+  "contribution_requirements": "Run npx prettier --write . before committing. 4-space indentation, single quotes, semicolons, 150 print width.",
+  "key_patterns": "All backends extend BaseBackend. Async inject() methods. PowerShell-based backends use Base64 encoding for text to prevent command injection. Use execFile not exec. child_process calls use windowsHide: true and timeouts. EventEmitter pattern for status events. Storage uses JSON files with getters/setters. Lit components use static styles and properties.",
+  "relevant_files": [
+    "src/typing/backends/BaseBackend.js",
+    "src/typing/backends/index.js",
+    "src/typing/backends/Win32SendInputBackend.js",
+    "src/typing/backends/ClipboardInjectionBackend.js",
+    "src/typing/backends/PowerShellSendKeysBackend.js",
+    "src/typing/backends/RobotJSBackend.js",
+    "src/typing/TypingManager.js",
+    "src/typing/index.js",
+    "src/typing/InjectionScheduler.js",
+    "src/typing/HumanizationEngine.js",
+    "src/typing/HotkeyController.js",
+    "src/typing/WindowTargetLock.js",
+    "src/storage.js",
+    "src/components/views/TypingSettingsView.js"
+  ],
+  "directory_structure": "src/typing/ - core typing engine. src/typing/backends/ - injection backends. src/components/views/ - Lit settings UI. src/storage.js - persistent config. src/index.js - main process IPC. src/utils/window.js - hotkeys. src/utils/renderer.js - renderer API."
+}

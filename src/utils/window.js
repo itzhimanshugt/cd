@@ -1,30 +1,114 @@
-const { BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
+const { BrowserWindow, globalShortcut, ipcMain, screen, app } = require('electron');
 const path = require('node:path');
 const storage = require('../storage');
+const screenshot = require('./screenshot');
 
 let mouseEventsIgnored = false;
+let _programmaticMove = false;
+
+const KEYBINDS_VERSION = 7; // Bumped: add debug screenshot hotkey
 
 const DEFAULT_MAIN_WINDOW_SIZE = { width: 1100, height: 800 };
-const MIN_WINDOW_SIZE = { width: 700, height: 320 };
+const MIN_WINDOW_SIZE = { width: 400, height: 260 };
 
-function createWindow(sendToRenderer, geminiSessionRef) {
-    let windowWidth = DEFAULT_MAIN_WINDOW_SIZE.width;
-    let windowHeight = DEFAULT_MAIN_WINDOW_SIZE.height;
+// Hard safety limits - these cannot be exceeded regardless of user settings.
+// Prevents GPU crashes from oversized transparent windows on Windows.
+const HARD_LIMITS = {
+    scaleMax: 1.5,
+    scaleMin: 0.2,
+    zoomMax: 2.0,
+    zoomMin: 0.3,
+    // Minimum step values to prevent rapid-fire redraws
+    scaleStepMin: 0.05,
+    zoomStepMin: 0.05,
+};
+
+// ──────────────────────────────────────────────────────────────
+// Default keybinds — full action set
+// ──────────────────────────────────────────────────────────────
+
+function getDefaultKeybinds() {
+    const isMac = process.platform === 'darwin';
+    return {
+        // ── Window movement ──
+        moveUp: isMac ? 'Alt+Up' : 'Ctrl+Up',
+        moveDown: isMac ? 'Alt+Down' : 'Ctrl+Down',
+        moveLeft: isMac ? 'Alt+Left' : 'Ctrl+Left',
+        moveRight: isMac ? 'Alt+Right' : 'Ctrl+Right',
+        // ── Visibility ──
+        toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
+        toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
+        // ── Scale (window size) ──
+        scaleUp: isMac ? 'Cmd+Shift+=' : 'Ctrl+Shift+=',
+        scaleDown: isMac ? 'Cmd+Shift+-' : 'Ctrl+Shift+-',
+        // ── Zoom (content) ──
+        zoomIn: isMac ? 'Cmd+=' : 'Ctrl+=',
+        zoomOut: isMac ? 'Cmd+-' : 'Ctrl+-',
+        zoomReset: isMac ? 'Cmd+0' : 'Ctrl+0',
+        // ── Opacity ──
+        fontOpacityUp: isMac ? 'Cmd+]' : 'Ctrl+]',
+        fontOpacityDown: isMac ? 'Cmd+[' : 'Ctrl+[',
+        bgOpacityUp: isMac ? 'Cmd+Shift+]' : 'Ctrl+Shift+]',
+        bgOpacityDown: isMac ? 'Cmd+Shift+[' : 'Ctrl+Shift+[',
+        // ── Session ──
+        nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
+        // Response navigation: Ctrl+Shift+Left / Ctrl+Shift+Right
+        previousResponse: isMac ? 'Cmd+Shift+Left' : 'Ctrl+Shift+Left',
+        nextResponse: isMac ? 'Cmd+Shift+Right' : 'Ctrl+Shift+Right',
+        // Scroll: Ctrl+Shift+Up / Ctrl+Shift+Down
+        scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
+        scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
+        // ── Audio ──
+        toggleVoice: isMac ? 'Cmd+Shift+L' : 'Ctrl+Shift+L',
+        // ── Dev ──
+        reloadApp: isMac ? 'Cmd+Shift+R' : 'Ctrl+Shift+R',
+        devRefresh: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
+        // ── Global Controls ──
+        themeToggle: isMac ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
+        fontSizeUp: isMac ? 'Cmd+Shift+0' : 'Ctrl+Shift+0',
+        fontSizeDown: isMac ? 'Cmd+Shift+9' : 'Ctrl+Shift+9',
+        aiModeToggle: isMac ? 'Cmd+Shift+U' : 'Ctrl+Shift+U',
+        // ── Emergency ──
+        emergencyQuit: isMac ? 'Cmd+Q' : 'Ctrl+Q',
+        // ── Model Management ──
+        debugToggle: 'Alt+D',
+        cycleSolutionModel: isMac ? 'Cmd+Y' : 'Ctrl+Y',
+        cycleExtractionModel: isMac ? "Cmd+'" : "Ctrl+'",
+        // ── Typing ──
+        holdToType: isMac ? 'Cmd+Shift+F' : 'Ctrl+Shift+F',
+        abortTyping: isMac ? 'Cmd+Shift+X' : 'Ctrl+Shift+X',
+        fullResponseType: isMac ? 'Cmd+Shift+G' : 'Ctrl+Shift+G',
+        // ── Debug Screenshot ──
+        debugScreenshot: 'Ctrl+Alt+S',
+    };
+}
+
+// ──────────────────────────────────────────────────────────────
+// Window creation
+// ──────────────────────────────────────────────────────────────
+
+function createWindow(sendToRenderer, geminiSessionRef, typingManagerRef) {
+    const winState = storage.getWindowState();
+    const baseW = Math.round(DEFAULT_MAIN_WINDOW_SIZE.width * (winState.scale || 1.0));
+    const baseH = Math.round(DEFAULT_MAIN_WINDOW_SIZE.height * (winState.scale || 1.0));
 
     const mainWindow = new BrowserWindow({
-        width: windowWidth,
-        height: windowHeight,
+        width: Math.max(MIN_WINDOW_SIZE.width, baseW),
+        height: Math.max(MIN_WINDOW_SIZE.height, baseH),
+        x: winState.x ?? undefined,
+        y: winState.y ?? undefined,
         minWidth: MIN_WINDOW_SIZE.width,
         minHeight: MIN_WINDOW_SIZE.height,
         resizable: true,
         frame: false,
         transparent: true,
+        // Native opacity stays at 1.0; transparency is CSS-driven via --bg-app rgba values.
         hasShadow: false,
         alwaysOnTop: true,
         show: false,
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false, // TODO: change to true
+            contextIsolation: false,
             backgroundThrottling: false,
             enableBlinkFeatures: 'GetDisplayMedia',
             webSecurity: true,
@@ -46,298 +130,504 @@ function createWindow(sendToRenderer, geminiSessionRef) {
     mainWindow.setContentProtection(true);
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-    // Hide from Windows taskbar
     if (process.platform === 'win32') {
         try {
             mainWindow.setSkipTaskbar(true);
-        } catch (error) {
-            console.warn('Could not hide from taskbar:', error.message);
-        }
+        } catch (_) {}
+        mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
     }
-
-    // Hide from Mission Control on macOS
     if (process.platform === 'darwin') {
         try {
             mainWindow.setHiddenInMissionControl(true);
-        } catch (error) {
-            console.warn('Could not hide from Mission Control:', error.message);
-        }
-    }
-
-    if (process.platform === 'win32') {
-        mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+        } catch (_) {}
     }
 
     mainWindow.loadFile(path.join(__dirname, '../index.html'));
+    mainWindow.webContents.setFrameRate(60);
 
-    // Show window only when ready to prevent white flash
-    mainWindow.once('ready-to-show', () => {
-        mainWindow.show();
-    });
-
-    // After window is created, initialize keybinds
+    // Apply persisted zoom after DOM ready
     mainWindow.webContents.once('dom-ready', () => {
-        setImmediate(() => {
-            const defaultKeybinds = getDefaultKeybinds();
-            let keybinds = defaultKeybinds;
+        const z = storage.getWindowState().zoom ?? 1.0;
+        try {
+            mainWindow.webContents.setZoomFactor(z);
+        } catch (_) {}
 
-            // Load keybinds from storage
-            const savedKeybinds = storage.getKeybinds();
-            if (savedKeybinds) {
-                keybinds = { ...defaultKeybinds, ...savedKeybinds };
+        setTimeout(() => {
+            const defaultKB = getDefaultKeybinds();
+            const saved = storage.getKeybinds();
+            let keybinds;
+            // If saved keybinds exist but are from an older version, reset to defaults
+            if (saved && saved._version === KEYBINDS_VERSION) {
+                keybinds = { ...defaultKB, ...saved };
+            } else {
+                keybinds = { ...defaultKB, _version: KEYBINDS_VERSION };
+                storage.setKeybinds(keybinds);
             }
-
-            updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef);
-        });
+            updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
+        }, 100);
     });
 
-    setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef);
+    // Persist window position on user-initiated move (drag) only
+    let _userMoveTimer = null;
+    mainWindow.on('moved', () => {
+        if (_programmaticMove) return;
+        if (_userMoveTimer) clearTimeout(_userMoveTimer);
+        _userMoveTimer = setTimeout(() => {
+            if (!mainWindow.isDestroyed()) {
+                const [x, y] = mainWindow.getPosition();
+                storage.setWindowState({ x, y });
+            }
+        }, 250);
+    });
 
+    // Persist window size on resize (debounced)
+    let _resizeTimer = null;
+    mainWindow.on('resized', () => {
+        if (_resizeTimer) clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(() => {
+            if (!mainWindow.isDestroyed()) {
+                const [w, h] = mainWindow.getSize();
+                const scale = w / DEFAULT_MAIN_WINDOW_SIZE.width;
+                storage.setWindowState({ scale });
+            }
+        }, 250);
+    });
+
+    setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
     return mainWindow;
 }
 
-function getDefaultKeybinds() {
-    const isMac = process.platform === 'darwin';
-    return {
-        moveUp: isMac ? 'Alt+Up' : 'Ctrl+Up',
-        moveDown: isMac ? 'Alt+Down' : 'Ctrl+Down',
-        moveLeft: isMac ? 'Alt+Left' : 'Ctrl+Left',
-        moveRight: isMac ? 'Alt+Right' : 'Ctrl+Right',
-        toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
-        toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
-        nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
-        previousResponse: isMac ? 'Cmd+[' : 'Ctrl+[',
-        nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
-        scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
-        scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
-        emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
-    };
-}
+// ──────────────────────────────────────────────────────────────
+// Hotkey registration
+// ──────────────────────────────────────────────────────────────
 
-function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef) {
-    console.log('Updating global shortcuts with:', keybinds);
-
-    // Unregister all existing shortcuts
+function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef) {
     globalShortcut.unregisterAll();
 
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const { width, height } = primaryDisplay.workAreaSize;
-    const moveIncrement = Math.floor(Math.min(width, height) * 0.1);
+    const winState = () => storage.getWindowState();
 
-    // Movement: simple getPosition + setPosition (proven stable, no side effects)
-    const movementActions = {
-        moveUp: () => {
-            if (!mainWindow.isVisible()) return;
-            const [currentX, currentY] = mainWindow.getPosition();
-            mainWindow.setPosition(currentX, currentY - moveIncrement);
-        },
-        moveDown: () => {
-            if (!mainWindow.isVisible()) return;
-            const [currentX, currentY] = mainWindow.getPosition();
-            mainWindow.setPosition(currentX, currentY + moveIncrement);
-        },
-        moveLeft: () => {
-            if (!mainWindow.isVisible()) return;
-            const [currentX, currentY] = mainWindow.getPosition();
-            mainWindow.setPosition(currentX - moveIncrement, currentY);
-        },
-        moveRight: () => {
-            if (!mainWindow.isVisible()) return;
-            const [currentX, currentY] = mainWindow.getPosition();
-            mainWindow.setPosition(currentX + moveIncrement, currentY);
-        },
-    };
-
-    Object.keys(movementActions).forEach(action => {
-        const keybind = keybinds[action];
-        if (keybind) {
-            try {
-                globalShortcut.register(keybind, movementActions[action]);
-                console.log(`Registered ${action}: ${keybind}`);
-            } catch (error) {
-                console.error(`Failed to register ${action} (${keybind}):`, error);
+    function tryRegister(action, kb, handler) {
+        if (!kb) return;
+        if (action.startsWith('_')) return;
+        try {
+            const success = globalShortcut.register(kb, handler);
+            if (!success) {
+                console.warn(`Shortcut ${action} (${kb}) failed to register`);
             }
+        } catch (e) {
+            console.error(`Failed to register ${action} (${kb}):`, e.message);
         }
+    }
+
+    // ── Emergency Quit — always registered, no guards ──
+    tryRegister('emergencyQuit', keybinds.emergencyQuit, () => {
+        try {
+            const { stopMacOSAudioCapture } = require('./gemini');
+            stopMacOSAudioCapture();
+        } catch (_) {}
+        app.exit(0);
     });
 
-    // Register toggle visibility shortcut
-    if (keybinds.toggleVisibility) {
-        try {
-            globalShortcut.register(keybinds.toggleVisibility, () => {
-                if (mainWindow.isVisible()) {
-                    mainWindow.hide();
-                } else {
-                    mainWindow.showInactive();
-                }
-            });
-            console.log(`Registered toggleVisibility: ${keybinds.toggleVisibility}`);
-        } catch (error) {
-            console.error(`Failed to register toggleVisibility (${keybinds.toggleVisibility}):`, error);
-        }
+    // ── Movement ──
+    const moveActions = {
+        moveUp: () => safeMove(mainWindow, 0, -Math.max(10, winState().moveStep)),
+        moveDown: () => safeMove(mainWindow, 0, +Math.max(10, winState().moveStep)),
+        moveLeft: () => safeMove(mainWindow, -Math.max(10, winState().moveStep), 0),
+        moveRight: () => safeMove(mainWindow, +Math.max(10, winState().moveStep), 0),
+    };
+    for (const [action, fn] of Object.entries(moveActions)) {
+        if (winState().moveEnabled !== false) tryRegister(action, keybinds[action], fn);
     }
 
-    // Register toggle click-through shortcut
-    if (keybinds.toggleClickThrough) {
-        try {
-            globalShortcut.register(keybinds.toggleClickThrough, () => {
-                mouseEventsIgnored = !mouseEventsIgnored;
-                if (mouseEventsIgnored) {
-                    mainWindow.setIgnoreMouseEvents(true, { forward: true });
-                    console.log('Mouse events ignored');
-                } else {
-                    mainWindow.setIgnoreMouseEvents(false);
-                    console.log('Mouse events enabled');
-                }
-                mainWindow.webContents.send('click-through-toggled', mouseEventsIgnored);
-            });
-            console.log(`Registered toggleClickThrough: ${keybinds.toggleClickThrough}`);
-        } catch (error) {
-            console.error(`Failed to register toggleClickThrough (${keybinds.toggleClickThrough}):`, error);
+    // ── Visibility ──
+    tryRegister('toggleVisibility', keybinds.toggleVisibility, () => {
+        if (mainWindow.isVisible()) {
+            mainWindow.hide();
+        } else {
+            mainWindow.showInactive();
         }
+        storage.updateWindowState('visible', mainWindow.isVisible());
+    });
+
+    tryRegister('toggleClickThrough', keybinds.toggleClickThrough, () => {
+        mouseEventsIgnored = !mouseEventsIgnored;
+        mainWindow.setIgnoreMouseEvents(mouseEventsIgnored, { forward: true });
+        mainWindow.webContents.send('click-through-toggled', mouseEventsIgnored);
+    });
+
+    // ── Scale (window size — grows/shrinks from centre) ──
+    if (winState().scaleEnabled !== false) {
+        tryRegister('scaleUp', keybinds.scaleUp, () => {
+            const step = Math.max(HARD_LIMITS.scaleStepMin, winState().scaleStep ?? 0.1);
+            applyScale(mainWindow, step, winState().scaleMax ?? 1.5);
+        });
+        tryRegister('scaleDown', keybinds.scaleDown, () => {
+            const step = Math.max(HARD_LIMITS.scaleStepMin, winState().scaleStep ?? 0.1);
+            applyScale(mainWindow, -step, winState().scaleMin ?? 0.3);
+        });
     }
 
-    // Register next step shortcut (either starts session or takes screenshot based on view)
-    if (keybinds.nextStep) {
-        try {
-            globalShortcut.register(keybinds.nextStep, async () => {
-                console.log('Next step shortcut triggered');
+    // ── Zoom (content) ──
+    if (winState().zoomEnabled !== false) {
+        tryRegister('zoomIn', keybinds.zoomIn, () => {
+            const step = Math.max(HARD_LIMITS.zoomStepMin, winState().zoomStep ?? 0.1);
+            applyZoom(mainWindow, step, winState().zoomMax ?? 2.0);
+        });
+        tryRegister('zoomOut', keybinds.zoomOut, () => {
+            const step = Math.max(HARD_LIMITS.zoomStepMin, winState().zoomStep ?? 0.1);
+            applyZoom(mainWindow, -step, winState().zoomMin ?? 0.5);
+        });
+        tryRegister('zoomReset', keybinds.zoomReset, () => {
+            mainWindow.webContents.setZoomFactor(1.0);
+            storage.updateWindowState('zoom', 1.0);
+            sendToRenderer('zoom-changed', 1.0);
+        });
+    }
+
+    // ── Font Opacity (Ctrl+[ / Ctrl+]) ──
+    tryRegister('fontOpacityUp', keybinds.fontOpacityUp, () => {
+        sendToRenderer('font-opacity-change', 0.1);
+    });
+    tryRegister('fontOpacityDown', keybinds.fontOpacityDown, () => {
+        sendToRenderer('font-opacity-change', -0.1);
+    });
+
+    // ── Background Opacity (Ctrl+Shift+[ / Ctrl+Shift+]) ──
+    tryRegister('bgOpacityUp', keybinds.bgOpacityUp, () => {
+        sendToRenderer('bg-opacity-change', 0.05);
+    });
+    tryRegister('bgOpacityDown', keybinds.bgOpacityDown, () => {
+        sendToRenderer('bg-opacity-change', -0.05);
+    });
+
+    // ── Session ──
+    if (winState().sessionEnabled !== false) {
+        tryRegister('nextStep', keybinds.nextStep, () => {
+            const isMac = process.platform === 'darwin';
+            const key = isMac ? 'cmd+enter' : 'ctrl+enter';
+            mainWindow.webContents.executeJavaScript(`cheatingDaddy.handleShortcut('${key}');`).catch(() => {});
+        });
+        tryRegister('previousResponse', keybinds.previousResponse, () => sendToRenderer('navigate-previous-response'));
+        tryRegister('nextResponse', keybinds.nextResponse, () => sendToRenderer('navigate-next-response'));
+        tryRegister('scrollUp', keybinds.scrollUp, () => sendToRenderer('scroll-response-up'));
+        tryRegister('scrollDown', keybinds.scrollDown, () => sendToRenderer('scroll-response-down'));
+    }
+
+    // ── Voice ──
+    if (winState().voiceToggleEnabled !== false) {
+        tryRegister('toggleVoice', keybinds.toggleVoice, () => {
+            const enabled = !(winState().voiceEnabled ?? true);
+            storage.updateWindowState('voiceEnabled', enabled);
+            sendToRenderer('voice-toggled', enabled);
+        });
+    }
+
+    // ── Dev / Reload ──
+    if (winState().reloadEnabled !== false) {
+        tryRegister('reloadApp', keybinds.reloadApp, () => {
+            mainWindow.webContents.reload();
+        });
+        // devRefresh: full app restart
+        tryRegister('devRefresh', keybinds.devRefresh, () => {
+            app.relaunch();
+            app.exit(0);
+        });
+    }
+
+    // ── Global Controls ──
+    tryRegister('themeToggle', keybinds.themeToggle, () => {
+        sendToRenderer('theme-toggled');
+    });
+
+    tryRegister('fontSizeUp', keybinds.fontSizeUp, () => {
+        const prefs = storage.getPreferences();
+        let fontSize = parseInt(prefs.fontSize, 10);
+        if (isNaN(fontSize)) fontSize = 20;
+        const newSize = Math.min(48, fontSize + 1);
+        storage.updatePreference('fontSize', newSize);
+        sendToRenderer('font-size-changed', newSize);
+    });
+
+    tryRegister('fontSizeDown', keybinds.fontSizeDown, () => {
+        const prefs = storage.getPreferences();
+        let fontSize = parseInt(prefs.fontSize, 10);
+        if (isNaN(fontSize)) fontSize = 20;
+        const newSize = Math.max(8, fontSize - 1);
+        storage.updatePreference('fontSize', newSize);
+        sendToRenderer('font-size-changed', newSize);
+    });
+
+    tryRegister('aiModeToggle', keybinds.aiModeToggle, () => {
+        if (geminiSessionRef && geminiSessionRef.current) {
+            sendToRenderer('ai-mode-toggle-blocked');
+            return;
+        }
+        const prefs = storage.getPreferences();
+        const current = prefs.providerMode || 'byok';
+        const newMode = current === 'byok' ? 'local' : 'byok';
+        storage.updatePreference('providerMode', newMode);
+        sendToRenderer('ai-mode-toggled', newMode);
+    });
+
+    // ── Model Management ──
+    tryRegister('debugToggle', keybinds.debugToggle, () => {
+        const prefs = storage.getPreferences();
+        const enabled = !prefs.debugModeEnabled;
+        storage.updatePreference('debugModeEnabled', enabled);
+        sendToRenderer('debug-mode-toggled', enabled);
+    });
+
+    tryRegister('cycleSolutionModel', keybinds.cycleSolutionModel, () => {
+        const prefs = storage.getPreferences();
+        const models = storage.GEMINI_MODELS;
+        const current = prefs.modelSolution || models[0].id;
+        const idx = models.findIndex(m => m.id === current);
+        const next = models[(idx + 1) % models.length].id;
+        storage.updatePreference('modelSolution', next);
+        sendToRenderer('model-changed', { task: 'solution', model: next });
+    });
+
+    tryRegister('cycleExtractionModel', keybinds.cycleExtractionModel, () => {
+        const prefs = storage.getPreferences();
+        const models = storage.GEMINI_MODELS;
+        const current = prefs.modelExtraction || models[0].id;
+        const idx = models.findIndex(m => m.id === current);
+        const next = models[(idx + 1) % models.length].id;
+        storage.updatePreference('modelExtraction', next);
+        sendToRenderer('model-changed', { task: 'extraction', model: next });
+    });
+
+    // ── Typing Controls ──
+    if (typingManagerRef) {
+        tryRegister('holdToType', keybinds.holdToType, () => {
+            const status = typingManagerRef.getStatus();
+            if (status.state === 'typing') {
+                typingManagerRef.pause();
+            } else if (status.state === 'paused') {
+                typingManagerRef.resume();
+            } else if (status.state === 'idle' || status.state === 'completed' || status.state === 'aborted') {
+                const lastResponse = typingManagerRef.getLastResponse();
+                if (!lastResponse) {
+                    sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+                    return;
+                }
                 try {
-                    // Determine the shortcut key format
-                    const isMac = process.platform === 'darwin';
-                    const shortcutKey = isMac ? 'cmd+enter' : 'ctrl+enter';
-
-                    // Use the new handleShortcut function
-                    mainWindow.webContents.executeJavaScript(`
-                        cheatingDaddy.handleShortcut('${shortcutKey}');
-                    `);
-                } catch (error) {
-                    console.error('Error handling next step shortcut:', error);
+                    typingManagerRef.start();
+                } catch (e) {
+                    // No response loaded
                 }
-            });
-            console.log(`Registered nextStep: ${keybinds.nextStep}`);
-        } catch (error) {
-            console.error(`Failed to register nextStep (${keybinds.nextStep}):`, error);
-        }
+            }
+            sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+        });
+        tryRegister('abortTyping', keybinds.abortTyping, () => {
+            typingManagerRef.abort();
+            sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+        });
+        tryRegister('fullResponseType', keybinds.fullResponseType, () => {
+            const lastResponse = typingManagerRef.getLastResponse();
+            if (!lastResponse) {
+                sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+                return;
+            }
+            typingManagerRef.loadResponse(lastResponse);
+            typingManagerRef.start();
+            sendToRenderer('typing-status-changed', typingManagerRef.getStatus());
+        });
     }
 
-    // Register previous response shortcut
-    if (keybinds.previousResponse) {
-        try {
-            globalShortcut.register(keybinds.previousResponse, () => {
-                console.log('Previous response shortcut triggered');
-                sendToRenderer('navigate-previous-response');
-            });
-            console.log(`Registered previousResponse: ${keybinds.previousResponse}`);
-        } catch (error) {
-            console.error(`Failed to register previousResponse (${keybinds.previousResponse}):`, error);
+    // ── Debug Screenshot (save + copy to clipboard) ──
+    tryRegister('debugScreenshot', keybinds.debugScreenshot, () => {
+        Promise.all([screenshot.captureScreenshot(mainWindow), screenshot.copyScreenshotToClipboard(mainWindow)]).then(([saveResult, copyResult]) => {
+            if (saveResult.success && copyResult.success) {
+                sendToRenderer('debug-screenshot-captured', saveResult.path);
+                sendToRenderer('toast', { message: 'Screenshot saved and copied to clipboard', type: 'success' });
+            } else if (saveResult.success) {
+                sendToRenderer('debug-screenshot-captured', saveResult.path);
+                sendToRenderer('toast', { message: 'Screenshot saved (clipboard copy failed)', type: 'warning' });
+            } else if (copyResult.success) {
+                sendToRenderer('toast', { message: 'Screenshot copied to clipboard (file save failed)', type: 'warning' });
+            } else {
+                sendToRenderer('toast', { message: 'Screenshot capture failed', type: 'error' });
+            }
+        });
+    });
+
+    // Summary log: show which accelerators were registered (helps debug failures)
+    try {
+        const summary = {};
+        for (const [k, v] of Object.entries(keybinds || {})) {
+            if (k === '_version' || !v) continue;
+            try {
+                summary[k] = { accelerator: v, registered: globalShortcut.isRegistered(v) };
+            } catch (e) {
+                summary[k] = { accelerator: v, registered: false, error: e.message };
+            }
         }
-    }
-
-    // Register next response shortcut
-    if (keybinds.nextResponse) {
-        try {
-            globalShortcut.register(keybinds.nextResponse, () => {
-                console.log('Next response shortcut triggered');
-                sendToRenderer('navigate-next-response');
-            });
-            console.log(`Registered nextResponse: ${keybinds.nextResponse}`);
-        } catch (error) {
-            console.error(`Failed to register nextResponse (${keybinds.nextResponse}):`, error);
-        }
-    }
-
-    // Register scroll up shortcut
-    if (keybinds.scrollUp) {
-        try {
-            globalShortcut.register(keybinds.scrollUp, () => {
-                console.log('Scroll up shortcut triggered');
-                sendToRenderer('scroll-response-up');
-            });
-            console.log(`Registered scrollUp: ${keybinds.scrollUp}`);
-        } catch (error) {
-            console.error(`Failed to register scrollUp (${keybinds.scrollUp}):`, error);
-        }
-    }
-
-    // Register scroll down shortcut
-    if (keybinds.scrollDown) {
-        try {
-            globalShortcut.register(keybinds.scrollDown, () => {
-                console.log('Scroll down shortcut triggered');
-                sendToRenderer('scroll-response-down');
-            });
-            console.log(`Registered scrollDown: ${keybinds.scrollDown}`);
-        } catch (error) {
-            console.error(`Failed to register scrollDown (${keybinds.scrollDown}):`, error);
-        }
-    }
-
-    // Register emergency erase shortcut
-    if (keybinds.emergencyErase) {
-        try {
-            globalShortcut.register(keybinds.emergencyErase, () => {
-                console.log('Emergency Erase triggered!');
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.hide();
-
-                    if (geminiSessionRef.current) {
-                        geminiSessionRef.current.close();
-                        geminiSessionRef.current = null;
-                    }
-
-                    sendToRenderer('clear-sensitive-data');
-
-                    setTimeout(() => {
-                        const { app } = require('electron');
-                        app.quit();
-                    }, 300);
-                }
-            });
-            console.log(`Registered emergencyErase: ${keybinds.emergencyErase}`);
-        } catch (error) {
-            console.error(`Failed to register emergencyErase (${keybinds.emergencyErase}):`, error);
-        }
+        console.log('Global shortcuts registration summary:', summary);
+    } catch (e) {
+        // non-fatal
     }
 }
 
-function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
+// ──────────────────────────────────────────────────────────────
+// Helpers — scale, zoom, opacity, move
+// ──────────────────────────────────────────────────────────────
+
+function safeMove(win, dx, dy) {
+    if (!win || win.isDestroyed() || !win.isVisible()) return;
+    // Direct synchronous position update — the proven stable approach.
+    // No deferred scheduling, no setBounds, no delta accumulation.
+    // getPosition + setPosition is the simplest atomic path in Electron
+    // and does NOT trigger resize/recomposite artifacts.
+    const [currentX, currentY] = win.getPosition();
+    _programmaticMove = true;
+    win.setPosition(currentX + dx, currentY + dy);
+    _programmaticMove = false;
+}
+
+/**
+ * Scale the window uniformly from its centre.
+ * delta: positive = grow, negative = shrink
+ */
+function applyScale(win, delta, limit) {
+    const ws = storage.getWindowState();
+    const current = ws.scale ?? 1.0;
+    // Enforce hard limits
+    const effectiveLimit = delta > 0 ? Math.min(limit, HARD_LIMITS.scaleMax) : Math.max(limit, HARD_LIMITS.scaleMin);
+    const next = delta > 0 ? Math.min(current + Math.abs(delta), effectiveLimit) : Math.max(current - Math.abs(delta), effectiveLimit);
+    if (next === current) return;
+
+    const [cx, cy] = win.getPosition();
+    const [cw, ch] = win.getSize();
+
+    const nw = Math.round(DEFAULT_MAIN_WINDOW_SIZE.width * next);
+    const nh = Math.round(DEFAULT_MAIN_WINDOW_SIZE.height * next);
+    const nw2 = Math.max(MIN_WINDOW_SIZE.width, nw);
+    const nh2 = Math.max(MIN_WINDOW_SIZE.height, nh);
+
+    const nx = Math.round(cx + (cw - nw2) / 2);
+    const ny = Math.round(cy + (ch - nh2) / 2);
+
+    win.setBounds({ x: nx, y: ny, width: nw2, height: nh2 });
+    storage.setWindowState({ scale: next, x: nx, y: ny });
+
+    const { BrowserWindow: BW } = require('electron');
+    const windows = BW.getAllWindows();
+    for (const w of windows) w.webContents.send('scale-changed', next);
+}
+
+function applyZoom(win, delta, limit) {
+    const ws = storage.getWindowState();
+    const current = ws.zoom ?? 1.0;
+    // Enforce hard limits
+    const effectiveLimit = delta > 0 ? Math.min(limit, HARD_LIMITS.zoomMax) : Math.max(limit, HARD_LIMITS.zoomMin);
+    const next =
+        delta > 0
+            ? Math.min(parseFloat((current + Math.abs(delta)).toFixed(2)), effectiveLimit)
+            : Math.max(parseFloat((current - Math.abs(delta)).toFixed(2)), effectiveLimit);
+    if (next === current) return;
+    try {
+        win.webContents.setZoomFactor(next);
+    } catch (_) {}
+    storage.updateWindowState('zoom', next);
+    win.webContents.send('zoom-changed', next);
+}
+
+// ──────────────────────────────────────────────────────────────
+// IPC handlers
+// ──────────────────────────────────────────────────────────────
+
+function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef) {
     ipcMain.on('view-changed', (event, view) => {
-        if (!mainWindow.isDestroyed()) {
-            if (view !== 'assistant') {
-                mainWindow.setIgnoreMouseEvents(false);
-            }
+        if (!mainWindow.isDestroyed() && view !== 'assistant') {
+            mainWindow.setIgnoreMouseEvents(false);
         }
     });
 
     ipcMain.handle('window-minimize', () => {
-        if (!mainWindow.isDestroyed()) {
-            mainWindow.minimize();
+        if (!mainWindow.isDestroyed()) mainWindow.minimize();
+    });
+
+    ipcMain.handle('toggle-window-visibility', () => {
+        if (mainWindow.isDestroyed()) return { success: false };
+        if (mainWindow.isVisible()) {
+            mainWindow.hide();
+        } else {
+            mainWindow.showInactive();
         }
+        return { success: true };
     });
 
     ipcMain.on('update-keybinds', (event, newKeybinds) => {
         if (!mainWindow.isDestroyed()) {
-            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef);
+            storage.setKeybinds(newKeybinds);
+            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
         }
     });
 
-    ipcMain.handle('toggle-window-visibility', async event => {
+    // ── Window state getters/setters ──
+    ipcMain.handle('window:get-state', () => storage.getWindowState());
+
+    ipcMain.handle('window:set-state', (event, patch) => {
+        storage.setWindowState(patch);
+        _applyStatePatch(mainWindow, patch);
+        return { success: true };
+    });
+
+    ipcMain.handle('window:update-keybinds', (event, keybinds) => {
+        storage.setKeybinds(keybinds);
+        updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
+        return { success: true };
+    });
+
+    ipcMain.handle('window:reset-keybinds', () => {
+        const defaults = getDefaultKeybinds();
+        storage.setKeybinds(defaults);
+        updateGlobalShortcuts(defaults, mainWindow, sendToRenderer, geminiSessionRef, typingManagerRef);
+        return { success: true, keybinds: defaults };
+    });
+
+    ipcMain.handle('window:set-scale', (event, scale) => {
+        const clamped = Math.max(HARD_LIMITS.scaleMin, Math.min(HARD_LIMITS.scaleMax, scale));
+        const ws = storage.getWindowState();
+        applyScale(mainWindow, clamped - (ws.scale ?? 1.0), HARD_LIMITS.scaleMax);
+        return { success: true };
+    });
+
+    ipcMain.handle('window:set-zoom', (event, zoom) => {
+        const clamped = Math.max(HARD_LIMITS.zoomMin, Math.min(HARD_LIMITS.zoomMax, zoom));
         try {
-            if (mainWindow.isDestroyed()) {
-                return { success: false, error: 'Window has been destroyed' };
-            }
-
-            if (mainWindow.isVisible()) {
-                mainWindow.hide();
-            } else {
-                mainWindow.showInactive();
-            }
-            return { success: true };
-        } catch (error) {
-            console.error('Error toggling window visibility:', error);
-            return { success: false, error: error.message };
-        }
+            mainWindow.webContents.setZoomFactor(clamped);
+        } catch (_) {}
+        storage.updateWindowState('zoom', clamped);
+        mainWindow.webContents.send('zoom-changed', clamped);
+        return { success: true };
     });
+
+    ipcMain.handle('window:set-voice', (event, enabled) => {
+        storage.updateWindowState('voiceEnabled', enabled);
+        sendToRenderer('voice-toggled', enabled);
+        return { success: true };
+    });
+}
+
+function _applyStatePatch(win, patch) {
+    if (patch.zoom !== undefined) {
+        const clamped = Math.max(HARD_LIMITS.zoomMin, Math.min(HARD_LIMITS.zoomMax, patch.zoom));
+        try {
+            win.webContents.setZoomFactor(clamped);
+        } catch (_) {}
+    }
+    if (patch.scale !== undefined) {
+        const clamped = Math.max(HARD_LIMITS.scaleMin, Math.min(HARD_LIMITS.scaleMax, patch.scale));
+        const nw = Math.max(MIN_WINDOW_SIZE.width, Math.round(DEFAULT_MAIN_WINDOW_SIZE.width * clamped));
+        const nh = Math.max(MIN_WINDOW_SIZE.height, Math.round(DEFAULT_MAIN_WINDOW_SIZE.height * clamped));
+        const [cx, cy] = win.getPosition();
+        const [cw, ch] = win.getSize();
+        const nx = Math.round(cx + (cw - nw) / 2);
+        const ny = Math.round(cy + (ch - nh) / 2);
+        win.setBounds({ x: nx, y: ny, width: nw, height: nh });
+    }
 }
 
 module.exports = {
@@ -345,4 +635,7 @@ module.exports = {
     getDefaultKeybinds,
     updateGlobalShortcuts,
     setupWindowIpcHandlers,
+    applyScale,
+    applyZoom,
+    HARD_LIMITS,
 };

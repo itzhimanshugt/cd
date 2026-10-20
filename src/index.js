@@ -3,60 +3,104 @@ if (require('electron-squirrel-startup')) {
 }
 
 const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const path = require('path');
 const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
+const apiKeys = require('./utils/apiKeys');
 const storage = require('./storage');
+const { TypingManager } = require('./typing');
+const logger = require('./utils/logger');
+const screenshot = require('./utils/screenshot');
 
 const geminiSessionRef = { current: null };
 let mainWindow = null;
+let typingManager = null;
 
 function createMainWindow() {
-    mainWindow = createWindow(sendToRenderer, geminiSessionRef);
+    mainWindow = createWindow(sendToRenderer, geminiSessionRef, typingManager);
     return mainWindow;
 }
 
-app.whenReady().then(async () => {
-    // ── Startup optimization: non-blocking initialization ──
-    // 1. Initialize storage asynchronously where possible
-    //    (initializeStorage uses sync fs but is fast — keep it first for data integrity)
-    storage.initializeStorage();
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
+        }
+    });
 
-    // 2. Create window IMMEDIATELY to reduce perceived startup time
-    //    (don't wait for permission checks or other I/O)
-    createMainWindow();
+    app.whenReady().then(async () => {
+        // Initialize storage (checks version, resets if needed)
+        storage.initializeStorage();
 
-    // 3. Setup IPC handlers right after window (these are just registrations, very fast)
-    setupGeminiIpcHandlers(geminiSessionRef);
-    setupStorageIpcHandlers();
-    setupGeneralIpcHandlers();
-
-    // 4. Defer non-critical startup tasks to avoid blocking first paint
-    setImmediate(() => {
-        // Trigger screen recording permission prompt on macOS in background
-        // This is deferred so it doesn't block window creation
+        // Trigger screen recording permission prompt on macOS if not already granted
         if (process.platform === 'darwin') {
             const { desktopCapturer } = require('electron');
             desktopCapturer.getSources({ types: ['screen'] }).catch(() => {});
         }
-    });
-});
 
-app.on('window-all-closed', () => {
-    stopMacOSAudioCapture();
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
-});
-
-app.on('before-quit', () => {
-    stopMacOSAudioCapture();
-});
-
-app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+        const typingSettings = storage.getTypingSettings();
+        typingManager = new TypingManager({
+            backend: typingSettings.backend,
+            speed: typingSettings.typingSpeed,
+            granularity: typingSettings.granularity,
+            failoverChain: typingSettings.failoverChain,
+        });
         createMainWindow();
-    }
-});
+
+        // Forward typing events to renderer
+        typingManager.on('status-changed', status => sendToRenderer('typing-status-changed', status));
+        typingManager.on('progress-changed', progress => sendToRenderer('typing-progress-changed', progress));
+        typingManager.on('typing-started', () => sendToRenderer('typing-started'));
+        typingManager.on('typing-paused', () => sendToRenderer('typing-paused'));
+        typingManager.on('typing-completed', () => sendToRenderer('typing-completed'));
+        typingManager.on('typing-aborted', () => sendToRenderer('typing-aborted'));
+
+        setupGeminiIpcHandlers(geminiSessionRef);
+        setupStorageIpcHandlers();
+        setupApiKeysIpcHandlers();
+        setupGeneralIpcHandlers();
+        setupTypingIpcHandlers();
+        setupDebugIpcHandlers();
+
+        // Pre-warm screen capture subsystem to avoid first-session freeze on Windows
+        setTimeout(() => {
+            const { desktopCapturer } = require('electron');
+            desktopCapturer
+                .getSources({ types: ['screen'] })
+                .then(sources => {
+                    console.log(`Screen capture pre-warmed: ${sources.length} source(s)`);
+                })
+                .catch(() => {});
+        }, 1500);
+
+        // Defer validation to avoid competing with initial render and GPU setup
+        setTimeout(() => {
+            apiKeys.startBackgroundValidation();
+        }, 8000);
+    });
+
+    app.on('window-all-closed', () => {
+        stopMacOSAudioCapture();
+        if (process.platform !== 'darwin') {
+            app.quit();
+        }
+    });
+
+    app.on('before-quit', () => {
+        stopMacOSAudioCapture();
+        apiKeys.stopBackgroundValidation();
+    });
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            createMainWindow();
+        }
+    });
+}
 
 function setupStorageIpcHandlers() {
     // ============ CONFIG ============
@@ -197,6 +241,23 @@ function setupStorageIpcHandlers() {
         }
     });
 
+    ipcMain.handle('storage:get-window-state', async () => {
+        try {
+            return { success: true, data: storage.getWindowState() };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('storage:set-window-state', async (event, patch) => {
+        try {
+            storage.setWindowState(patch);
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
     // ============ HISTORY ============
     ipcMain.handle('storage:get-all-sessions', async () => {
         try {
@@ -268,9 +329,101 @@ function setupStorageIpcHandlers() {
     });
 }
 
+function setupApiKeysIpcHandlers() {
+    // List sanitized keys for a provider
+    ipcMain.handle('api-keys:list', async (event, provider) => {
+        try {
+            return { success: true, data: apiKeys.listKeys(provider) };
+        } catch (error) {
+            console.error('Error listing API keys:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // List keys for all providers in one call
+    ipcMain.handle('api-keys:list-all', async () => {
+        try {
+            const data = {};
+            for (const provider of storage.API_KEY_PROVIDERS) {
+                data[provider] = apiKeys.listKeys(provider);
+            }
+            return { success: true, data };
+        } catch (error) {
+            console.error('Error listing all API keys:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Add a key to a provider pool; fire-and-forget validation is triggered internally
+    ipcMain.handle('api-keys:add', async (event, provider, key, label) => {
+        try {
+            const result = await apiKeys.addKey(provider, key, label);
+            if (!result.ok) {
+                return { success: false, error: result.error };
+            }
+            return { success: true, data: result.entry };
+        } catch (error) {
+            console.error('Error adding API key:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Remove a key from a provider pool
+    ipcMain.handle('api-keys:remove', async (event, provider, id) => {
+        try {
+            const result = apiKeys.removeKey(provider, id);
+            if (!result.ok) {
+                return { success: false, error: result.error };
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('Error removing API key:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Manually revalidate a specific key
+    ipcMain.handle('api-keys:revalidate', async (event, provider, id) => {
+        try {
+            const result = await apiKeys.revalidateKey(provider, id);
+            return result.ok ? { success: true } : { success: false, error: result.error };
+        } catch (error) {
+            console.error('Error revalidating API key:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Manually revalidate all keys for a provider
+    ipcMain.handle('api-keys:revalidate-all', async (event, provider) => {
+        try {
+            const result = await apiKeys.revalidateAll(provider);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('Error revalidating all API keys:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Update label for a key
+    ipcMain.handle('api-keys:update-label', async (event, provider, id, label) => {
+        try {
+            const result = storage.updateProviderKey(provider, id, { label: (label || '').trim() });
+            if (result.ok) apiKeys.broadcastUpdate(provider);
+            return result.ok ? { success: true } : { success: false, error: result.error };
+        } catch (error) {
+            console.error('Error updating API key label:', error);
+            return { success: false, error: error.message };
+        }
+    });
+}
+
 function setupGeneralIpcHandlers() {
     ipcMain.handle('get-app-version', async () => {
         return app.getVersion();
+    });
+
+    ipcMain.handle('get-gemini-models', async () => {
+        return { success: true, data: storage.GEMINI_MODELS };
     });
 
     ipcMain.handle('quit-application', async event => {
@@ -294,16 +447,278 @@ function setupGeneralIpcHandlers() {
         }
     });
 
-    ipcMain.on('update-keybinds', (event, newKeybinds) => {
-        if (mainWindow) {
-            // Also save to storage
-            storage.setKeybinds(newKeybinds);
-            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef);
-        }
-    });
-
     // Debug logging from renderer
     ipcMain.on('log-message', (event, msg) => {
         console.log(msg);
+    });
+}
+
+function setupTypingIpcHandlers() {
+    ipcMain.handle('typing:load-response', async (event, text) => {
+        try {
+            typingManager.loadResponse(text);
+            return { success: true };
+        } catch (error) {
+            console.error('Error loading typing response:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Auto-load: called by the renderer when a new AI response arrives
+    ipcMain.handle('typing:auto-load', async (event, text) => {
+        try {
+            const result = typingManager.autoLoad(text);
+            return { success: true, deferred: result.deferred };
+        } catch (error) {
+            console.error('Error auto-loading typing response:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:start', async () => {
+        try {
+            typingManager.start();
+            return { success: true };
+        } catch (error) {
+            console.error('Error starting typing:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:pause', async () => {
+        try {
+            typingManager.pause();
+            return { success: true };
+        } catch (error) {
+            console.error('Error pausing typing:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:resume', async () => {
+        try {
+            typingManager.resume();
+            return { success: true };
+        } catch (error) {
+            console.error('Error resuming typing:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:abort', async () => {
+        try {
+            typingManager.abort();
+            return { success: true };
+        } catch (error) {
+            console.error('Error aborting typing:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:set-speed', async (event, wpm) => {
+        try {
+            typingManager.setSpeed(wpm);
+            return { success: true };
+        } catch (error) {
+            console.error('Error setting typing speed:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:set-backend', async (event, name) => {
+        try {
+            typingManager.setBackend(name);
+            return { success: true };
+        } catch (error) {
+            console.error('Error setting typing backend:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:get-status', async () => {
+        try {
+            return { success: true, data: typingManager.getStatus() };
+        } catch (error) {
+            console.error('Error getting typing status:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:skip-sentence', async () => {
+        try {
+            typingManager.skipSentence();
+            return { success: true };
+        } catch (error) {
+            console.error('Error skipping sentence:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:test-backend', async (event, name) => {
+        try {
+            const health = typingManager.getBackendHealth();
+            const available = typeof name === 'string' && Boolean(health[name] && health[name].available);
+            return { success: true, data: { backend: name, available } };
+        } catch (error) {
+            console.error('Error testing typing backend:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:get-settings', async () => {
+        try {
+            return { success: true, data: storage.getTypingSettings() };
+        } catch (error) {
+            console.error('Error getting typing settings:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('typing:set-settings', async (event, patch) => {
+        try {
+            storage.setTypingSettings(patch);
+            // Reconfigure typing manager with updated settings
+            const settings = storage.getTypingSettings();
+            if (patch.typingSpeed !== undefined) {
+                typingManager.setSpeed(settings.typingSpeed);
+            }
+            if (patch.backend !== undefined) {
+                typingManager.setBackend(settings.backend);
+            }
+            if (patch.failoverChain !== undefined) {
+                typingManager.setFailoverChain(settings.failoverChain);
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('Error setting typing settings:', error);
+            return { success: false, error: error.message };
+        }
+    });
+}
+
+function setupDebugIpcHandlers() {
+    ipcMain.handle('debug:capture-screenshot', async () => {
+        return screenshot.captureScreenshot(mainWindow);
+    });
+
+    ipcMain.handle('debug:copy-screenshot', async () => {
+        return screenshot.copyScreenshotToClipboard(mainWindow);
+    });
+
+    ipcMain.handle('debug:capture-and-copy', async () => {
+        const [saveResult, copyResult] = await Promise.all([
+            screenshot.captureScreenshot(mainWindow),
+            screenshot.copyScreenshotToClipboard(mainWindow),
+        ]);
+        return {
+            success: saveResult.success || copyResult.success,
+            saved: saveResult.success,
+            copied: copyResult.success,
+            path: saveResult.path || null,
+            error: !saveResult.success && !copyResult.success ? 'Both operations failed' : null,
+        };
+    });
+
+    ipcMain.handle('debug:open-screenshots', async () => {
+        return screenshot.openScreenshotsFolder();
+    });
+
+    ipcMain.handle('debug:get-logs', async (event, filters) => {
+        try {
+            return { success: true, data: logger.getEntries(filters || {}) };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('debug:clear-logs', async () => {
+        logger.clear();
+        return { success: true };
+    });
+
+    ipcMain.handle('debug:export-logs', async () => {
+        try {
+            const filePath = logger.exportToFile();
+            return { success: true, path: filePath };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('debug:set-log-level', async (event, level) => {
+        logger.setLevel(level);
+        return { success: true };
+    });
+
+    ipcMain.handle('debug:get-runtime-state', async () => {
+        try {
+            const keybinds = storage.getKeybinds();
+            const prefs = storage.getPreferences();
+            const winState = storage.getWindowState();
+            const typingSettings = storage.getTypingSettings();
+            const typingStatus = typingManager ? typingManager.getStatus() : { state: 'unavailable' };
+            const bounds = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
+            return {
+                success: true,
+                data: {
+                    keybinds,
+                    preferences: prefs,
+                    windowState: winState,
+                    windowBounds: bounds,
+                    typingSettings,
+                    typingStatus,
+                    memoryUsage: process.memoryUsage(),
+                    platform: process.platform,
+                    arch: process.arch,
+                    pid: process.pid,
+                },
+            };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('debug:get-performance', async () => {
+        try {
+            return {
+                success: true,
+                data: {
+                    uptime: process.uptime(),
+                    memoryUsage: process.memoryUsage(),
+                    cpuUsage: process.cpuUsage(),
+                    versions: process.versions,
+                    pid: process.pid,
+                },
+            };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('debug:export-snapshot', async () => {
+        try {
+            const fs = require('fs');
+            const snapshot = {
+                timestamp: Date.now(),
+                platform: process.platform,
+                arch: process.arch,
+                versions: process.versions,
+                uptime: process.uptime(),
+                memoryUsage: process.memoryUsage(),
+                config: storage.getConfig(),
+                preferences: storage.getPreferences(),
+                windowState: storage.getWindowState(),
+                keybinds: storage.getKeybinds(),
+                typingSettings: storage.getTypingSettings(),
+                typingStatus: typingManager ? typingManager.getStatus() : null,
+                logs: logger.getEntries(),
+            };
+            const dir = storage.getConfigDir();
+            const filePath = path.join(dir, `debug-snapshot-${Date.now()}.json`);
+            fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
+            return { success: true, path: filePath };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
     });
 }

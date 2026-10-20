@@ -4,6 +4,7 @@ export const unifiedPageStyles = css`
     * {
         box-sizing: border-box;
         font-family: var(--font);
+        font-weight: var(--response-font-weight, 400);
         cursor: default;
         user-select: none;
     }
@@ -107,7 +108,9 @@ export const unifiedPageStyles = css`
         border-radius: var(--radius-sm);
         padding: 8px 12px;
         font-size: var(--font-size-sm);
-        transition: border-color var(--transition), box-shadow var(--transition);
+        transition:
+            border-color var(--transition),
+            box-shadow var(--transition);
     }
 
     .control:hover:not(:focus) {

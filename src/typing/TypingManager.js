@@ -75,6 +75,26 @@ class TypingManager extends EventEmitter {
     }
 
     /**
+     * Loads a response that arrived automatically (new AI response).
+     * Unlike loadResponse(), this never disturbs an in-progress or paused
+     * session - otherwise pausing and resuming would lose the user's place
+     * when a fresh response lands in between. The latest text is still
+     * remembered for the full-response hotkey.
+     * @param {string} text - The response text to type
+     * @returns {{deferred: boolean}}
+     */
+    autoLoad(text) {
+        this._lastResponse = text;
+
+        if (this._state === STATES.TYPING || this._state === STATES.PAUSED) {
+            return { deferred: true };
+        }
+
+        this.loadResponse(text);
+        return { deferred: false };
+    }
+
+    /**
      * Starts typing the loaded response.
      */
     start() {
@@ -82,7 +102,9 @@ class TypingManager extends EventEmitter {
             throw new Error('No response loaded. Call loadResponse() first.');
         }
 
-        if (this._state === STATES.TYPING) return;
+        // A manual pause stays paused until the user resumes; don't let an
+        // auto-start restart typing out from under them.
+        if (this._state === STATES.TYPING || this._state === STATES.PAUSED) return;
 
         // After an abort or a finished run, restart from the beginning.
         // An aborted queue refuses to start, which made the scheduler re-inject the first chunk forever.

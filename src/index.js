@@ -467,8 +467,8 @@ function setupTypingIpcHandlers() {
     // Auto-load: called by the renderer when a new AI response arrives
     ipcMain.handle('typing:auto-load', async (event, text) => {
         try {
-            typingManager.loadResponse(text);
-            return { success: true };
+            const result = typingManager.autoLoad(text);
+            return { success: true, deferred: result.deferred };
         } catch (error) {
             console.error('Error auto-loading typing response:', error);
             return { success: false, error: error.message };
